@@ -2,6 +2,34 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.3.4] - 2026-10-17
+
+### 🐛 Perbaikan Bug & Optimasi Visual (Hotfix Latar Belakang Peta Share)
+- **Perbaikan Matriks Warna Mode Gelap Peta (Eliminasi Zero-Clamping):**
+  - Mengidentifikasi akar masalah visual di mana latar belakang peta OpenStreetMap tampak hilang/gelap total (*solid black*) saat dibagikan. Formula matriks warna lama (`-0.2, -0.7, -0.1, 0, 235`) membalikkan warna pastel OSM dan menjepit (*clamp*) semua fitur geografis (daratan `#F2EFE9` dan jalan raya `#FFFFFF`) ke nilai RGB `0, 0, 0` (hitam pekat) sehingga jalan dan daratan tidak dapat dibedakan.
+  - Memperbarui matriks warna ke skema kontras tinggi ala *midnight slate*:
+    - **Daratan:** Slate gelap elegan (`#293250`).
+    - **Jalanan:** Garis jalan terang terlihat jelas (`#2F395D`).
+    - **Tepian Jalan:** Batas kontras presisi (`#192241`).
+    - **Perairan:** Biru laut *deep navy* (`#09244A`).
+    - **Taman & Vegetasi:** Hijau pinus alami (`#18302F`).
+- **Penyesuaian Gradasi Vignette Kartu Berbagi:**
+  - Menghilangkan tutupan bayangan hitam pekat di bagian tengah kartu pada mode peta, memungkinkan 100% detail grafis peta OSM dan garis lintasan rute terlihat transparan dan jelas tanpa terhalang bayangan tebal.
+- **Rendering Instan Tile Peta (*Instantaneous Tile Display*):**
+  - Mengaktifkan `TileDisplay.instantaneous()` pada `TileLayer` peta share maupun live map, menghilangkan jeda animasi *fade-in* (100ms) saat tile berhasil diunduh.
+- **Penyelarasan Waktu Tangkap Snapshot (*Capture Settling Delay*):**
+  - Menyesuaikan durasi penundaan rendering di `SocialShareService.capturePng` menjadi 250ms sebelum *RepaintBoundary* diekstrak, memastikan dekoder bitmap raster tile telah terlukis sepenuhnya ke kanvas sebelum citra PNG dihasilkan.
+- **Ekspor Kartu Beresolusi Tinggi Full HD 1080p+ (Anti-Blur / Anti-Pecah):**
+  - Mengatasi kendala gambar tampak buram (*blur/pixelated*) saat diposting ke Instagram Stories atau WhatsApp Status. Sebelumnya, rasio piksel tetap (`pixelRatio = 2.0`) pada kartu pratinjau (lebar ~310dp) hanya menghasilkan citra berukuran ~620x1108 px sehingga buram saat di-stretch ke resolusi standar cerita ponsel (1080x1920 px).
+  - Mengimplementasikan skala adaptif `(1080.0 / boundaryWidth).clamp(3.0, 4.5)` pada `SocialShareService.capturePng` guna menjamin lebar citra PNG hasil tangkapan **selalu minimal 1080 px (1080 x 1920 Full HD)**.
+  - Mengaktifkan `retinaMode: true` pada `TileLayer` peta share untuk merender *tile* OpenStreetMap pada tingkat ketajaman 2x lebih rapat (*high-density retina*), menjadikan nama jalan, kontur rute, dan teks sangat tajam tanpa blur.
+- **Peningkatan Suite Pengujian Unit (*Test-First Verification*):**
+  - Menambahkan pengujian matematis validasi matriks warna `SocialShareCard.darkMatrix` untuk menjamin tidak adanya pemotongan ke nilai nol (*zero clamping*).
+  - Menambahkan pengujian verifikasi resolusi citra PNG bahwa `capturePng` menghasilkan lebar $\ge 1080\text{ px}$ dan tinggi $\ge 1900\text{ px}$ (Full HD 9:16).
+  - Seluruh **50 pengujian unit & widget** lolos 100%.
+
+---
+
 ## [v1.0.3.3] - 2026-10-17
 
 ### 🚀 Fitur Baru & Peningkatan

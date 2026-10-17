@@ -20,11 +20,11 @@ class SocialShareService {
   static const _shareChannel =
       MethodChannel('online.nurmancloud.velora/social_share');
 
-  /// Mengambil snapshot widget RepaintBoundary menjadi citra PNG beresolusi tajam
-  static Future<Uint8List?> capturePng(GlobalKey repaintKey, {double pixelRatio = 2.0}) async {
+  /// Mengambil snapshot widget RepaintBoundary menjadi citra PNG beresolusi tajam (Full HD 1080p+)
+  static Future<Uint8List?> capturePng(GlobalKey repaintKey, {double? pixelRatio}) async {
     try {
-      // Penundaan singkat untuk memastikan widget tree selesai me-layout dan merender
-      await Future.delayed(const Duration(milliseconds: 50));
+      // Penundaan untuk memastikan widget tree selesai me-layout dan merender gambar map tile
+      await Future.delayed(const Duration(milliseconds: 250));
 
       ui.Image? image;
       for (int i = 0; i < 5; i++) {
@@ -32,7 +32,20 @@ class SocialShareService {
           final boundary =
               repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
           if (boundary != null && boundary.attached) {
-            image = await boundary.toImage(pixelRatio: pixelRatio);
+            // Skala adaptif untuk menjamin output minimal 1080px (standar Instagram Story / WhatsApp Status)
+            final double effectivePixelRatio;
+            if (pixelRatio != null) {
+              effectivePixelRatio = pixelRatio;
+            } else {
+              final boundaryWidth = boundary.size.width;
+              if (boundaryWidth > 0) {
+                // Target lebar 1080px (atau 1080x1920 untuk rasio 9:16)
+                effectivePixelRatio = (1080.0 / boundaryWidth).clamp(3.0, 4.5);
+              } else {
+                effectivePixelRatio = 3.5;
+              }
+            }
+            image = await boundary.toImage(pixelRatio: effectivePixelRatio);
             break;
           }
         } catch (e) {

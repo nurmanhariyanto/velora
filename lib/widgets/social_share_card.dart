@@ -33,13 +33,16 @@ class SocialShareCard extends StatelessWidget {
     required this.repaintKey,
   });
 
-  // Filter warna matrix untuk mode gelap OpenStreetMap
-  static const List<double> _darkMatrix = <double>[
-    -0.2, -0.7, -0.1, 0, 235,
-    -0.2, -0.7, -0.1, 0, 235,
-    -0.2, -0.7, -0.1, 0, 235,
-    0,    0,    0,    1, 0,
+  /// Filter warna matrix untuk mode gelap OpenStreetMap khas Velora
+  /// Menghasilkan daratan dark slate (#293250), jalanan terang (#2F395D),
+  /// tepian jalan (#192241), air navy (#09244A), dan taman hijau tua (#18302F)
+  static const List<double> darkMatrix = <double>[
+    0.45, 0.00, 0.00, 0, -68,
+    0.00, 0.48, 0.00, 0, -65,
+    0.00, 0.00, 0.58, 0, -55,
+    0.00, 0.00, 0.00, 1,   0,
   ];
+  static const List<double> _darkMatrix = darkMatrix;
 
   @override
   Widget build(BuildContext context) {
@@ -76,9 +79,13 @@ class SocialShareCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Colors.black.withAlpha(style == ShareCardStyle.map ? 180 : 200),
-                      Colors.black.withAlpha(style == ShareCardStyle.map ? 30 : 50),
-                      Colors.black.withAlpha(style == ShareCardStyle.map ? 190 : 220),
+                      Colors.black.withAlpha(style == ShareCardStyle.map
+                          ? (mapDarkTheme ? 110 : 130)
+                          : 200),
+                      Colors.black.withAlpha(style == ShareCardStyle.map ? 0 : 40),
+                      Colors.black.withAlpha(style == ShareCardStyle.map
+                          ? (mapDarkTheme ? 120 : 140)
+                          : 220),
                     ],
                     stops: const [0.0, 0.45, 0.95],
                     begin: Alignment.topCenter,
@@ -345,39 +352,47 @@ class SocialShareCard extends StatelessWidget {
     final bool isTinySpread = latDiff < 0.0005 && lngDiff < 0.0005;
     final center = bounds.center;
 
-    return FlutterMap(
-      options: MapOptions(
-        initialCenter: center,
-        initialZoom: 16.0,
-        initialCameraFit: isTinySpread
-            ? null
-            : CameraFit.bounds(
-                bounds: bounds,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
-                maxZoom: 17.0,
-                minZoom: 4.0,
-              ),
-        minZoom: 3.0,
-        maxZoom: 18.0,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.none,
+    return Container(
+      color: const Color(0xFF141923),
+      child: FlutterMap(
+        options: MapOptions(
+          initialCenter: center,
+          initialZoom: 16.0,
+          initialCameraFit: isTinySpread
+              ? null
+              : CameraFit.bounds(
+                  bounds: bounds,
+                  padding: const EdgeInsets.only(
+                    top: 130,
+                    bottom: 100,
+                    left: 28,
+                    right: 28,
+                  ),
+                  maxZoom: 17.0,
+                  minZoom: 4.0,
+                ),
+          minZoom: 3.0,
+          maxZoom: 18.0,
+          interactionOptions: const InteractionOptions(
+            flags: InteractiveFlag.none,
+          ),
         ),
-      ),
-      children: [
-        // Lapisan Peta OpenStreetMap 100% Bebas API Key
-        TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'online.nurmancloud.velora',
-          tileBuilder: mapDarkTheme
-              ? (context, tileWidget, tile) {
-                  return ColorFiltered(
-                    colorFilter: const ColorFilter.matrix(_darkMatrix),
-                    child: tileWidget,
-                  );
-                }
-              : null,
-        ),
+        children: [
+          // Lapisan Peta OpenStreetMap 100% Bebas API Key
+          TileLayer(
+            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            userAgentPackageName: 'online.nurmancloud.velora',
+            tileDisplay: const TileDisplay.instantaneous(),
+            retinaMode: true,
+            tileBuilder: mapDarkTheme
+                ? (context, tileWidget, tile) {
+                    return ColorFiltered(
+                      colorFilter: const ColorFilter.matrix(_darkMatrix),
+                      child: tileWidget,
+                    );
+                  }
+                : null,
+          ),
 
         // Garis Lintasan Rute Olahraga (Glow & Garis Oranye Khas Velora)
         PolylineLayer(
@@ -447,7 +462,8 @@ class SocialShareCard extends StatelessWidget {
           ],
         ),
       ],
-    );
+    ),
+  );
   }
 
   Widget _buildMinimalBackground() {

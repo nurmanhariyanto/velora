@@ -38,11 +38,13 @@ class _LiveMapViewState extends State<LiveMapView> {
   static const LatLng _defaultLocation = LatLng(-0.026330, 109.342504);
 
   // Filter warna matrix untuk mengubah OpenStreetMap menjadi Dark Mode tanpa API key
+  // Menghasilkan daratan dark slate (#293250), jalanan terang (#2F395D),
+  // tepian jalan (#192241), air navy (#09244A), dan taman hijau tua (#18302F)
   static const List<double> _darkMatrix = <double>[
-    -0.2, -0.7, -0.1, 0, 235,
-    -0.2, -0.7, -0.1, 0, 235,
-    -0.2, -0.7, -0.1, 0, 235,
-    0,    0,    0,    1, 0,
+    0.45, 0.00, 0.00, 0, -68,
+    0.00, 0.48, 0.00, 0, -65,
+    0.00, 0.00, 0.58, 0, -55,
+    0.00, 0.00, 0.00, 1,   0,
   ];
 
   @override
@@ -116,6 +118,7 @@ class _LiveMapViewState extends State<LiveMapView> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'online.nurmancloud.velora',
+              tileDisplay: const TileDisplay.instantaneous(),
               tileBuilder: _currentTheme == MapThemeMode.dark
                   ? (context, tileWidget, tile) {
                       return ColorFiltered(
