@@ -12,15 +12,59 @@ class SocialShareService {
   /// Mengambil snapshot widget RepaintBoundary menjadi citra PNG beresolusi tajam
   static Future<Uint8List?> capturePng(GlobalKey repaintKey, {double pixelRatio = 2.0}) async {
     try {
-      final boundary =
-          repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return null;
+      // Tunggu hingga rendering frame selesai sepenuhnya
+      await WidgetsBinding.instance.endOfFrame;
 
-      if (boundary.debugNeedsPaint) {
-        await Future.delayed(const Duration(milliseconds: 50));
+      RenderRepaintBoundary? boundary =
+          repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null || !boundary.attached) {
+        debugPrint('RepaintBoundary render object is not ready or unattached, waiting...');
+        await Future.delayed(const Duration(milliseconds: 100));
+        await WidgetsBinding.instance.endOfFrame;
+        boundary =
+            repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+        if (boundary == null || !boundary.attached) {
+          debugPrint('RepaintBoundary still null or unattached');
+          return null;
+        }
       }
 
-      final ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
+      int attempts = 0;
+      while ((boundary?.debugNeedsPaint ?? false) && attempts < 10) {
+        await Future.delayed(const Duration(milliseconds: 50));
+        await WidgetsBinding.instance.endOfFrame;
+        boundary =
+            repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+        if (boundary == null || !boundary.attached) return null;
+        attempts++;
+      }
+
+      ui.Image? image;
+      for (int i = 0; i < 3; i++) {
+        try {
+          final current =
+              repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+          if (current == null || !current.attached) return null;
+
+          if (current.debugNeedsPaint) {
+            await Future.delayed(const Duration(milliseconds: 50));
+            await WidgetsBinding.instance.endOfFrame;
+            continue;
+          }
+          image = await current.toImage(pixelRatio: pixelRatio);
+          break;
+        } catch (e) {
+          debugPrint('SocialShareService: capturePng attempt $i caught: $e');
+          await Future.delayed(const Duration(milliseconds: 100));
+          await WidgetsBinding.instance.endOfFrame;
+        }
+      }
+
+      if (image == null) {
+        debugPrint('SocialShareService: Failed to obtain image from RepaintBoundary');
+        return null;
+      }
+
       final ByteData? byteData =
           await image.toByteData(format: ui.ImageByteFormat.png);
 

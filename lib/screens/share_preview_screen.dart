@@ -90,7 +90,8 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       if (!success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Batal atau gagal memproses gambar kartu.'),
+            content: Text('Gagal memproses gambar kartu untuk dibagikan.'),
+            backgroundColor: AppColors.neonRed,
           ),
         );
       }

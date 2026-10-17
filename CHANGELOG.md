@@ -2,6 +2,16 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.3.2] - 2026-10-17
+
+### 🐛 Perbaikan Bug Minor (Hotfix)
+- **Perbaikan Pemrosesan Ekspor Gambar Kartu (Social Share):** Memperbaiki kendala munculnya pesan *"Batal atau gagal memproses gambar kartu"* saat menekan tombol *BAGIKAN (IG / WA)* di layar pratinjau kartu media sosial:
+  - Sinkronisasi *rasterization frame pipeline* menggunakan `WidgetsBinding.instance.endOfFrame` untuk menjamin rendering kartu selesai sebelum konversi ke gambar.
+  - Penanganan status `debugNeedsPaint` pada `RenderRepaintBoundary` dengan verifikasi keterikatan pohon widget (*attached check*) dan mekanisme *retry loop* otomatis hingga 3 kali percobaan.
+  - Penyempurnaan alur berbagi native `SharePlus` agar modal share sheet sistem Android/iOS selalu terbuka tanpa terhalang kegagalan snapshot frame.
+
+---
+
 ## [v1.0.3.1] - 2026-10-17
 
 ### 🐛 Perbaikan Bug Minor (Hotfix)
