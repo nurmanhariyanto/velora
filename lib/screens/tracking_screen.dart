@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/sports_type.dart';
 import '../providers/tracking_provider.dart';
+import '../services/update_service.dart';
 import '../widgets/auto_pause_banner.dart';
 import '../widgets/control_buttons.dart';
 import '../widgets/live_map_view.dart';
@@ -63,6 +64,11 @@ class _TrackingScreenState extends State<TrackingScreen> {
       appBar: AppBar(
         title: const VeloraLogo(size: 32, showTagline: true),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.system_update_rounded, size: 20),
+            tooltip: 'Periksa Pembaruan',
+            onPressed: () => UpdateService.checkForUpdate(context, silent: false),
+          ),
           // Badge Status Kecil di Header
           Container(
             margin: const EdgeInsets.only(right: 16),

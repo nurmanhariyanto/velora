@@ -3,6 +3,8 @@ import '../constants/app_colors.dart';
 import 'history_screen.dart';
 import 'tracking_screen.dart';
 
+import '../services/update_service.dart';
+
 /// Navigasi Utama Aplikasi Velora (Pelacakan & Riwayat)
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -13,6 +15,14 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateService.checkForUpdate(context, silent: true);
+    });
+  }
 
   final List<Widget> _screens = const [
     TrackingScreen(),
