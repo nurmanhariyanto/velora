@@ -2,6 +2,19 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.3.5] - 2026-10-17
+
+### 🐛 Perbaikan Bug & Alur Pengguna (Hotfix Tombol Selesai & Reset Status)
+- **Reset Otomatis Status Selesai ke Siap Mulai (*Clean State Reset*):**
+  - Mengatasi kendala di mana setelah menekan *"Selesai"* $\to$ *"Simpan & Selesai"*, saat pengguna menekan tombol kembali (*Back*) dari layar rincian aktivitas, tombol kontrol di layar pelacakan utama masih menampilkan *"LANJUT"* dan mempertahankan data lama alih-alih menampilkan tombol *"MULAI LATIHAN"* dari awal (0.00 km).
+  - Di `TrackingProvider.stopAndSaveSession()`: status pelacakan kini otomatis di-reset menjadi `TrackingStatus.idle` dan `_resetState()` dieksekusi segera setelah data sesi berhasil disimpan ke SQLite lokal.
+  - Memperbarui widget `ControlButtons` agar kondisi `TrackingStatus.completed` maupun `TrackingStatus.idle` sama-sama menampilkan tombol utama *"MULAI LATIHAN"* dan pemilih jenis olahraga (*LARI* / *SEPEDA*).
+  - Menghubungkan reload otomatis `HistoryProvider.loadActivities()` dan `AchievementProvider.loadAchievements()` saat sesi disimpan sehingga riwayat dan trofi langsung terbarui tanpa *refresh* manual.
+- **Peningkatan Suite Pengujian Unit (*Test-First Verification*):**
+  - Menambahkan berkas pengujian baru `test/session_completion_test.dart` yang menguji status kontrol tombol pada kondisi *idle*, *completed*, *tracking*, dan *paused*. Total **54 pengujian unit & widget** lolos 100%.
+
+---
+
 ## [v1.0.3.4] - 2026-10-17
 
 ### 🐛 Perbaikan Bug & Optimasi Visual (Hotfix Latar Belakang Peta Share)

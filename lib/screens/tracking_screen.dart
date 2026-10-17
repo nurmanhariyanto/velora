@@ -3,6 +3,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/sports_type.dart';
+import '../providers/achievement_provider.dart';
+import '../providers/history_provider.dart';
 import '../providers/tracking_provider.dart';
 import '../services/update_service.dart';
 import '../widgets/auto_pause_banner.dart';
@@ -34,6 +36,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
     final session = await provider.stopAndSaveSession();
 
     if (session != null && mounted) {
+      // Perbarui daftar riwayat dan pencapaian trofi secara otomatis
+      context.read<HistoryProvider>().loadActivities();
+      context.read<AchievementProvider>().loadAchievements();
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Sesi latihan berhasil disimpan ke riwayat lokal!'),

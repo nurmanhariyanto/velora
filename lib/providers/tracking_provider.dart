@@ -221,6 +221,10 @@ class TrackingProvider extends ChangeNotifier {
     // Simpan ke SQLite
     await _activityRepository.insertActivity(session);
 
+    // Reset status pelacakan kembali ke idle agar siap untuk sesi baru berikutnya
+    _status = TrackingStatus.idle;
+    _resetState();
+
     notifyListeners();
     return session;
   }

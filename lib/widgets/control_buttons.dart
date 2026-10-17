@@ -26,7 +26,7 @@ class ControlButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (status == TrackingStatus.idle) {
+    if (status == TrackingStatus.idle || status == TrackingStatus.completed) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
