@@ -21,13 +21,17 @@ class SharePreviewScreen extends StatefulWidget {
 class _SharePreviewScreenState extends State<SharePreviewScreen> {
   final GlobalKey _repaintKey = GlobalKey();
   final ImagePicker _picker = ImagePicker();
+
+  ShareCardStyle _currentStyle = ShareCardStyle.map;
   String? _selectedPhotoPath;
+  bool _mapDarkTheme = true;
   bool _isSharing = false;
 
   @override
   void initState() {
     super.initState();
     _selectedPhotoPath = widget.session.photoPath;
+    // Jika sesi sudah memiliki foto, default tetap peta ala Strava, namun foto siap dipilih
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -42,6 +46,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       if (image != null) {
         setState(() {
           _selectedPhotoPath = image.path;
+          _currentStyle = ShareCardStyle.photo;
         });
       }
     } catch (e) {
@@ -91,16 +96,6 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: const Text('Bagikan ke Media Sosial'),
-        actions: [
-          if (_selectedPhotoPath != null)
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded),
-              tooltip: 'Reset Latar Belakang',
-              onPressed: () {
-                setState(() => _selectedPhotoPath = null);
-              },
-            ),
-        ],
       ),
       body: SafeArea(
         child: Column(
@@ -109,17 +104,19 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
             Expanded(
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
                   child: SocialShareCard(
                     session: widget.session,
                     backgroundPhotoPath: _selectedPhotoPath,
+                    style: _currentStyle,
+                    mapDarkTheme: _mapDarkTheme,
                     repaintKey: _repaintKey,
                   ),
                 ),
               ),
             ),
 
-            // Bar Aksi Bawah: Pilihan Foto & Tombol Bagikan
+            // Bar Aksi Bawah: Pilihan Tema Gaya & Tombol Bagikan
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: const BoxDecoration(
@@ -135,45 +132,134 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Tombol Pemilih Foto
+                  // 1. Selector Tab Gaya Tampilan (Peta / Foto / Minimalis)
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _pickPhoto(ImageSource.camera),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textPrimary,
-                            side: const BorderSide(color: AppColors.borderSubtle),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          icon: const Icon(Icons.camera_alt_rounded, size: 20),
-                          label: const Text('Ambil Foto'),
+                        child: _buildStyleChip(
+                          icon: Icons.map_rounded,
+                          label: 'Peta Rute',
+                          style: ShareCardStyle.map,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _pickPhoto(ImageSource.gallery),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.textPrimary,
-                            side: const BorderSide(color: AppColors.borderSubtle),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
-                          icon: const Icon(Icons.photo_library_rounded, size: 20),
-                          label: const Text('Dari Galeri'),
+                        child: _buildStyleChip(
+                          icon: Icons.photo_camera_rounded,
+                          label: 'Foto Saya',
+                          style: ShareCardStyle.photo,
+                          onTap: () {
+                            if (_selectedPhotoPath == null) {
+                              _showPhotoSourceBottomSheet();
+                            } else {
+                              setState(() => _currentStyle = ShareCardStyle.photo);
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _buildStyleChip(
+                          icon: Icons.palette_rounded,
+                          label: 'Minimalis',
+                          style: ShareCardStyle.minimal,
                         ),
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 12),
 
-                  // Tombol Bagikan Utama
+                  // 2. Kontrol Kontekstual Berdasarkan Gaya yang Dipilih
+                  if (_currentStyle == ShareCardStyle.map) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() => _mapDarkTheme = !_mapDarkTheme);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.neonCyan,
+                            side: const BorderSide(color: AppColors.borderSubtle),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: Icon(
+                            _mapDarkTheme
+                                ? Icons.wb_sunny_rounded
+                                : Icons.nightlight_round,
+                            size: 16,
+                          ),
+                          label: Text(
+                            _mapDarkTheme
+                                ? 'Ubah ke Peta Terang'
+                                : 'Ubah ke Peta Gelap',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ] else if (_currentStyle == ShareCardStyle.photo) ...[
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _pickPhoto(ImageSource.camera),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.textPrimary,
+                              side: const BorderSide(color: AppColors.borderSubtle),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                            label: const Text('Kamera', style: TextStyle(fontSize: 12)),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _pickPhoto(ImageSource.gallery),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.textPrimary,
+                              side: const BorderSide(color: AppColors.borderSubtle),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.photo_library_rounded, size: 18),
+                            label: const Text('Galeri', style: TextStyle(fontSize: 12)),
+                          ),
+                        ),
+                        if (_selectedPhotoPath != null) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            color: AppColors.neonRed,
+                            tooltip: 'Hapus Foto',
+                            onPressed: () {
+                              setState(() {
+                                _selectedPhotoPath = null;
+                                _currentStyle = ShareCardStyle.map;
+                              });
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // 3. Tombol Bagikan Utama
                   SizedBox(
                     width: double.infinity,
                     height: 52,
@@ -211,6 +297,100 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildStyleChip({
+    required IconData icon,
+    required String label,
+    required ShareCardStyle style,
+    VoidCallback? onTap,
+  }) {
+    final isSelected = _currentStyle == style;
+
+    return InkWell(
+      onTap: onTap ?? () => setState(() => _currentStyle = style),
+      borderRadius: BorderRadius.circular(14),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppColors.primaryOrange.withAlpha(40)
+              : AppColors.cardSurfaceElevated,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryOrange : AppColors.borderSubtle,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 20,
+              color: isSelected ? AppColors.primaryOrange : AppColors.textSecondary,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPhotoSourceBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardSurface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Pilih Sumber Foto',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  leading: const Icon(Icons.camera_alt_rounded, color: AppColors.primaryOrange),
+                  title: const Text('Ambil Foto dari Kamera'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickPhoto(ImageSource.camera);
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_rounded, color: AppColors.neonCyan),
+                  title: const Text('Pilih dari Galeri'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _pickPhoto(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
