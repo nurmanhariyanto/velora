@@ -6,13 +6,15 @@ Dokumen ini memuat daftar fitur lengkap untuk aplikasi **Velora: Run & Ride** (b
 
 ## A. Daftar Fitur Utama Aplikasi Velora
 
-1. **Pelacakan Aktivitas Lintas Olahraga (Run & Ride):** Melacak rute menggunakan GPS secara *real-time* untuk aktivitas lari dan bersepeda, dengan kalkulasi metrik yang disesuaikan (Pace untuk lari, Kecepatan untuk sepeda).
-2. **Peta Interaktif (OpenStreetMap):** Menampilkan posisi pengguna saat ini secara *live* di atas peta dasar (OSM) dan menggambar rute perjalanan menggunakan garis *polyline* yang terus bertambah. Kamera peta otomatis mengikuti pergerakan pengguna.
-3. **Pelacakan Latar Belakang (Background Tracking):** Aktivitas tetap terekam secara akurat meskipun layar ponsel dimatikan atau aplikasi disembunyikan, menggunakan *Foreground Service* Android.
-4. **Dashboard Statistik Cerdas:** Menampilkan metrik *real-time* meliputi Durasi, Jarak (km), Kecepatan Saat Ini, dan rata-rata Pace.
-5. **Auto-Pause:** Perekaman waktu dan jarak otomatis berhenti sementara (*pause*) saat pengguna berhenti bergerak (misal: di lampu merah), dan kembali melanjut (*resume*) saat pergerakan terdeteksi lagi.
-6. **Riwayat Aktivitas (Local Storage):** Menyimpan daftar aktivitas masa lalu beserta rute koordinatnya langsung di memori ponsel pengguna menggunakan SQLite, tanpa perlu koneksi internet.
-7. **Social Media Sharing (Ekspor Gambar):** Memungkinkan pengguna mengambil foto (atau memilih dari galeri), yang kemudian otomatis ditumpuk (*overlay*) dengan logo Velora, rute *polyline* mini, dan teks metrik aktivitas. Gambar akhir dapat langsung dibagikan ke WhatsApp atau Instagram Story.
+1. **Pelacakan Aktivitas Lintas Olahraga (Run & Ride):** Melacak rute menggunakan GPS secara *real-time* untuk aktivitas lari dan bersepeda, dengan kalkulasi metrik yang disesuaikan (Pace untuk lari, Kecepatan untuk sepeda). *(Status: Selesai)*
+2. **Peta Interaktif (OpenStreetMap):** Menampilkan posisi pengguna saat ini secara *live* di atas peta dasar (OSM / CartoDB Dark) dan menggambar rute perjalanan menggunakan garis *polyline* neon cyan (`#00E5FF`). Kamera peta otomatis mengikuti pergerakan pengguna. *(Status: Selesai)*
+3. **Pelacakan Latar Belakang (Background Tracking):** Aktivitas tetap terekam secara akurat meskipun layar ponsel dimatikan atau aplikasi disembunyikan, menggunakan *Foreground Service* Android (`FOREGROUND_SERVICE_LOCATION` dan `WAKE_LOCK`). *(Status: Selesai)*
+4. **Pintasan Kontrol Notifikasi Latar Belakang (Notification Actions):** Tombol aksi cepat Jeda/Lanjut (*Pause/Resume*) dan Selesai (*Finish*) langsung pada bilah notifikasi dan layar kunci (*lock screen*) tanpa harus membuka aplikasi. *(Status: Selesai)*
+5. **Dashboard Statistik Cerdas:** Menampilkan metrik *real-time* meliputi Durasi Bersih, Jarak (km), Kecepatan Saat Ini, rata-rata Pace, dan Elevasi Positif (+m). *(Status: Selesai)*
+6. **Auto-Pause Adaptif:** Perekaman waktu dan jarak otomatis berhenti sementara (*pause*) saat pengguna berhenti bergerak (< 2 km/jam selama $\ge 3$ detik), dan kembali melanjut (*resume*) saat pergerakan terdeteksi lagi ($\ge 2.5$ km/jam atau perpindahan $> 5$ m). *(Status: Selesai)*
+7. **Riwayat Aktivitas (Local Storage):** Menyimpan daftar aktivitas masa lalu beserta rute koordinatnya langsung di memori internal ponsel menggunakan SQLite (`velora_local.db`), 100% tanpa internet. *(Status: Selesai)*
+8. **Social Media Sharing (Ekspor Gambar 9:16):** Mengambil foto atau memilih dari galeri, otomatis ditumpuk (*overlay*) via `RepaintBoundary` dengan logo Velora, rute *polyline* mini oranye, dan teks metrik aktivitas dengan bayangan tajam. Gambar akhir dapat langsung dibagikan ke WhatsApp atau Instagram Story. *(Status: Selesai)*
+9. **Pembaruan Otomatis Aplikasi (In-App Auto-Update):** Memeriksa ketersediaan versi rilis baru secara otomatis dan manual dari GitHub Releases API, membandingkan SemVer, menampilkan dialog *changelog*, serta mengunduh file APK langsung. *(Status: Selesai)*
 
 ---
 
@@ -20,37 +22,37 @@ Dokumen ini memuat daftar fitur lengkap untuk aplikasi **Velora: Run & Ride** (b
 
 ### 1. Agent Analisis (Systems & Requirements Analyst)
 **Tanggung Jawab:** Merumuskan logika, spesifikasi teknis fitur, dan arsitektur data.
-* **Analisis Algoritma GPS:** Menentukan formula kalkulasi jarak (misal: *Haversine formula*) dan merumuskan toleransi *noise* GPS (radius akurasi yang dapat diterima).
-* **Definisi Logika Auto-Pause:** Menetapkan angka ambang batas (*threshold*). Contoh: Jika kecepatan < 2 km/jam selama 3 detik beruntun, pemicu *Auto-Pause* aktif.
-* **Skema Database (SQLite):** Mendesain struktur tabel:
-  * `Tabel_Sesi`: id, tipe_olahraga (run/ride), waktu_mulai, waktu_selesai, durasi_aktif, total_jarak.
-  * `Tabel_Koordinat`: id, sesi_id, latitude, longitude, kecepatan, timestamp.
-* **Manajemen Performa:** Merumuskan penerapan algoritma penyederhanaan rute (*Douglas-Peucker*) untuk mencegah *lag* saat memuat riwayat rute yang panjang.
+* **Analisis Algoritma GPS:** Menentukan formula kalkulasi jarak (*Haversine*) dan filter *noise/drift* GPS. *(Selesai)*
+* **Definisi Logika Auto-Pause:** Menetapkan angka ambang batas ($< 2\text{ km/jam}$ selama 3 detik) dan kondisi *resume*. *(Selesai)*
+* **Skema Database (SQLite):** Mendesain struktur tabel `aktivitas` dan `titik_koordinat`. *(Selesai)*
+* **Manajemen Performa:** Merumuskan penerapan algoritma penyederhanaan rute (*Douglas-Peucker*). *(Selesai)*
+* **Logika Pembaruan Versi:** Menentukan algoritma perbandingan SemVer untuk auto-update. *(Selesai)*
 
 ### 2. Agent Desain (UI/UX & Graphic Designer)
 **Tanggung Jawab:** Menerjemahkan fitur menjadi pengalaman visual yang menarik dan ergonomis.
-* **Branding & Aset:** Menyediakan logo utama Velora (ikon 'V' panah ganda oranye) dan aset ikon pendukung (sepeda, sepatu lari, ikon *pause/play*).
-* **Desain Peta (Map Styling):** Menentukan visualisasi peta OSM (menggunakan *layer basemap* yang bersih/redup) dan warna *polyline* rute (contoh: biru neon semi-transparan dengan ketebalan 8px).
-* **UI/UX Layar Tracking:** Membuat desain prototipe untuk halaman utama, penempatan panel statistik (di bagian bawah), dan tombol *floating* untuk kontrol peta (pusatkan GPS, ganti lapisan peta).
-* **Template Overlay Social Share:** Membuat tata letak *watermark* foto untuk Instagram/WA. Mengatur posisi metrik utama di tengah atas (menggunakan efek *drop-shadow*), peta *polyline* mini di tengah, dan logo Velora di bagian bawah foto.
+* **Branding & Aset:** Menyediakan logo utama Velora (vektor 'V' panah ganda oranye) dan ikon olahraga pendukung. *(Selesai)*
+* **Desain Peta (Map Styling):** Menentukan visualisasi peta OSM (tema *dark* dan standar) dan rute *polyline* neon cyan 7px dengan efek *glow*. *(Selesai)*
+* **UI/UX Layar Tracking & Riwayat:** Desain panel statistik ergonomis di bagian bawah, tombol kontrol besar, dan kartu riwayat. *(Selesai)*
+* **Template Overlay Social Share:** Tata letak kanvas 9:16 untuk Instagram/WA dengan efek *vignette/drop-shadow* dan *mini polyline*. *(Selesai)*
+* **Desain Dialog Update:** Antarmuka notifikasi versi baru modern dengan catatan rilis. *(Selesai)*
 
 ### 3. Agent Coding (Mobile Developer - Flutter)
-**Tanggung Jawab:** Membangun aplikasi secara utuh berdasarkan spesifikasi analis dan visualisasi desainer.
-* **Modul Peta & Lokasi (Fitur 1 & 2):** Mengintegrasikan `flutter_map` dan `geolocator`. Membangun fungsi yang menggambar titik koordinat baru ke dalam *List* yang di-*render* sebagai `PolylineLayer`.
-* **Sistem Latar Belakang (Fitur 3):** Menerapkan paket *foreground service* agar Android OS tidak mematikan akses GPS saat ponsel terkunci.
-* **Engine Metrik & Auto-Pause (Fitur 4 & 5):** Menerjemahkan logika *Auto-Pause* dari analis menjadi kode *stream listener* di Dart. Mengatur *stopwatch* agar hanya berjalan jika status pengguna sedang "bergerak".
-* **Database Manager (Fitur 6):** Membuat *repository* menggunakan `sqflite` untuk *Insert*, *Read*, dan *Delete* data riwayat aktivitas.
-* **Modul Social Share (Fitur 7):** Menggunakan `RepaintBoundary` untuk menumpuk antarmuka *widget* (foto kamera + logo + teks + garis mini) dan mengubahnya menjadi *byte array* (gambar PNG), lalu memanggil paket `share_plus` untuk membagikannya ke media sosial.
+**Tanggung Jawab:** Membangun aplikasi secara utuh berdasarkan spesifikasi analis dan desainer.
+* **Modul Peta & Lokasi (Fitur 1 & 2):** Integrasi `flutter_map` dan `geolocator` dengan filter akurasi. *(Selesai)*
+* **Sistem Latar Belakang (Fitur 3 & 4):** Menerapkan `flutter_foreground_task` dengan notifikasi persisten dan tombol aksi. *(Selesai)*
+* **Engine Metrik & Auto-Pause (Fitur 5 & 6):** Logika *Auto-Pause* di `AutoPauseDetector`, perhitungan metrik di `PaceCalculator`, dan state di `TrackingProvider`. *(Selesai)*
+* **Database Manager (Fitur 7):** Repository `sqflite` untuk menyimpan, membaca, dan menghapus sesi di `ActivityRepository`. *(Selesai)*
+* **Modul Social Share (Fitur 8):** Komponen `SocialShareCard` dengan `RepaintBoundary` dan integrasi `SharePlus`. *(Selesai)*
+* **Modul Auto-Update (Fitur 9):** Integrasi GitHub API, perbandingan SemVer, dan pengunduhan APK di `UpdateService`. *(Selesai)*
 
 ### 4. Agent Pengujian (QA & Testing)
-**Tanggung Jawab:** Memastikan setiap fitur bekerja sempurna di lingkungan dunia nyata.
-* **Functional Testing:** Menekan semua tombol antarmuka, memeriksa apakah data tersimpan di riwayat, dan memvalidasi apakah gambar *share* ke Instagram ter-ekspor dengan resolusi tajam.
-* **Field / Live Testing:** Melakukan uji coba fisik dengan membawa ponsel berjalan, berlari, dan bersepeda untuk memastikan *polyline* tergambar sesuai jalan, serta kalkulasi jaraknya wajar/akurat.
-* **Scenario Testing (Auto-Pause):** Menguji skenario berhenti tiba-tiba di jalan untuk melihat apakah aplikasi dengan cepat mendeteksi status "Pause" dan tidak menambah jarak kosong (*GPS drift*).
-* **Battery & Memory Profiling:** Mengukur konsumsi baterai selama 1-2 jam perekaman tanpa henti. Jika baterai boros, meminta Agent Analisis/Coding untuk mengurangi interval ping GPS.
+**Tanggung Jawab:** Memastikan setiap fitur bekerja sempurna dan bebas *bug*.
+* **Functional & Unit Testing:** 25 pengujian unit dan widget otomatis (100% lolos di `test/`). *(Selesai)*
+* **Scenario Testing (Auto-Pause):** Validasi kondisi diam dan bergerak kembali dengan jeda waktu konfirmasi. *(Selesai)*
+* **Code Quality Assurance:** Menjalankan `flutter analyze` dengan 0 *warning* dan 0 *error*. *(Selesai)*
 
 ### 5. Agent DevOps & Rilis (Release Manager)
-**Tanggung Jawab:** Mempersiapkan aplikasi untuk fase rilis dan distribusi ke ponsel pengguna.
-* **Kompilasi & Build:** Mengatur konfigurasi *build.gradle* dan *AndroidManifest.xml* untuk memastikan semua izin yang diperlukan (Kamera, Lokasi Latar Belakang, Penyimpanan) sudah dideklarasikan dengan benar.
-* **Signing & Security:** Membuat *Keystore* untuk membubuhkan tanda tangan digital pada file *Release* APK/AAB agar valid di OS Android.
-* **App Optimization:** Menjalankan *ProGuard/R8 obfuscation* agar kode aplikasi aman dan ukuran file akhir APK (untuk dibagikan secara lokal/internal) menjadi sangat kecil.
+**Tanggung Jawab:** Mempersiapkan aplikasi untuk fase rilis dan distribusi ke pengguna.
+* **Kompilasi & Build:** Konfigurasi `build.gradle.kts` (minSdk 24, Java 17) dan perizinan lengkap di `AndroidManifest.xml`. *(Selesai)*
+* **Keystore & Security:** Konfigurasi *signing* dan aturan keamanan ProGuard/R8 di `proguard-rules.pro`. *(Selesai)*
+* **CI/CD & Distribusi GitHub:** Repositori terpusat di `https://github.com/nurmanhariyanto/velora` dengan rilis APK resmi dan *workflow* CI/CD. *(Selesai)*

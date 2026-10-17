@@ -1,67 +1,81 @@
 # Rencana Pembagian Kerja: Proyek Aplikasi Velora (Mode Lokal)
 
-Dokumen ini merinci pembagian tugas dan tanggung jawab untuk masing-masing agen/peran dalam pengembangan **Velora: Run & Ride**, aplikasi pelacak kebugaran berbasis GPS (Android/Flutter) yang berjalan secara lokal tanpa server.
+Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masing agen/peran dalam pengembangan **Velora: Run & Ride**, aplikasi pelacak kebugaran berbasis GPS (Android/Flutter) yang berjalan secara lokal tanpa server.
+
+---
 
 ## 1. Agent Analisis (Systems & Requirements Analyst)
 
 **Fokus:** Mendefinisikan spesifikasi teknis, algoritma, dan struktur data aplikasi Velora.
 
-**Tugas Utama:**
+**Tugas Utama & Realisasi:**
 
-* **Definisi Fitur:** Menulis *Product Requirement Document* (PRD) yang mencakup batasan aplikasi (mode lokal), spesifikasi peta OpenStreetMap (OSM), dan alur berbagi ke media sosial.
-* **Desain Struktur Database (SQLite):** Merancang skema tabel relasional lokal.
-  * Tabel `Aktivitas` (id, jenis_olahraga, waktu_mulai, waktu_selesai, total_jarak, elevasi_total).
-  * Tabel `Titik_Koordinat` (id, aktivitas_id, latitude, longitude, elevasi, timestamp).
-* **Pemodelan Algoritma:**
-  * Menentukan parameter untuk algoritma *Haversine* dalam perhitungan jarak.
-  * Menetapkan *threshold* (ambang batas) kecepatan untuk pemicu fitur **Auto-Pause** (misal: < 2km/jam selama 3 detik).
-  * Menentukan interval pengambilan GPS (misal: setiap 3 detik atau setiap perpindahan 5 meter) untuk optimasi baterai.
+* [x] **Definisi Fitur:** Menulis *Product Requirement Document* (PRD) yang mencakup batasan aplikasi (mode lokal), spesifikasi peta OpenStreetMap (OSM), dan alur berbagi ke media sosial di `docs/PRD_VELORA.md`.
+* [x] **Desain Struktur Database (SQLite):** Merancang skema tabel relasional lokal:
+  * Tabel `aktivitas` (id, jenis_olahraga, waktu_mulai, waktu_selesai, total_durasi_detik, total_jarak_meter, elevasi_positif, dll).
+  * Tabel `titik_koordinat` (id, aktivitas_id, latitude, longitude, elevasi, timestamp, kecepatan, is_auto_paused).
+* [x] **Pemodelan Algoritma:**
+  * Menentukan parameter formula *Haversine* dalam perhitungan jarak di `lib/algorithms/haversine.dart`.
+  * Menetapkan *threshold* kecepatan untuk pemicu fitur **Auto-Pause** (< 2 km/jam selama $\ge 3$ detik) di `lib/services/auto_pause_detector.dart`.
+  * Menentukan algoritma kompresi rute **Douglas-Peucker** di `lib/algorithms/douglas_peucker.dart`.
+  * Merumuskan logika perbandingan SemVer untuk pembaruan rilis otomatis di `lib/models/app_update_info.dart`.
+
+---
 
 ## 2. Agent Desain (UI/UX Designer)
 
 **Fokus:** Merancang antarmuka pengguna, pengalaman pengguna, identitas visual (Branding), dan aset aplikasi.
 
-**Tugas Utama:**
+**Tugas Utama & Realisasi:**
 
-* **Identitas Visual (Branding):** Mengimplementasikan logo **Velora** (ikon panah ganda 'V' berwarna oranye khas) ke seluruh aset aplikasi.
-* **Wireframing & Prototyping:** Membuat *mockup* interaktif menggunakan Figma.
-* **Desain Peta (Map Styling):** Menentukan gaya visual peta OSM dasar (tema *muted* atau gelap) dan gaya *Polyline* rute GPS (garis biru neon dengan transparansi dan ketebalan spesifik).
-* **Desain Panel Navigasi:** Merancang panel *bottom-sheet* untuk statistik *real-time* (Kecepatan, Pace, Jarak, Waktu) dan desain tombol besar (Play/Pause/Stop).
-* **Desain Template Berbagi (Social Share):** Merancang tata letak *overlay* rendering gambar lokal:
-  * **Top/Tengah:** Teks metrik (Jarak, Kenaikan Elev, Waktu) dengan efek bayangan (vignette/drop shadow) agar kontras.
-  * **Tengah:** Mini Polyline berwarna oranye untuk menampilkan bentuk rute perjalanan.
-  * **Bawah:** Logo "VELORA: RUN & RIDE" ditempatkan di bagian bawah tengah gambar.
+* [x] **Identitas Visual (Branding):** Mengimplementasikan logo **Velora** (ikon panah ganda 'V' berwarna oranye khas dengan gradasi api) di `lib/widgets/velora_logo.dart`.
+* [x] **Sistem Desain (Design System):** Menyusun panduan warna, tipografi, dan komponen visual di `docs/DESIGN_SYSTEM_VELORA.md`.
+* [x] **Desain Peta (Map Styling):** Menentukan gaya visual peta OSM dasar (tema standar & CartoDB dark) dan gaya *Polyline* neon cyan (`#00E5FF`) dengan efek *glow* di `lib/widgets/live_map_view.dart`.
+* [x] **Desain Panel Navigasi:** Merancang panel *bottom-sheet* ergonomis untuk statistik *real-time* (Kecepatan, Pace, Jarak, Waktu, Elevasi) dan desain tombol besar (Play/Pause/Resume/Stop) di `lib/widgets/control_buttons.dart`.
+* [x] **Desain Template Berbagi (Social Share 9:16):** Merancang tata letak *overlay* gambar dengan rasio 9:16 untuk IG Story / WA di `lib/widgets/social_share_card.dart` dan `lib/widgets/mini_route_painter.dart`.
+* [x] **Desain Dialog Update:** Antarmuka notifikasi versi baru modern dengan badge versi dan catatan rilis di `lib/widgets/update_dialog.dart`.
+
+---
 
 ## 3. Agent Coding (Mobile Developer - Flutter)
 
 **Fokus:** Mengimplementasikan kode, logika, dan menyatukan seluruh komponen aplikasi Velora.
 
-**Tugas Utama:**
+**Tugas Utama & Realisasi:**
 
-* **Setup Lingkungan & Pustaka:** Menginisialisasi proyek Flutter dengan package name `online.nurmancloud.velora`. Memasang pustaka utama (`flutter_map`, `geolocator`, `sqflite`, `share_plus`, `image_picker`).
-* **Integrasi Peta & OSM:** Menampilkan *TileLayer* OpenStreetMap dan mengonfigurasi *MapController* agar kamera mengikuti pergerakan kursor pengguna.
-* **Layanan Latar Belakang (Foreground Service):** Menulis *native channel* atau menggunakan paket Flutter untuk memastikan GPS tetap merekam saat layar mati atau aplikasi di-*minimize*.
-* **Logika Pelacakan (Tracking Logic):** Mengimplementasikan filter GPS, perhitungan jarak *real-time*, dan sistem logika *Auto-Pause*.
-* **Fitur Ekspor Gambar (RepaintBoundary):** Membangun komponen UI tersembunyi yang menumpuk foto jepretan pengguna dengan data statistik dan logo Velora, lalu mengubahnya menjadi file gambar (PNG) untuk dibagikan ke Instagram/WhatsApp.
+* [x] **Setup Lingkungan & Pustaka:** Menginisialisasi proyek Flutter dengan package name `online.nurmancloud.velora`. Memasang pustaka utama (`flutter_map`, `latlong2`, `geolocator`, `sqflite`, `share_plus`, `image_picker`, `flutter_foreground_task`, `package_info_plus`, `url_launcher`, `http`).
+* [x] **Integrasi Peta & OSM:** Menampilkan *TileLayer* OpenStreetMap & CartoDB dengan penanda posisi live dan *PolylineLayer* yang diperbarui secara dinamis di `lib/widgets/live_map_view.dart`.
+* [x] **Layanan Latar Belakang (Foreground Service):** Menggunakan `flutter_foreground_task` agar GPS tetap merekam saat layar ponsel mati atau aplikasi di-*minimize*, serta notifikasi persisten di `lib/services/foreground_service_handler.dart`.
+* [x] **Logika Pelacakan (Tracking Logic):** Mengimplementasikan filter GPS, perhitungan jarak *real-time*, akumulasi elevasi, stopwatch waktu aktif, dan sistem *Auto-Pause* di `lib/providers/tracking_provider.dart`.
+* [x] **Fitur Ekspor Gambar (RepaintBoundary):** Membangun komponen penangkapan snapshot PNG beresolusi tinggi dan berbagi ke media sosial di `lib/services/social_share_service.dart`.
+* [x] **Fitur Auto-Update:** Mengimplementasikan pengecekan otomatis dan manual ke GitHub Releases API di `lib/services/update_service.dart`.
+
+---
 
 ## 4. Agent Pengujian (QA & Testing)
 
 **Fokus:** Memastikan aplikasi berjalan bebas *bug*, akurat, dan tidak menguras baterai ponsel.
 
-**Tugas Utama:**
+**Tugas Utama & Realisasi:**
 
-* **Pengujian Fungsional:** Memastikan tombol berfungsi, *auto-pause* terpicu tepat waktu, dan render gambar fitur *share* menghasilkan resolusi yang tajam.
-* **Pengujian Lapangan (Field Testing):** Menguji aplikasi secara fisik di luar ruangan (misal: rute Jl. Danau Sentarum) untuk lari dan bersepeda guna memvalidasi akurasi GPS.
-* **Pengujian Performa (Stress Test):** Mensimulasikan data rute panjang untuk melihat apakah peta menjadi *lagging*. Jika ya, menginstruksikan penerapan algoritma *Douglas-Peucker* (penyederhanaan garis).
-* **Pengujian Baterai:** Memantau tingkat konsumsi daya baterai selama 1 jam penggunaan konstan di latar belakang.
+* [x] **Pengujian Fungsional & Unit:** 25 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/algorithms_test.dart`: Haversine, Douglas-Peucker, PaceCalculator.
+  * `test/auto_pause_test.dart`: Trigger Auto-Pause dan Auto-Resume.
+  * `test/models_and_db_test.dart`: Serialisasi dan mapping SQLite.
+  * `test/update_service_test.dart`: Logika perbandingan versi SemVer.
+  * `test/widget_test.dart`: Rendering widget UI utama.
+* [x] **Linter & Code Health:** Menjalankan `flutter analyze` dengan hasil bersih (0 *errors*, 0 *warnings*).
+
+---
 
 ## 5. Agent DevOps & Rilis (Release Manager)
 
 **Fokus:** Otomatisasi proses *build*, manajemen versi, dan distribusi aplikasi.
 
-**Tugas Utama:**
+**Tugas Utama & Realisasi:**
 
-* **CI/CD Pipeline:** Mengatur *workflow* di GitHub Actions/GitLab CI untuk kompilasi otomatis.
-* **Manajemen Keystore & Signing:** Membuat dan mengamankan kunci untuk proses *build* aplikasi Android (.APK) versi *Release*.
-* **Optimasi Build:** Melakukan *obfuscation* dan memangkas ukuran aplikasi agar APK sekecil mungkin.
-* **Distribusi Internal:** Mengunggah versi beta ke platform (seperti Firebase App Distribution) agar tim penguji (*QA*) dapat mengunduh dan menguji coba Velora.
+* [x] **Inisialisasi Repositori Git & GitHub:** Membuat repositori di `https://github.com/nurmanhariyanto/velora` dan melakukan push commit `main`.
+* [x] **CI/CD Pipeline:** Menyediakan konfigurasi GitHub Actions di `ci/github-actions-build.yml`.
+* [x] **Konfigurasi Android & Izin:** Mengatur `AndroidManifest.xml` (Lokasi, Background, Kamera, Foreground Service Type) dan `build.gradle.kts` (minSdk 24, targetSdk 35, Java 17).
+* [x] **Optimasi ProGuard/R8:** Menerapkan aturan kompilasi rilis di `android/app/proguard-rules.pro`.
+* [x] **Rilis Perdana GitHub (v1.0.0):** Kompilasi file APK rilis dan publikasi rilis di GitHub Releases.
