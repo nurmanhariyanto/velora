@@ -2,6 +2,17 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.3.1] - 2026-10-17
+
+### 🐛 Perbaikan Bug Minor (Hotfix)
+- **Perbaikan Freeze & Crash pada Fitur Bagikan Riwayat:** Memperbaiki kendala aplikasi membeku dan keluar saat menekan tombol share pada riwayat. Masalah ini diatasi dengan:
+  - Pembatasan tingkat zoom kamera peta (`maxZoom: 17.0`, `minZoom: 4.0`) guna mencegah kalkulasi zoom tak hingga (`double.infinity`) pada sesi dengan sedikit titik koordinat atau pergerakan statis.
+  - Fallback otomatis ke latar belakang minimalis/foto saat sesi memiliki kurang dari 2 titik GPS.
+  - Penanganan kesalahan pembukaan kartu share dengan blok *try-catch* dan pesan interaktif yang aman.
+  - Optimasi resolusi snapshot kartu (menggunakan *pixelRatio* 2.0 yang lebih efisien memori) serta sinkronisasi penundaan render sebelum ekstraksi *RepaintBoundary*.
+
+---
+
 ## [v1.0.3] - 2026-10-17
 
 ### 🚀 Fitur Baru & Peningkatan (Latest Release)

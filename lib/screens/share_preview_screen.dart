@@ -31,7 +31,13 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
   void initState() {
     super.initState();
     _selectedPhotoPath = widget.session.photoPath;
-    // Jika sesi sudah memiliki foto, default tetap peta ala Strava, namun foto siap dipilih
+    if (widget.session.coordinates.length < 2) {
+      _currentStyle = _selectedPhotoPath != null
+          ? ShareCardStyle.photo
+          : ShareCardStyle.minimal;
+    } else {
+      _currentStyle = ShareCardStyle.map;
+    }
   }
 
   Future<void> _pickPhoto(ImageSource source) async {
@@ -62,6 +68,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
   }
 
   Future<void> _shareImage() async {
+    if (_isSharing) return;
     setState(() => _isSharing = true);
 
     try {
@@ -69,11 +76,24 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       final title =
           'Velora ${widget.session.sportsType.shortName} • $distStr dalam ${widget.session.formattedDuration}!';
 
-      await SocialShareService.shareActivityImage(
+      final box = context.findRenderObject() as RenderBox?;
+      final origin =
+          box != null ? box.localToGlobal(Offset.zero) & box.size : null;
+
+      final success = await SocialShareService.shareActivityImage(
         repaintKey: _repaintKey,
         activityTitle: title,
         subject: 'Velora: Run & Ride Activity',
+        sharePositionOrigin: origin,
       );
+
+      if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Batal atau gagal memproses gambar kartu.'),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

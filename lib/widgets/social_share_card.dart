@@ -298,10 +298,13 @@ class SocialShareCard extends StatelessWidget {
         return _buildMapBackground();
 
       case ShareCardStyle.photo:
-        if (backgroundPhotoPath != null && File(backgroundPhotoPath!).existsSync()) {
+        if (backgroundPhotoPath != null &&
+            File(backgroundPhotoPath!).existsSync()) {
           return Image.file(
             File(backgroundPhotoPath!),
             fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) =>
+                _buildMinimalBackground(),
           );
         }
         return _buildMinimalBackground();
@@ -312,7 +315,7 @@ class SocialShareCard extends StatelessWidget {
   }
 
   Widget _buildMapBackground() {
-    if (session.coordinates.isEmpty) {
+    if (session.coordinates.length < 2) {
       return _buildMinimalBackground();
     }
 
@@ -320,14 +323,35 @@ class SocialShareCard extends StatelessWidget {
         .map((c) => LatLng(c.latitude, c.longitude))
         .toList();
 
+    // Singkirkan titik dengan koordinat tidak valid (NaN)
+    polylinePoints.removeWhere((p) => p.latitude.isNaN || p.longitude.isNaN);
+    if (polylinePoints.length < 2) {
+      return _buildMinimalBackground();
+    }
+
     final bounds = LatLngBounds.fromPoints(polylinePoints);
+    final latDiff = (bounds.north - bounds.south).abs();
+    final lngDiff = (bounds.east - bounds.west).abs();
+
+    // Jika selisih koordinat sangat kecil (rute diam atau uji coba indoor)
+    final bool isTinySpread = latDiff < 0.0005 && lngDiff < 0.0005;
+    final center = bounds.center;
 
     return FlutterMap(
       options: MapOptions(
-        initialCameraFit: CameraFit.bounds(
-          bounds: bounds,
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 150),
-        ),
+        initialCenter: center,
+        initialZoom: 16.0,
+        initialCameraFit: isTinySpread
+            ? null
+            : CameraFit.bounds(
+                bounds: bounds,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
+                maxZoom: 17.0,
+                minZoom: 4.0,
+              ),
+        minZoom: 3.0,
+        maxZoom: 18.0,
         interactionOptions: const InteractionOptions(
           flags: InteractiveFlag.none,
         ),
@@ -352,14 +376,14 @@ class SocialShareCard extends StatelessWidget {
           polylines: [
             Polyline(
               points: polylinePoints,
-              strokeWidth: 9.0,
+              strokeWidth: 8.0,
               color: AppColors.primaryOrange.withAlpha(90),
               strokeCap: StrokeCap.round,
               strokeJoin: StrokeJoin.round,
             ),
             Polyline(
               points: polylinePoints,
-              strokeWidth: 5.0,
+              strokeWidth: 4.5,
               color: AppColors.primaryOrange,
               strokeCap: StrokeCap.round,
               strokeJoin: StrokeJoin.round,

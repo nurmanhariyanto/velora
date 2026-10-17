@@ -1,6 +1,6 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
@@ -9,19 +9,24 @@ import 'package:share_plus/share_plus.dart';
 
 /// Layanan penangkapan render gambar RepaintBoundary dan pembagian ke media sosial
 class SocialShareService {
-  /// Mengambil snapshot widget RepaintBoundary menjadi citra PNG beresolusi tinggi
-  static Future<Uint8List?> capturePng(GlobalKey repaintKey, {double pixelRatio = 3.0}) async {
+  /// Mengambil snapshot widget RepaintBoundary menjadi citra PNG beresolusi tajam
+  static Future<Uint8List?> capturePng(GlobalKey repaintKey, {double pixelRatio = 2.0}) async {
     try {
       final boundary =
           repaintKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
       if (boundary == null) return null;
+
+      if (boundary.debugNeedsPaint) {
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
 
       final ui.Image image = await boundary.toImage(pixelRatio: pixelRatio);
       final ByteData? byteData =
           await image.toByteData(format: ui.ImageByteFormat.png);
 
       return byteData?.buffer.asUint8List();
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error capturing PNG: $e');
       return null;
     }
   }
@@ -34,30 +39,39 @@ class SocialShareService {
       final file = File(filePath);
       await file.writeAsBytes(bytes);
       return file;
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Error saving share file: $e');
       return null;
     }
   }
 
   /// Membagikan gambar hasil komposit ke WhatsApp / Instagram Story / sheet sistem
-  static Future<void> shareActivityImage({
+  static Future<bool> shareActivityImage({
     required GlobalKey repaintKey,
     required String activityTitle,
     String? subject,
+    Rect? sharePositionOrigin,
   }) async {
-    final bytes = await capturePng(repaintKey);
-    if (bytes == null) return;
+    try {
+      final bytes = await capturePng(repaintKey);
+      if (bytes == null) return false;
 
-    final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final file = await saveBytesToTempFile(bytes, 'velora_share_$timestamp');
-    if (file == null) return;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final file = await saveBytesToTempFile(bytes, 'velora_share_$timestamp');
+      if (file == null) return false;
 
-    await SharePlus.instance.share(
-      ShareParams(
-        files: [XFile(file.path, mimeType: 'image/png')],
-        text: activityTitle,
-        subject: subject ?? 'Velora: Run & Ride Activity',
-      ),
-    );
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'image/png')],
+          text: activityTitle,
+          subject: subject ?? 'Velora: Run & Ride Activity',
+          sharePositionOrigin: sharePositionOrigin,
+        ),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('Error sharing activity image: $e');
+      return false;
+    }
   }
 }

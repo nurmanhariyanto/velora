@@ -25,5 +25,14 @@ void main() {
       expect(AppUpdateInfo.isNewerVersion('1.0.0+1', '1.0.1'), isTrue);
       expect(AppUpdateInfo.isNewerVersion('1.0.0+1', '1.0.0'), isFalse);
     });
+
+    test('Pembaruan minor 4-digit versi (cth: v1.0.3.1)', () {
+      expect(AppUpdateInfo.isNewerVersion('1.0.3', '1.0.3.1'), isTrue);
+      expect(AppUpdateInfo.isNewerVersion('v1.0.3', 'v1.0.3.1'), isTrue);
+      expect(AppUpdateInfo.isNewerVersion('1.0.3.1', '1.0.3'), isFalse);
+      expect(AppUpdateInfo.isNewerVersion('1.0.3.1', '1.0.3.1'), isFalse);
+      expect(AppUpdateInfo.isNewerVersion('1.0.3.1', '1.0.3.2'), isTrue);
+      expect(AppUpdateInfo.isNewerVersion('1.0.3.1', '1.0.4'), isTrue);
+    });
   });
 }

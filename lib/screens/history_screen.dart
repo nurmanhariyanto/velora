@@ -298,17 +298,28 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         size: 20,
                       ),
                       onPressed: () async {
-                        final fullSession = await context
-                            .read<HistoryProvider>()
-                            .getActivityDetails(session.id);
-                        if (fullSession != null && context.mounted) {
+                        try {
+                          final fullSession = await context
+                              .read<HistoryProvider>()
+                              .getActivityDetails(session.id);
+                          if (!context.mounted) return;
+                          final targetSession = fullSession ?? session;
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) =>
-                                  SharePreviewScreen(session: fullSession),
+                                  SharePreviewScreen(session: targetSession),
                             ),
                           );
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Gagal membuka kartu share: $e'),
+                                backgroundColor: AppColors.neonRed,
+                              ),
+                            );
+                          }
                         }
                       },
                     ),
