@@ -3,6 +3,7 @@ import '../constants/app_colors.dart';
 import 'history_screen.dart';
 import 'tracking_screen.dart';
 
+import '../services/foreground_service_handler.dart';
 import '../services/update_service.dart';
 
 /// Navigasi Utama Aplikasi Velora (Pelacakan & Riwayat)
@@ -21,6 +22,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       UpdateService.checkForUpdate(context, silent: true);
+      ForegroundServiceHandler.requestNotificationPermission();
     });
   }
 

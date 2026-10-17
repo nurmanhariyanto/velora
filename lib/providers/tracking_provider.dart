@@ -33,11 +33,9 @@ class TrackingProvider extends ChangeNotifier {
     ForegroundServiceHandler.listenToButtonActions(
       onAction: (actionId) {
         if (actionId == 'btn_pause') {
-          if (_status == TrackingStatus.tracking) {
-            pauseTracking();
-          } else if (_status.isPaused) {
-            resumeTracking();
-          }
+          pauseTracking();
+        } else if (actionId == 'btn_resume') {
+          resumeTracking();
         } else if (actionId == 'btn_stop') {
           stopAndSaveSession();
         }
@@ -129,6 +127,9 @@ class TrackingProvider extends ChangeNotifier {
   Future<bool> startTracking() async {
     final hasPermission = await _locationService.checkAndRequestPermissions();
     if (!hasPermission) return false;
+
+    // Pastikan izin notifikasi aktif di Android 13+ agar tombol pintasan muncul
+    await ForegroundServiceHandler.requestNotificationPermission();
 
     _resetState();
     _sessionStartTime = DateTime.now().millisecondsSinceEpoch;
@@ -366,6 +367,10 @@ class TrackingProvider extends ChangeNotifier {
 
         // Tambah durasi aktif jika masih dalam status tracking
         _activeDurationSeconds++;
+        // Sinkronisasi pembaruan teks notifikasi setiap 2 detik
+        if (_activeDurationSeconds % 2 == 0) {
+          _updateForegroundNotification();
+        }
         notifyListeners();
       } else if (_status == TrackingStatus.pausedAuto) {
         // Pada kondisi auto-pause, durasi TIDAK bertambah.

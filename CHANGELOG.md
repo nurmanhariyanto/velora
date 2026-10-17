@@ -4,6 +4,19 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 
 ---
 
+## [v1.0.2] - 2026-10-17
+
+### 🚀 Fitur Baru & Peningkatan (Latest Release)
+- **Pintasan Kontrol Notifikasi Status Bar & Lockscreen:** Tombol aksi kontrol cepat (`JEDA`, `LANJUT`, dan `SELESAI`) kini selalu tampil aktif dan dapat ditekan langsung dari bilah notifikasi maupun layar kunci ponsel saat aplikasi di-minimize.
+- **Izin Notifikasi Runtime Android 13+ (POST_NOTIFICATIONS) & Saluran Notifikasi Prioritas Tinggi:** Memperbarui konfigurasi saluran notifikasi ke `HIGH` importance (`velora_tracking_channel_v2`) dengan visibilitas publik serta menambahkan dialog perizinan notifikasi otomatis saat aplikasi dibuka maupun saat sesi pelacakan dimulai.
+- **Sinkronisasi Durasi Real-Time Notifikasi:** Notifikasi foreground kini memperbarui waktu berjalan setiap 2 detik secara hening (*onlyAlertOnce*) tanpa getaran atau bunyi berulang.
+- **Kartu Berbagi Media Sosial Ala Strava (Default Map Background):** Menampilkan latar belakang peta OpenStreetMap Dark Mode secara otomatis dengan zoom presisi pada rute aktivitas, garis polyline oranye menyala, serta penanda Start & Finish. Pengguna juga dapat memilih foto pribadi atau mode minimalis.
+- **Pembaruan Mandiri di Dalam Aplikasi (In-App Streaming Updater):** Mengunduh berkas pembaruan APK langsung dari aplikasi dengan progress bar, persentase real-time, dan pemanggil otomatis paket instalasi Android (`FileProvider`).
+- **Pembersihan Otomatis Cache APK:** Menghapus berkas APK lama di memori sementara secara otomatis.
+- **Logo Aplikasi Resmi Velora:** Seluruh logo bawaan Flutter digantikan dengan simbol V chevron oranye neon Velora.
+
+---
+
 ## [v1.0.1] - 2026-10-17
 
 ### 🚀 Fitur Baru & Peningkatan

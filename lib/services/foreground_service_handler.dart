@@ -19,8 +19,13 @@ class VeloraTaskHandler extends TaskHandler {
 
   @override
   void onNotificationButtonPressed(String id) {
-    // Kirim pesan aksi tombol (btn_pause / btn_stop) ke main isolate UI
+    // Kirim pesan aksi tombol (btn_pause / btn_resume / btn_stop) ke main isolate UI
     FlutterForegroundTask.sendDataToMain(id);
+  }
+
+  @override
+  void onNotificationPressed() {
+    // Membawa aplikasi ke layar depan saat badan notifikasi ditekan
   }
 }
 
@@ -30,6 +35,21 @@ class VeloraTaskHandler extends TaskHandler {
 class ForegroundServiceHandler {
   static bool _isInitialized = false;
 
+  /// Meminta izin notifikasi runtime Android 13+ (POST_NOTIFICATIONS)
+  static Future<bool> requestNotificationPermission() async {
+    try {
+      final status = await FlutterForegroundTask.checkNotificationPermission();
+      if (status != NotificationPermission.granted) {
+        final reqResult =
+            await FlutterForegroundTask.requestNotificationPermission();
+        return reqResult == NotificationPermission.granted;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Inisialisasi konfigurasi notifikasi Android & port komunikasi
   static Future<void> initService() async {
     if (_isInitialized) return;
@@ -38,12 +58,17 @@ class ForegroundServiceHandler {
 
     FlutterForegroundTask.init(
       androidNotificationOptions: AndroidNotificationOptions(
-        channelId: 'velora_tracking_channel',
+        channelId: 'velora_tracking_channel_v2',
         channelName: 'Velora Active Tracking',
         channelDescription:
-            'Menampilkan status pelacakan durasi dan jarak rute Velora.',
-        channelImportance: NotificationChannelImportance.LOW,
-        priority: NotificationPriority.LOW,
+            'Menampilkan status pelacakan durasi, jarak, dan kontrol cepat Velora.',
+        channelImportance: NotificationChannelImportance.HIGH,
+        priority: NotificationPriority.HIGH,
+        enableVibration: false,
+        playSound: false,
+        showWhen: true,
+        onlyAlertOnce: true,
+        visibility: NotificationVisibility.VISIBILITY_PUBLIC,
       ),
       iosNotificationOptions: const IOSNotificationOptions(
         showNotification: false,
@@ -81,6 +106,7 @@ class ForegroundServiceHandler {
   }) async {
     try {
       await initService();
+      await requestNotificationPermission();
 
       if (await FlutterForegroundTask.isRunningService) {
         await update(title: title, text: text, isPaused: isPaused);
@@ -88,13 +114,14 @@ class ForegroundServiceHandler {
       }
 
       await FlutterForegroundTask.startService(
+        serviceId: 256,
         serviceTypes: [ForegroundServiceTypes.location],
         notificationTitle: title,
         notificationText: text,
         callback: startCallback,
         notificationButtons: [
           NotificationButton(
-            id: 'btn_pause',
+            id: isPaused ? 'btn_resume' : 'btn_pause',
             text: isPaused ? 'LANJUT' : 'JEDA',
           ),
           const NotificationButton(
@@ -121,7 +148,7 @@ class ForegroundServiceHandler {
           notificationText: text,
           notificationButtons: [
             NotificationButton(
-              id: 'btn_pause',
+              id: isPaused ? 'btn_resume' : 'btn_pause',
               text: isPaused ? 'LANJUT' : 'JEDA',
             ),
             const NotificationButton(
