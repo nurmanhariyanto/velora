@@ -25,7 +25,25 @@ class TrackingProvider extends ChangeNotifier {
     AutoPauseDetector? autoPauseDetector,
   })  : _locationService = locationService ?? LocationService(),
         _activityRepository = activityRepository ?? ActivityRepository(),
-        _autoPauseDetector = autoPauseDetector ?? AutoPauseDetector();
+        _autoPauseDetector = autoPauseDetector ?? AutoPauseDetector() {
+    _initNotificationButtonListener();
+  }
+
+  void _initNotificationButtonListener() {
+    ForegroundServiceHandler.listenToButtonActions(
+      onAction: (actionId) {
+        if (actionId == 'btn_pause') {
+          if (_status == TrackingStatus.tracking) {
+            pauseTracking();
+          } else if (_status.isPaused) {
+            resumeTracking();
+          }
+        } else if (actionId == 'btn_stop') {
+          stopAndSaveSession();
+        }
+      },
+    );
+  }
 
   // State Pelacakan
   TrackingStatus _status = TrackingStatus.idle;
@@ -304,6 +322,7 @@ class TrackingProvider extends ChangeNotifier {
     ForegroundServiceHandler.update(
       title: 'Velora (${_sportsType.shortName}) - $statusStr',
       text: '$distStr • $durStr',
+      isPaused: _status.isPaused,
     );
   }
 
