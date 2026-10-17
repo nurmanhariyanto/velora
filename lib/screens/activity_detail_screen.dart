@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
 import '../models/activity_session.dart';
 import '../models/sports_type.dart';
+import '../services/gpx_service.dart';
+import '../widgets/elevation_chart.dart';
 import '../widgets/live_map_view.dart';
 import '../widgets/metric_card.dart';
 import 'share_preview_screen.dart';
@@ -31,6 +33,11 @@ class ActivityDetailScreen extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined, color: AppColors.neonCyan),
+            tooltip: 'Ekspor GPX',
+            onPressed: () => GpxService.exportAndShareGpx(session),
+          ),
           IconButton(
             icon: const Icon(Icons.share_rounded, color: AppColors.primaryOrange),
             tooltip: 'Bagikan',
@@ -188,6 +195,14 @@ class ActivityDetailScreen extends StatelessWidget {
                     ],
                   ),
 
+                  const SizedBox(height: 18),
+
+                  // 4. Grafik Profil Elevasi Rute
+                  ElevationChart(
+                    coordinates: session.coordinates,
+                    elevationGain: session.elevationGain,
+                  ),
+
                   if (session.notes != null && session.notes!.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     const Text(
@@ -246,6 +261,33 @@ class ActivityDetailScreen extends StatelessWidget {
                           fontSize: 16,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 1.1,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Tombol Ekspor File GPX
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: () => GpxService.exportAndShareGpx(session),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.neonCyan,
+                        side: const BorderSide(color: AppColors.neonCyan, width: 1.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      icon: const Icon(Icons.file_download_outlined, size: 20),
+                      label: const Text(
+                        'EKSPOR FILE GPX (STRAVA / GARMIN)',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
                         ),
                       ),
                     ),
