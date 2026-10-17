@@ -1,0 +1,140 @@
+import 'coordinate_point.dart';
+import 'sports_type.dart';
+
+/// Sesi aktivitas olahraga yang tersimpan di SQLite lokal
+class ActivitySession {
+  final String id;
+  final SportsType sportsType;
+  final int startTime; // epoch ms
+  final int endTime; // epoch ms
+  final int durationSeconds; // durasi aktif (bersih)
+  final double distanceMeters;
+  final double averageSpeedKmh;
+  final double maxSpeedKmh;
+  final double averagePaceSecondsPerKm;
+  final double elevationGain;
+  final String? notes;
+  final String? photoPath;
+  final List<CoordinatePoint> coordinates;
+
+  const ActivitySession({
+    required this.id,
+    required this.sportsType,
+    required this.startTime,
+    required this.endTime,
+    required this.durationSeconds,
+    required this.distanceMeters,
+    required this.averageSpeedKmh,
+    required this.maxSpeedKmh,
+    required this.averagePaceSecondsPerKm,
+    this.elevationGain = 0.0,
+    this.notes,
+    this.photoPath,
+    this.coordinates = const [],
+  });
+
+  /// Jarak dalam kilometer
+  double get distanceKm => distanceMeters / 1000.0;
+
+  /// String format durasi HH:mm:ss atau mm:ss
+  String get formattedDuration {
+    final hours = durationSeconds ~/ 3600;
+    final minutes = (durationSeconds % 3600) ~/ 60;
+    final seconds = durationSeconds % 60;
+
+    final mStr = minutes.toString().padLeft(2, '0');
+    final sStr = seconds.toString().padLeft(2, '0');
+
+    if (hours > 0) {
+      final hStr = hours.toString().padLeft(2, '0');
+      return '$hStr:$mStr:$sStr';
+    }
+    return '$mStr:$sStr';
+  }
+
+  /// String format pace lari (cth: 5'12")
+  String get formattedPace {
+    if (averagePaceSecondsPerKm <= 0 || averagePaceSecondsPerKm > 3600) {
+      return "--'--\"";
+    }
+    final mins = averagePaceSecondsPerKm ~/ 60;
+    final secs = (averagePaceSecondsPerKm % 60).round();
+    return "$mins'${secs.toString().padLeft(2, '0')}\"";
+  }
+
+  /// String format kecepatan (cth: 24.5 km/h)
+  String get formattedSpeed {
+    return '${averageSpeedKmh.toStringAsFixed(1)} km/h';
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'jenis_olahraga': sportsType.name,
+      'waktu_mulai': startTime,
+      'waktu_selesai': endTime,
+      'total_durasi_detik': durationSeconds,
+      'total_jarak_meter': distanceMeters,
+      'kecepatan_rata_rata': averageSpeedKmh,
+      'kecepatan_maksimal': maxSpeedKmh,
+      'pace_rata_rata': averagePaceSecondsPerKm,
+      'elevasi_positif': elevationGain,
+      'catatan': notes,
+      'foto_path': photoPath,
+    };
+  }
+
+  factory ActivitySession.fromMap(
+    Map<String, dynamic> map, {
+    List<CoordinatePoint> coordinates = const [],
+  }) {
+    return ActivitySession(
+      id: map['id'] as String,
+      sportsType: SportsType.fromString(map['jenis_olahraga'] as String),
+      startTime: map['waktu_mulai'] as int,
+      endTime: map['waktu_selesai'] as int,
+      durationSeconds: map['total_durasi_detik'] as int,
+      distanceMeters: (map['total_jarak_meter'] as num).toDouble(),
+      averageSpeedKmh: (map['kecepatan_rata_rata'] as num).toDouble(),
+      maxSpeedKmh: (map['kecepatan_maksimal'] as num).toDouble(),
+      averagePaceSecondsPerKm: (map['pace_rata_rata'] as num).toDouble(),
+      elevationGain: (map['elevasi_positif'] as num?)?.toDouble() ?? 0.0,
+      notes: map['catatan'] as String?,
+      photoPath: map['foto_path'] as String?,
+      coordinates: coordinates,
+    );
+  }
+
+  ActivitySession copyWith({
+    String? id,
+    SportsType? sportsType,
+    int? startTime,
+    int? endTime,
+    int? durationSeconds,
+    double? distanceMeters,
+    double? averageSpeedKmh,
+    double? maxSpeedKmh,
+    double? averagePaceSecondsPerKm,
+    double? elevationGain,
+    String? notes,
+    String? photoPath,
+    List<CoordinatePoint>? coordinates,
+  }) {
+    return ActivitySession(
+      id: id ?? this.id,
+      sportsType: sportsType ?? this.sportsType,
+      startTime: startTime ?? this.startTime,
+      endTime: endTime ?? this.endTime,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
+      distanceMeters: distanceMeters ?? this.distanceMeters,
+      averageSpeedKmh: averageSpeedKmh ?? this.averageSpeedKmh,
+      maxSpeedKmh: maxSpeedKmh ?? this.maxSpeedKmh,
+      averagePaceSecondsPerKm:
+          averagePaceSecondsPerKm ?? this.averagePaceSecondsPerKm,
+      elevationGain: elevationGain ?? this.elevationGain,
+      notes: notes ?? this.notes,
+      photoPath: photoPath ?? this.photoPath,
+      coordinates: coordinates ?? this.coordinates,
+    );
+  }
+}

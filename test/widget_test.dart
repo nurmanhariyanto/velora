@@ -1,30 +1,47 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:velora/main.dart';
+import 'package:velora/widgets/metric_card.dart';
+import 'package:velora/widgets/velora_logo.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  testWidgets('VeloraLogo merender logo teks dan chevron', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: VeloraLogo(size: 40, showTagline: true),
+        ),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(find.text('VELORA'), findsOneWidget);
+    expect(find.text('RUN & RIDE'), findsOneWidget);
+  });
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('MetricCard menampilkan label dan nilai dengan tepat', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: MetricCard(
+            label: 'JARAK',
+            value: '5.24',
+            unit: 'km',
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('JARAK'), findsOneWidget);
+    expect(find.text('5.24'), findsOneWidget);
+    expect(find.text('km'), findsOneWidget);
+  });
+
+  testWidgets('VeloraApp dapat dimuat dan merender navigasi utama', (WidgetTester tester) async {
+    await tester.pumpWidget(const VeloraApp());
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Pastikan bar navigasi bawah memiliki tab Pelacakan dan Riwayat
+    expect(find.text('Pelacakan'), findsOneWidget);
+    expect(find.text('Riwayat'), findsOneWidget);
   });
 }
