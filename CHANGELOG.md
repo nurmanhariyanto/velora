@@ -32,7 +32,13 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 - **Statistik Sepanjang Masa (All-Time Lifetime Stats) Ala Strava:** Menampilkan rekor seumur hidup untuk Bersepeda & Lari secara terpisah (Tanjakan Tertinggi / *Biggest Climb*, Jarak Terjauh / *Longest Ride*, Kecepatan Puncak / *Top Speed*, Kecepatan Rata-Rata Terbaik, Pace Terbaik, serta akumulasi total kilometer, waktu, elevasi, dan sesi).
 - **Pencapaian Terbaik (Best Efforts):** Ekstraksi rekor waktu tercepat pada jarak patokan standar (1K, 5K, 10K, Half Marathon 21.1K, 40K Time Trial) dengan algoritma sliding window GPS dan estimasi segmen.
 - **Lemari Trofi Digital (Trophy Case & Badges):** 11 lencana prestasi offline (Gran Fondo 100km, Half Fondo 50km, Century Rider 160.9km, Speed Demon >30km/h, 5K/10K/Half-Marathon Finisher, Climbing Legend >=1000m, King of the Hill >=500m, Early Bird, Night Owl, Consistent Athlete) dengan kartu berdesain emas bercahaya dan progress bar.
-- **Deteksi Waktu Aktivitas Cerdas (Time-of-Day Activity Naming):** Otomatis menamai kegiatan berdasarkan jam mulai ("Bersepeda Pagi", "Bersepeda Siang Hari", "Bersepeda Sore Hari", "Bersepeda Malam Hari", "Bersepeda Subuh", "Lari Pagi", dsb) tanpa karakter gender, dan otomatis memprioritaskan catatan khusus jika diisi.
+- **Deteksi Waktu Aktivitas Cerdas (Time-of-Day Activity Naming):** Otomatis menamai kegiatan berdasarkan jam mulai secara akurat ala Strava dengan standar teks bersih murni tanpa simbol gender (`♂` / `‍♂`) maupun emoji, serta menggunakan istilah baku **"Bersepeda"** (bukan *"Gowes"*):
+  - `04:00 – 10:59`: *"Bersepeda Pagi"* / *"Lari Pagi"*
+  - `11:00 – 14:59`: *"Bersepeda Siang Hari"* / *"Lari Siang Hari"*
+  - `15:00 – 18:29`: *"Bersepeda Sore Hari"* / *"Lari Sore Hari"*
+  - `18:30 – 23:59`: *"Bersepeda Malam Hari"* / *"Lari Malam Hari"*
+  - `00:00 – 03:59`: *"Bersepeda Subuh"* / *"Lari Subuh"*
+  - Prioritas catatan kustom: jika pengguna mengisi catatan khusus saat menyimpan sesi, catatan tersebut otomatis menjadi judul utama aktivitas.
 - **Tab Baru "Profil & Rekor":** Menambahkan tab ketiga di bilah navigasi utama untuk mengakses profil atlet, rekor, dan trofi.
 
 ---
