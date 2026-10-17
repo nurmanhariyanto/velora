@@ -2,6 +2,28 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.3.3] - 2026-10-17
+
+### 🚀 Fitur Baru & Peningkatan
+- **Tombol Berbagi Khusus ke WhatsApp Story & Instagram Story:**
+  - Menyediakan 3 tombol aksi langsung di layar pratinjau kartu media sosial:
+    1. **WhatsApp (Status & Chat):** Tombol hijau resmi (`#25D366`) yang membuka langsung pemilih kontak dan "Status Saya" (*My Status*) di aplikasi WhatsApp dengan gambar kartu terlampir.
+    2. **IG Story (Instagram Stories):** Tombol gradasi magenta (`#E1306C`) yang mengintegrasikan Intent resmi Meta (`com.instagram.share.ADD_TO_STORY`) untuk memuat kartu 9:16 langsung ke komposer cerita Instagram.
+    3. **Lainnya:** Tombol *outline* elegan untuk membuka lembar berbagi sistem Android (*system share sheet*) ke aplikasi lain (Telegram, Twitter/X, Facebook, dsb).
+  - Menambahkan deklarasi `<queries>` untuk paket `com.whatsapp` dan `com.instagram.android` di `AndroidManifest.xml` guna kompatibilitas penuh dengan Android 11+ (API 30+).
+
+### 🐛 Perbaikan Bug Kritis & Penjaminan Kualitas (Hotfix)
+- **Eliminasi LateInitializationError pada Mode Rilis Android:**
+  - Mengidentifikasi akar masalah di mana properti `RenderRepaintBoundary.debugNeedsPaint` pada Flutter Engine diinisialisasi bertipe `late` di dalam blok `assert()`. Pada kompilasi rilis (`flutter build apk --release`), blok `assert` dihapus sehingga pemanggilan properti tersebut memicu `LateInitializationError: Field 'result' has not been initialized`.
+  - Menghapus ketergantungan pada properti `debugNeedsPaint` dan menggantikannya dengan penundaan frame asynchronous yang 100% aman dieksekusi di lingkungan produksi.
+- **Pencegahan RenderFlex Layout Overflow:**
+  - Menambahkan `FittedBox` dengan `BoxFit.scaleDown` pada angka jarak besar (`68px`) dan baris metrik sekunder (`DURASI`, `PACE/SPEED`, `ELEVASI`) di `SocialShareCard`, menjamin tampilan kartu tidak pernah terpotong (*overflow*) pada ponsel berbagai ukuran layar atau skala font besar.
+- **Pengujian Otomatis Menyeluruh (*Test-First Verification*):**
+  - Membuat berkas pengujian baru `test/social_share_test.dart` untuk memverifikasi penangkapan snapshot PNG, header ajaib format citra (`0x89 0x50 0x4E 0x47`), dan penyimpanan berkas lokal.
+  - Seluruh **46 pengujian unit dan widget** lolos 100% dan analisis kode bersih (**0 issues**).
+
+---
+
 ## [v1.0.3.2] - 2026-10-17
 
 ### 🐛 Perbaikan Bug Minor (Hotfix)

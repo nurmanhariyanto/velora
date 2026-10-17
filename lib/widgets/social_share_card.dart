@@ -145,49 +145,52 @@ class SocialShareCard extends StatelessWidget {
                     Column(
                       children: [
                         // Angka Jarak Besar
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
-                          children: [
-                            Text(
-                              session.distanceKm.toStringAsFixed(2),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 68,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -1.5,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black,
-                                    blurRadius: 16,
-                                    offset: Offset(0, 4),
-                                  ),
-                                  Shadow(
-                                    color: Colors.black,
-                                    blurRadius: 8,
-                                    offset: Offset(0, 2),
-                                  ),
-                                ],
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.baseline,
+                            textBaseline: TextBaseline.alphabetic,
+                            children: [
+                              Text(
+                                session.distanceKm.toStringAsFixed(2),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 68,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -1.5,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black,
+                                      blurRadius: 16,
+                                      offset: Offset(0, 4),
+                                    ),
+                                    Shadow(
+                                      color: Colors.black,
+                                      blurRadius: 8,
+                                      offset: Offset(0, 2),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              'KM',
-                              style: TextStyle(
-                                color: AppColors.primaryOrange,
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.2,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black,
-                                    blurRadius: 10,
-                                  ),
-                                ],
+                              const SizedBox(width: 8),
+                              const Text(
+                                'KM',
+                                style: TextStyle(
+                                  color: AppColors.primaryOrange,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black,
+                                      blurRadius: 10,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
 
                         const SizedBox(height: 12),
@@ -206,34 +209,39 @@ class SocialShareCard extends StatelessWidget {
                               width: 1,
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              _buildMetricItem(
-                                'DURASI',
-                                session.formattedDuration,
-                              ),
-                              Container(
-                                width: 1,
-                                height: 32,
-                                color: Colors.white24,
-                              ),
-                              _buildMetricItem(
-                                session.sportsType.primaryMetricLabel,
-                                session.sportsType == SportsType.run
-                                    ? session.formattedPace
-                                    : session.formattedSpeed,
-                              ),
-                              Container(
-                                width: 1,
-                                height: 32,
-                                color: Colors.white24,
-                              ),
-                              _buildMetricItem(
-                                'ELEVASI',
-                                '+${session.elevationGain.toStringAsFixed(0)} m',
-                              ),
-                            ],
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                _buildMetricItem(
+                                  'DURASI',
+                                  session.formattedDuration,
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 32,
+                                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                                  color: Colors.white24,
+                                ),
+                                _buildMetricItem(
+                                  session.sportsType.primaryMetricLabel,
+                                  session.sportsType == SportsType.run
+                                      ? session.formattedPace
+                                      : session.formattedSpeed,
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 32,
+                                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                                  color: Colors.white24,
+                                ),
+                                _buildMetricItem(
+                                  'ELEVASI',
+                                  '+${session.elevationGain.toStringAsFixed(0)} m',
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ],

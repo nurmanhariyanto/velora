@@ -26,6 +26,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
   String? _selectedPhotoPath;
   bool _mapDarkTheme = true;
   bool _isSharing = false;
+  ShareDestination? _activeDestination;
 
   @override
   void initState() {
@@ -67,9 +68,12 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
     }
   }
 
-  Future<void> _shareImage() async {
+  Future<void> _shareImage([ShareDestination destination = ShareDestination.system]) async {
     if (_isSharing) return;
-    setState(() => _isSharing = true);
+    setState(() {
+      _isSharing = true;
+      _activeDestination = destination;
+    });
 
     try {
       final distStr = '${widget.session.distanceKm.toStringAsFixed(2)} km';
@@ -83,6 +87,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       final success = await SocialShareService.shareActivityImage(
         repaintKey: _repaintKey,
         activityTitle: title,
+        destination: destination,
         subject: 'Velora: Run & Ride Activity',
         sharePositionOrigin: origin,
       );
@@ -106,7 +111,10 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() => _isSharing = false);
+        setState(() {
+          _isSharing = false;
+          _activeDestination = null;
+        });
       }
     }
   }
@@ -280,38 +288,124 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                     const SizedBox(height: 12),
                   ],
 
-                  // 3. Tombol Bagikan Utama
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton.icon(
-                      onPressed: _isSharing ? null : _shareImage,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryOrange,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                  // 3. Tombol Bagikan dengan Pilihan WhatsApp Story / IG Story / Lainnya
+                  if (_isSharing)
+                    Container(
+                      width: double.infinity,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        color: AppColors.cardSurfaceElevated,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.borderSubtle),
                       ),
-                      icon: _isSharing
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primaryOrange,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            _activeDestination == ShareDestination.whatsApp
+                                ? 'MEMPROSES KE WHATSAPP...'
+                                : _activeDestination == ShareDestination.instagramStory
+                                    ? 'MEMPROSES KE IG STORY...'
+                                    : 'MEMPROSES GAMBAR KARTU...',
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        // Tombol WhatsApp (Status & Chat)
+                        Expanded(
+                          flex: 3,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _shareImage(ShareDestination.whatsApp),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF25D366),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                            )
-                          : const Icon(Icons.share_rounded, size: 22),
-                      label: Text(
-                        _isSharing ? 'MEMPROSES GAMBAR...' : 'BAGIKAN (IG / WA)',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.0,
+                              elevation: 2,
+                            ),
+                            icon: const Icon(Icons.chat_bubble_rounded, size: 18),
+                            label: const Text(
+                              'WhatsApp',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+
+                        // Tombol Instagram Story
+                        Expanded(
+                          flex: 3,
+                          child: ElevatedButton.icon(
+                            onPressed: () => _shareImage(ShareDestination.instagramStory),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFE1306C),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 2,
+                            ),
+                            icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                            label: const Text(
+                              'IG Story',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Tombol Lainnya (System Share Sheet)
+                        Expanded(
+                          flex: 2,
+                          child: OutlinedButton.icon(
+                            onPressed: () => _shareImage(ShareDestination.system),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.textPrimary,
+                              side: const BorderSide(color: AppColors.borderSubtle, width: 1.5),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            icon: const Icon(Icons.share_rounded, size: 18),
+                            label: const Text(
+                              'Lainnya',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
                 ],
               ),
             ),
