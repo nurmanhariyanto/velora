@@ -45,7 +45,6 @@ dependencies:
   flutter_foreground_task: ^11.0.3
   intl: ^0.20.3
   provider: ^6.1.5+1
-  permission_handler: ^13.0.2
   package_info_plus: ^10.2.2
   url_launcher: ^6.3.3
   http: ^1.6.0

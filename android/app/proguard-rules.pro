@@ -15,3 +15,6 @@
 
 # Geolocator
 -keep class com.baseflow.geolocator.** { *; }
+
+# Suppress Play Store Core warnings (Velora is standalone offline)
+-dontwarn com.google.android.play.core.**
