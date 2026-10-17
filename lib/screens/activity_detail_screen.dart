@@ -177,7 +177,7 @@ class ActivityDetailScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: MetricCard(
-                          label: 'ELEVASi POSITIF',
+                          label: 'ELEVASI',
                           value: '+${session.elevationGain.toStringAsFixed(0)}',
                           unit: 'meter',
                           icon: Icons.terrain_rounded,

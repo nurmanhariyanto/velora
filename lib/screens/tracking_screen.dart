@@ -214,7 +214,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: MetricCard(
-                          label: 'ELEVASi',
+                          label: 'ELEVASI',
                           value: '+${tracking.elevationGain.toStringAsFixed(0)}',
                           unit: 'm',
                           icon: Icons.terrain_rounded,
@@ -223,7 +223,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: MetricCard(
-                          label: 'SPEED SAAT INI',
+                          label: 'SPEED',
                           value: tracking.currentSpeedKmh.toStringAsFixed(1),
                           unit: 'km/h',
                           icon: Icons.navigation_rounded,

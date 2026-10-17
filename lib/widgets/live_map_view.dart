@@ -4,12 +4,13 @@ import 'package:latlong2/latlong.dart';
 import '../constants/app_colors.dart';
 import '../models/coordinate_point.dart';
 
-enum MapStyle {
-  osmStandard,
-  cartoDark,
+enum MapThemeMode {
+  dark,
+  standard,
 }
 
 /// Tampilan Peta Interaktif OpenStreetMap dengan rendering Polyline rute neon
+/// Menggunakan OpenStreetMap 100% bebas API key dengan filter tema gelap Velora
 class LiveMapView extends StatefulWidget {
   final List<CoordinatePoint> coordinates;
   final LatLng? currentLocation;
@@ -30,11 +31,19 @@ class LiveMapView extends StatefulWidget {
 
 class _LiveMapViewState extends State<LiveMapView> {
   late final MapController _mapController;
-  MapStyle _currentMapStyle = MapStyle.cartoDark;
+  MapThemeMode _currentTheme = MapThemeMode.dark;
   bool _userInteracted = false;
 
-  // Koordinat default (Pontianak, Jl. Danau Sentarum / Indonesia) jika GPS belum didapatkan
+  // Koordinat default jika GPS belum didapatkan
   static const LatLng _defaultLocation = LatLng(-0.026330, 109.342504);
+
+  // Filter warna matrix untuk mengubah OpenStreetMap menjadi Dark Mode tanpa API key
+  static const List<double> _darkMatrix = <double>[
+    -0.2, -0.7, -0.1, 0, 235,
+    -0.2, -0.7, -0.1, 0, 235,
+    -0.2, -0.7, -0.1, 0, 235,
+    0,    0,    0,    1, 0,
+  ];
 
   @override
   void initState() {
@@ -65,21 +74,12 @@ class _LiveMapViewState extends State<LiveMapView> {
     }
   }
 
-  void _toggleMapStyle() {
+  void _toggleMapTheme() {
     setState(() {
-      _currentMapStyle = _currentMapStyle == MapStyle.cartoDark
-          ? MapStyle.osmStandard
-          : MapStyle.cartoDark;
+      _currentTheme = _currentTheme == MapThemeMode.dark
+          ? MapThemeMode.standard
+          : MapThemeMode.dark;
     });
-  }
-
-  String get _tileUrl {
-    switch (_currentMapStyle) {
-      case MapStyle.osmStandard:
-        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-      case MapStyle.cartoDark:
-        return 'https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png';
-    }
   }
 
   @override
@@ -112,13 +112,21 @@ class _LiveMapViewState extends State<LiveMapView> {
             },
           ),
           children: [
-            // 1. Lapisan Tile Peta (OSM / CartoDB)
+            // 1. Lapisan Tile OpenStreetMap (100% Bebas API Key)
             TileLayer(
-              urlTemplate: _tileUrl,
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'online.nurmancloud.velora',
+              tileBuilder: _currentTheme == MapThemeMode.dark
+                  ? (context, tileWidget, tile) {
+                      return ColorFiltered(
+                        colorFilter: const ColorFilter.matrix(_darkMatrix),
+                        child: tileWidget,
+                      );
+                    }
+                  : null,
             ),
 
-            // 2. Lapisan Polyline Garis Lintasan
+            // 2. Lapisan Polyline Garis Lintasan Neon
             if (polylinePoints.isNotEmpty) ...[
               // Lapisan Glow di bawah garis utama
               PolylineLayer(
@@ -199,12 +207,14 @@ class _LiveMapViewState extends State<LiveMapView> {
               ),
               const SizedBox(height: 10),
               _buildFloatingActionBtn(
-                icon: _currentMapStyle == MapStyle.cartoDark
-                    ? Icons.brightness_6_rounded
-                    : Icons.map_rounded,
-                tooltip: 'Ganti Tema Peta',
+                icon: _currentTheme == MapThemeMode.dark
+                    ? Icons.brightness_medium_rounded
+                    : Icons.wb_sunny_rounded,
+                tooltip: _currentTheme == MapThemeMode.dark
+                    ? 'Mode Peta Terang'
+                    : 'Mode Peta Gelap',
                 color: AppColors.neonCyan,
-                onPressed: _toggleMapStyle,
+                onPressed: _toggleMapTheme,
               ),
             ],
           ),
@@ -217,7 +227,6 @@ class _LiveMapViewState extends State<LiveMapView> {
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Lingkaran luar semi-transparan
         Container(
           width: 36,
           height: 36,
@@ -226,7 +235,6 @@ class _LiveMapViewState extends State<LiveMapView> {
             shape: BoxShape.circle,
           ),
         ),
-        // Lingkaran dalam menyala
         Container(
           width: 18,
           height: 18,

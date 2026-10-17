@@ -30,8 +30,8 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 * [x] **Identitas Visual (Branding):** Mengimplementasikan logo **Velora** (ikon panah ganda 'V' berwarna oranye khas dengan gradasi api) di `lib/widgets/velora_logo.dart`.
 * [x] **Sistem Desain (Design System):** Menyusun panduan warna, tipografi, dan komponen visual di `docs/DESIGN_SYSTEM_VELORA.md`.
-* [x] **Desain Peta (Map Styling):** Menentukan gaya visual peta OSM dasar (tema standar & CartoDB dark) dan gaya *Polyline* neon cyan (`#00E5FF`) dengan efek *glow* di `lib/widgets/live_map_view.dart`.
-* [x] **Desain Panel Navigasi:** Merancang panel *bottom-sheet* ergonomis untuk statistik *real-time* (Kecepatan, Pace, Jarak, Waktu, Elevasi) dan desain tombol besar (Play/Pause/Resume/Stop) di `lib/widgets/control_buttons.dart`.
+* [x] **Desain Peta (Map Styling):** Menentukan gaya visual peta OSM dasar (tema standar & tema gelap dengan filter matriks neon) dan gaya *Polyline* neon cyan (`#00E5FF`) dengan efek *glow* di `lib/widgets/live_map_view.dart`. Bebas ketergantungan API key pihak ketiga.
+* [x] **Desain Panel Navigasi Bebas Overflow:** Merancang panel *bottom-sheet* ergonomis untuk statistik *real-time* (Kecepatan, Pace, Jarak, Waktu, Elevasi) dengan perlindungan *FittedBox* dan desain tombol besar (Play/Pause/Resume/Stop) di `lib/widgets/control_buttons.dart` dan `lib/widgets/metric_card.dart`.
 * [x] **Desain Template Berbagi (Social Share 9:16):** Merancang tata letak *overlay* gambar dengan rasio 9:16 untuk IG Story / WA di `lib/widgets/social_share_card.dart` dan `lib/widgets/mini_route_painter.dart`.
 * [x] **Desain Dialog Update:** Antarmuka notifikasi versi baru modern dengan badge versi dan catatan rilis di `lib/widgets/update_dialog.dart`.
 
@@ -44,9 +44,9 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 **Tugas Utama & Realisasi:**
 
 * [x] **Setup Lingkungan & Pustaka:** Menginisialisasi proyek Flutter dengan package name `online.nurmancloud.velora`. Memasang pustaka utama (`flutter_map`, `latlong2`, `geolocator`, `sqflite`, `share_plus`, `image_picker`, `flutter_foreground_task`, `package_info_plus`, `url_launcher`, `http`).
-* [x] **Integrasi Peta & OSM:** Menampilkan *TileLayer* OpenStreetMap & CartoDB dengan penanda posisi live dan *PolylineLayer* yang diperbarui secara dinamis di `lib/widgets/live_map_view.dart`.
+* [x] **Integrasi Peta & OSM Bebas API Key:** Menampilkan *TileLayer* OpenStreetMap dengan penanda posisi live dan *PolylineLayer* yang diperbarui secara dinamis di `lib/widgets/live_map_view.dart` tanpa memerlukan token berbayar.
 * [x] **Layanan Latar Belakang (Foreground Service):** Menggunakan `flutter_foreground_task` agar GPS tetap merekam saat layar ponsel mati atau aplikasi di-*minimize*, serta notifikasi persisten di `lib/services/foreground_service_handler.dart`.
-* [x] **Logika Pelacakan (Tracking Logic):** Mengimplementasikan filter GPS, perhitungan jarak *real-time*, akumulasi elevasi, stopwatch waktu aktif, dan sistem *Auto-Pause* di `lib/providers/tracking_provider.dart`.
+* [x] **Logika Pelacakan (Tracking Logic) & Auto-Pause Dual-Trigger:** Mengimplementasikan filter GPS, perhitungan jarak *real-time*, akumulasi elevasi, stopwatch waktu aktif, dan sistem *Auto-Pause* sinkron antara stream GPS dan ticker timer periodik di `lib/providers/tracking_provider.dart`.
 * [x] **Fitur Ekspor Gambar (RepaintBoundary):** Membangun komponen penangkapan snapshot PNG beresolusi tinggi dan berbagi ke media sosial di `lib/services/social_share_service.dart`.
 * [x] **Fitur Auto-Update:** Mengimplementasikan pengecekan otomatis dan manual ke GitHub Releases API di `lib/services/update_service.dart`.
 
@@ -58,12 +58,13 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 **Tugas Utama & Realisasi:**
 
-* [x] **Pengujian Fungsional & Unit:** 25 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+* [x] **Pengujian Fungsional & Unit:** 27 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
   * `test/algorithms_test.dart`: Haversine, Douglas-Peucker, PaceCalculator.
-  * `test/auto_pause_test.dart`: Trigger Auto-Pause dan Auto-Resume.
+  * `test/auto_pause_test.dart`: Trigger Auto-Pause dan Auto-Resume, serta evaluasi timer berkala henti stasioner.
   * `test/models_and_db_test.dart`: Serialisasi dan mapping SQLite.
   * `test/update_service_test.dart`: Logika perbandingan versi SemVer.
-  * `test/widget_test.dart`: Rendering widget UI utama.
+  * `test/gpx_service_test.dart`: Validitas struktur XML GPX 1.1.
+  * `test/widget_test.dart`: Rendering widget UI utama, logo, dan metric card bebas overflow.
 * [x] **Linter & Code Health:** Menjalankan `flutter analyze` dengan hasil bersih (0 *errors*, 0 *warnings*).
 
 ---
@@ -79,3 +80,5 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Konfigurasi Android & Izin:** Mengatur `AndroidManifest.xml` (Lokasi, Background, Kamera, Foreground Service Type) dan `build.gradle.kts` (minSdk 24, targetSdk 35, Java 17).
 * [x] **Optimasi ProGuard/R8:** Menerapkan aturan kompilasi rilis di `android/app/proguard-rules.pro`.
 * [x] **Rilis Perdana GitHub (v1.0.0):** Kompilasi file APK rilis dan publikasi rilis di GitHub Releases.
+* [x] **Rilis Pembaruan GitHub (v1.0.1):** Publikasi rilis patch v1.0.1 dengan file binary APK mandiri untuk mendukung in-app auto-update.
+* [x] **Rilis Pembaruan GitHub (v1.0.1):** Kompilasi hotfix APK, penyegaran release assets, dan verifikasi alur auto-update.

@@ -52,6 +52,28 @@ class AutoPauseDetector {
     return _isCurrentlyAutoPaused;
   }
 
+  /// Memeriksa apakah waktu henti telah melampaui ambang batas konfirmasi (dipanggil oleh timer periodik)
+  bool checkStationaryTimeout(int currentTimestampMs) {
+    if (!_isCurrentlyAutoPaused && _stoppedSinceTimestamp != null) {
+      if ((currentTimestampMs - _stoppedSinceTimestamp!) >= confirmationWindowMs) {
+        _isCurrentlyAutoPaused = true;
+      }
+    }
+    return _isCurrentlyAutoPaused;
+  }
+
+  /// Catat bahwa pengguna sedang diam pada detik ini
+  bool recordStationaryTick(int currentTimestampMs) {
+    _stoppedSinceTimestamp ??= currentTimestampMs;
+    return checkStationaryTimeout(currentTimestampMs);
+  }
+
+  /// Catat bahwa pengguna telah bergerak kembali
+  void recordMovement() {
+    _stoppedSinceTimestamp = null;
+    _isCurrentlyAutoPaused = false;
+  }
+
   /// Reset status detektor saat sesi baru dimulai
   void reset() {
     _stoppedSinceTimestamp = null;

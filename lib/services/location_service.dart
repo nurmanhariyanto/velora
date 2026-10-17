@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
-import '../algorithms/haversine.dart';
 
 /// Layanan penanganan GPS perangkat dan filter noise
 class LocationService {
-  static const double maxAcceptableAccuracyMeters = 25.0;
-  static const double minMovementThresholdMeters = 2.0;
+  static const double maxAcceptableAccuracyMeters = 35.0;
 
   StreamSubscription<Position>? _positionSubscription;
   Position? _lastValidPosition;
@@ -51,42 +49,27 @@ class LocationService {
     }
   }
 
-  /// Memulai stream lokasi GPS dengan filter noise & optimasi baterai
+  /// Memulai stream lokasi GPS berkala tanpa membuang event diam demi fungsi Auto-Pause
   Stream<Position> startLocationStream({
-    int distanceFilterMeters = 3,
-    int intervalDurationSeconds = 2,
+    int distanceFilterMeters = 0,
+    int intervalDurationSeconds = 1,
   }) {
     final locationSettings = AndroidSettings(
       accuracy: LocationAccuracy.bestForNavigation,
       distanceFilter: distanceFilterMeters,
       forceLocationManager: false,
       intervalDuration: Duration(seconds: intervalDurationSeconds),
-      foregroundNotificationConfig: null, // Ditangani flutter_foreground_task
+      foregroundNotificationConfig: null,
     );
 
     return Geolocator.getPositionStream(locationSettings: locationSettings)
         .where((position) => filterPosition(position));
   }
 
-  /// Memfilter apakah titik posisi layak dicatat atau merupakan noise/drift GPS
+  /// Memfilter hanya titik GPS dengan akurasi sinyal yang sangat buruk (> 35 meter)
   bool filterPosition(Position position) {
-    // 1. Filter akurasi yang buruk
     if (position.accuracy > maxAcceptableAccuracyMeters) {
       return false;
-    }
-
-    // 2. Filter jitter saat diam
-    if (_lastValidPosition != null) {
-      final dist = Haversine.calculateDistance(
-        _lastValidPosition!.latitude,
-        _lastValidPosition!.longitude,
-        position.latitude,
-        position.longitude,
-      );
-
-      if (dist < minMovementThresholdMeters && position.speed < 0.5) {
-        return false;
-      }
     }
 
     _lastValidPosition = position;

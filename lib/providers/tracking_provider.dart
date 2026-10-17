@@ -62,6 +62,10 @@ class TrackingProvider extends ChangeNotifier {
   double _elevationGain = 0.0;
   double? _lastElevation;
 
+  // Deteksi Waktu Pergerakan untuk Auto-Pause Pintar
+  int _lastMovementTimeMs = 0;
+  int _consecutiveStationarySeconds = 0;
+
   // Titik Koordinat
   final List<CoordinatePoint> _coordinates = [];
   Position? _currentPosition;
@@ -73,7 +77,7 @@ class TrackingProvider extends ChangeNotifier {
   int get activeDurationSeconds => _activeDurationSeconds;
   double get totalDistanceMeters => _totalDistanceMeters;
   double get totalDistanceKm => _totalDistanceMeters / 1000.0;
-  double get currentSpeedKmh => _currentSpeedMps * 3.6;
+  double get currentSpeedKmh => _status.isPaused ? 0.0 : _currentSpeedMps * 3.6;
   double get maxSpeedKmh => _maxSpeedMps * 3.6;
   double get elevationGain => _elevationGain;
   List<CoordinatePoint> get coordinates => List.unmodifiable(_coordinates);
@@ -129,6 +133,8 @@ class TrackingProvider extends ChangeNotifier {
     _resetState();
     _sessionStartTime = DateTime.now().millisecondsSinceEpoch;
     _currentSessionId = 'velora_$_sessionStartTime';
+    _lastMovementTimeMs = _sessionStartTime;
+    _consecutiveStationarySeconds = 0;
     _status = TrackingStatus.tracking;
     _autoPauseDetector.reset();
 
@@ -155,9 +161,10 @@ class TrackingProvider extends ChangeNotifier {
 
   /// Menghentikan sementara sesi secara manual
   void pauseTracking() {
-    if (_status == TrackingStatus.tracking) {
+    if (_status == TrackingStatus.tracking || _status == TrackingStatus.pausedAuto) {
       _status = TrackingStatus.pausedManual;
       _stopTimer();
+      _currentSpeedMps = 0.0;
       _updateForegroundNotification();
       notifyListeners();
     }
@@ -167,6 +174,8 @@ class TrackingProvider extends ChangeNotifier {
   void resumeTracking() {
     if (_status.isPaused) {
       _status = TrackingStatus.tracking;
+      _lastMovementTimeMs = DateTime.now().millisecondsSinceEpoch;
+      _consecutiveStationarySeconds = 0;
       _autoPauseDetector.reset();
       _startTimer();
       _updateForegroundNotification();
@@ -242,32 +251,63 @@ class TrackingProvider extends ChangeNotifier {
       );
     }
 
-    // Deteksi Auto-Pause
+    final speedMps = position.speed > 0 ? position.speed : 0.0;
+    final speedKmh = speedMps * 3.6;
+    final isMoving = speedKmh >= 2.0 || movedMeters >= 2.0;
+
+    if (isMoving) {
+      _lastMovementTimeMs = nowMs;
+      _consecutiveStationarySeconds = 0;
+      _currentSpeedMps = speedMps;
+      _autoPauseDetector.recordMovement();
+
+      // Jika sebelumnya berada dalam kondisi auto-pause, otomatis lanjutkan pelacakan
+      if (_status == TrackingStatus.pausedAuto) {
+        _status = TrackingStatus.tracking;
+        _updateForegroundNotification();
+        notifyListeners();
+      }
+    } else {
+      _currentSpeedMps = 0.0;
+    }
+
+    // Deteksi Auto-Pause via AutoPauseDetector
     final isAutoPausedNow = _autoPauseDetector.processPoint(
-      speedMps: position.speed,
+      speedMps: speedMps,
       timestampMs: nowMs,
       distanceMovedMeters: movedMeters,
     );
 
     if (isAutoPausedNow && _status == TrackingStatus.tracking) {
       _status = TrackingStatus.pausedAuto;
-      _stopTimer();
+      _currentSpeedMps = 0.0;
       _updateForegroundNotification();
       notifyListeners();
       return;
-    } else if (!isAutoPausedNow && _status == TrackingStatus.pausedAuto) {
-      _status = TrackingStatus.tracking;
-      _startTimer();
-      _updateForegroundNotification();
-      notifyListeners();
     }
 
-    // Hanya catat jarak & koordinat saat aktif merekam (tidak paused)
-    if (_status == TrackingStatus.tracking) {
+    // Jika koleksi koordinat masih kosong, simpan titik start awal
+    if (_coordinates.isEmpty && _status == TrackingStatus.tracking) {
+      _lastElevation = position.altitude > 0 ? position.altitude : null;
+      _coordinates.add(CoordinatePoint(
+        activityId: _currentSessionId,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        elevation: position.altitude,
+        speed: speedMps,
+        accuracy: position.accuracy,
+        timestamp: nowMs,
+        isAutoPaused: false,
+      ));
+      notifyListeners();
+      return;
+    }
+
+    // Hanya catat jarak & koordinat saat aktif merekam (tidak paused) dan ada pergerakan
+    if (_status == TrackingStatus.tracking && isMoving) {
       _totalDistanceMeters += movedMeters;
-      _currentSpeedMps = position.speed;
-      if (position.speed > _maxSpeedMps) {
-        _maxSpeedMps = position.speed;
+      if (_currentSpeedMps > _maxSpeedMps) {
+        _maxSpeedMps = _currentSpeedMps;
       }
 
       // Hitung akumulasi kenaikan elevasi (ascent)
@@ -287,7 +327,7 @@ class TrackingProvider extends ChangeNotifier {
         latitude: position.latitude,
         longitude: position.longitude,
         elevation: position.altitude,
-        speed: position.speed,
+        speed: speedMps,
         accuracy: position.accuracy,
         timestamp: nowMs,
         isAutoPaused: false,
@@ -302,9 +342,33 @@ class TrackingProvider extends ChangeNotifier {
   void _startTimer() {
     _tickerTimer?.cancel();
     _tickerTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+
       if (_status == TrackingStatus.tracking) {
+        // Cek apakah pengguna berhenti bergerak (kecepatan < 2 km/h atau waktu diam >= 3 detik)
+        final timeSinceMovementMs = nowMs - _lastMovementTimeMs;
+        final isStationary = (_currentSpeedMps * 3.6 < 2.0) || (timeSinceMovementMs >= 3000);
+
+        if (isStationary) {
+          _consecutiveStationarySeconds++;
+          final isDetectorTimeout = _autoPauseDetector.recordStationaryTick(nowMs);
+          if (_consecutiveStationarySeconds >= 3 || isDetectorTimeout) {
+            _status = TrackingStatus.pausedAuto;
+            _currentSpeedMps = 0.0;
+            _updateForegroundNotification();
+            notifyListeners();
+            return;
+          }
+        } else {
+          _consecutiveStationarySeconds = 0;
+          _autoPauseDetector.recordMovement();
+        }
+
+        // Tambah durasi aktif jika masih dalam status tracking
         _activeDurationSeconds++;
         notifyListeners();
+      } else if (_status == TrackingStatus.pausedAuto) {
+        // Pada kondisi auto-pause, durasi TIDAK bertambah.
       }
     });
   }
@@ -334,6 +398,8 @@ class TrackingProvider extends ChangeNotifier {
     _elevationGain = 0.0;
     _lastElevation = null;
     _coordinates.clear();
+    _lastMovementTimeMs = 0;
+    _consecutiveStationarySeconds = 0;
   }
 
   @override

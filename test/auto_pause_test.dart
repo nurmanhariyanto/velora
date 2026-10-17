@@ -97,5 +97,24 @@ void main() {
       detector.reset();
       expect(detector.isAutoPaused, isFalse);
     });
+
+    test('recordStationaryTick memicu auto-pause setelah melampaui confirmation window', () {
+      // Detik 0: catat diam
+      detector.recordStationaryTick(1000);
+      expect(detector.isAutoPaused, isFalse);
+
+      // Detik 2: masih diam
+      detector.recordStationaryTick(3000);
+      expect(detector.isAutoPaused, isFalse);
+
+      // Detik 3.5: melewati 3000 ms
+      final isPaused = detector.recordStationaryTick(4500);
+      expect(isPaused, isTrue);
+      expect(detector.isAutoPaused, isTrue);
+
+      // Gerakan aktif mereset status
+      detector.recordMovement();
+      expect(detector.isAutoPaused, isFalse);
+    });
   });
 }
