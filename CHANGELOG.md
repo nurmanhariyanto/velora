@@ -6,20 +6,15 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 
 ## [v1.0.1] - 2026-10-17
 
-### 🐛 Perbaikan Bug & Peningkatan (Hotfix)
+### 🚀 Fitur Baru & Peningkatan
+- **Pembaruan Mandiri di Dalam Aplikasi (In-App Streaming Updater):** Mengganti pengalihan browser dengan pengunduhan langsung di dalam aplikasi melalui *HTTP stream* dengan progress bar, persentase *real-time*, dan jumlah MB terunduh. Setelah selesai, dialog sistem Android secara otomatis memicu pemasangan (`FileProvider`) untuk menimpa/memperbarui aplikasi lama secara mulus tanpa kehilangan data riwayat SQLite.
+- **Pembersihan Otomatis Berkas APK Lama (Cache Cleanup):** Berkas APK versi lama di direktori penyimpanan sementara (*temporary cache*) otomatis dibersihkan saat unduhan atau pengecekan pembaruan dilakukan.
+- **Logo Aplikasi Resmi Velora (Custom Launcher Icon):** Menggantikan seluruh logo bawaan Flutter dengan logo resmi Velora (simbol panah ganda *chevron* V bercahaya oranye neon di atas latar titanium gelap), lengkap dengan *round icon* dan *adaptive icon* untuk Android 8.0+.
+
+### 🐛 Perbaikan Bug (Hotfix)
 - **Mesin Auto-Pause Ganda (Dual-Trigger Detection):** Memperbaiki kendala auto-pause yang tidak terpicu saat pengguna berhenti karena pemancar GPS melambat saat diam. Kini dilengkapi pengecekan periodik berbasis ticker timer (3 detik henti) tersinkronisasi dengan `AutoPauseDetector`, memastikan jeda otomatis aktif seketika dan resume instan saat mulai bergerak.
 - **Peta Bebas API Key (100% Free OpenStreetMap):** Mengganti endpoint CartoDB yang kini mewajibkan API key berbayar dengan OpenStreetMap Standard (`tile.openstreetmap.org`) yang dilengkapi *matrix color filter* untuk mode gelap Velora Neon. Tidak ada lagi pesan *"api key required"*.
 - **Pencegahan Text Overflow UI:** Menambahkan `FittedBox` dengan `BoxFit.scaleDown` pada komponen `MetricCard` serta menyederhanakan label menjadi `SPEED` dan `ELEVASI`, memastikan seluruh tampilan angka dan teks pas sempurna pada semua resolusi layar ponsel Android tanpa overflow.
-
----
-
-## [v1.0.1] - 2026-10-17
-
-### 🐛 Perbaikan Bug & Peningkatan Performa
-- **Perbaikan Mesin Auto-Pause (Timer-based Confirmation):** Mengintegrasikan evaluasi berbasis timer periodik 1 detik di `TrackingProvider` dan `AutoPauseDetector`. Sistem kini secara andal mendeteksi kondisi pengguna diam (< 2 km/jam atau tanpa pergerakan selama $\ge 3$ detik), menghentikan penambahan durasi aktif secara instan, serta melakukan *Auto-Resume* otomatis saat kecepatan kembali $\ge 2.0$ km/jam.
-- **Peta Bebas Kunci API (100% Free OpenStreetMap):** Mengganti ketergantungan CartoDB (yang meminta API Key) dengan standar OpenStreetMap (`tile.openstreetmap.org`) yang diperkaya *ColorMatrix* tema gelap Velora (`#1A1A24`). Navigasi peta kini dapat diakses bebas tanpa registrasi maupun API key pihak ketiga.
-- **Pencegahan Text Overflow & UI Responsif:** Menambahkan `FittedBox` adaptif pada komponen `MetricCard` agar teks angka metrik dan label tidak pernah keluar batas layar (*overflow*) pada ponsel dengan layar sempit atau pengaturan font besar.
-- **Koreksi Tipografi & Label Ergonomis:** Memperbaiki label metrik kecepatan menjadi `'SPEED'` dan membetulkan tipografi label `'ELEVASI'` pada layar pelacakan dan detail aktivitas.
 - **Optimasi Stream GPS (Location Service):** Mengatur `distanceFilter: 0` dan memperluas ambang batas akurasi hingga 35 meter agar sinyal GPS saat pengguna diam tetap diterima dan diolah oleh detektor henti alih-alih diabaikan.
 
 ---
