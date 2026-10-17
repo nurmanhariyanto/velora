@@ -1,7 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_colors.dart';
 import '../models/app_update_info.dart';
@@ -14,9 +18,30 @@ class UpdateService {
   static const String latestReleaseApiUrl =
       'https://api.github.com/repos/$githubOwner/$githubRepo/releases/latest';
 
+  static const MethodChannel _installerChannel =
+      MethodChannel('online.nurmancloud.velora/app_installer');
+
+  /// Membersihkan sisa file APK lama di direktori temporary
+  static Future<void> cleanOldApks() async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final entities = tempDir.listSync();
+      for (final entity in entities) {
+        if (entity is File && entity.path.toLowerCase().endsWith('.apk')) {
+          try {
+            await entity.delete();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
+  }
+
   /// Memeriksa rilis terbaru dari GitHub API
   static Future<AppUpdateInfo?> checkLatestRelease() async {
     try {
+      // Bersihkan file APK lama saat mengecek pembaruan
+      await cleanOldApks();
+
       final packageInfo = await PackageInfo.fromPlatform().catchError((_) {
         return PackageInfo(
           appName: 'Velora',
@@ -79,6 +104,93 @@ class UpdateService {
     }
   }
 
+  /// Mengunduh file APK langsung dari aplikasi dengan laporan progres real-time
+  static Future<File?> downloadApkWithProgress({
+    required String downloadUrl,
+    required String fileName,
+    required void Function(int receivedBytes, int totalBytes) onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    HttpClient? client;
+    IOSink? sink;
+    File? tempFile;
+
+    try {
+      await cleanOldApks();
+
+      final tempDir = await getTemporaryDirectory();
+      tempFile = File('${tempDir.path}/$fileName');
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+
+      client = HttpClient();
+      client.autoUncompress = false;
+      client.connectionTimeout = const Duration(seconds: 20);
+
+      final uri = Uri.parse(downloadUrl);
+      final request = await client.getUrl(uri);
+      request.headers.set('User-Agent', 'Velora-App');
+
+      final response = await request.close();
+      if (response.statusCode != 200) {
+        return null;
+      }
+
+      final totalBytes = response.contentLength;
+      sink = tempFile.openWrite();
+
+      int receivedBytes = 0;
+      await for (final chunk in response) {
+        if (isCancelled != null && isCancelled()) {
+          await sink.flush();
+          await sink.close();
+          if (await tempFile.exists()) {
+            await tempFile.delete();
+          }
+          return null;
+        }
+
+        sink.add(chunk);
+        receivedBytes += chunk.length;
+        onProgress(receivedBytes, totalBytes);
+      }
+
+      await sink.flush();
+      await sink.close();
+      sink = null;
+
+      return tempFile;
+    } catch (e) {
+      debugPrint('Error downloading APK: $e');
+      try {
+        await sink?.close();
+        if (tempFile != null && await tempFile.exists()) {
+          await tempFile.delete();
+        }
+      } catch (_) {}
+      return null;
+    } finally {
+      client?.close(force: true);
+    }
+  }
+
+  /// Membuka pemasang paket Android (Package Installer) untuk menginstal APK
+  static Future<bool> installApk(String filePath) async {
+    try {
+      if (Platform.isAndroid) {
+        final result = await _installerChannel.invokeMethod<bool>(
+          'installApk',
+          {'filePath': filePath},
+        );
+        return result ?? false;
+      }
+    } catch (e) {
+      debugPrint('Error triggering package installer: $e');
+    }
+    return false;
+  }
+
   /// Memeriksa pembaruan dan menampilkan dialog jika ada versi baru
   static Future<void> checkForUpdate(
     BuildContext context, {
@@ -91,7 +203,7 @@ class UpdateService {
     if (updateInfo != null && updateInfo.hasUpdate) {
       showDialog(
         context: context,
-        barrierDismissible: true,
+        barrierDismissible: false,
         builder: (_) => UpdateDialog(updateInfo: updateInfo),
       );
     } else if (!silent) {
@@ -107,7 +219,7 @@ class UpdateService {
     }
   }
 
-  /// Membuka tautan unduhan APK di peramban / pengunduh eksternal
+  /// Membuka tautan unduhan APK di peramban / pengunduh eksternal (sebagai fallback)
   static Future<bool> launchDownload(String url) async {
     final uri = Uri.parse(url);
     try {
