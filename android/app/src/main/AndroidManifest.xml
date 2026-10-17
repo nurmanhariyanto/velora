@@ -14,7 +14,8 @@
     <application
         android:label="Velora"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round">
         <!-- Foreground Service for background tracking -->
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
