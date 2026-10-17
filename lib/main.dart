@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 import 'constants/app_theme.dart';
+import 'providers/achievement_provider.dart';
 import 'providers/history_provider.dart';
 import 'providers/tracking_provider.dart';
 import 'screens/main_navigation_screen.dart';
@@ -28,6 +29,7 @@ class VeloraApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => TrackingProvider()),
         ChangeNotifierProvider(create: (_) => HistoryProvider()),
+        ChangeNotifierProvider(create: (_) => AchievementProvider()),
       ],
       child: MaterialApp(
         title: 'Velora: Run & Ride',

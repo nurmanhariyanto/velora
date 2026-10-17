@@ -67,6 +67,41 @@ class ActivitySession {
     return '${averageSpeedKmh.toStringAsFixed(1)} km/h';
   }
 
+  /// Judul default aktivitas otomatis berdasarkan waktu mulai sesi (Strava-style)
+  String get defaultTitle {
+    final date = DateTime.fromMillisecondsSinceEpoch(startTime);
+    final minuteOfDay = date.hour * 60 + date.minute;
+    final String timeOfDayName;
+
+    if (minuteOfDay >= 240 && minuteOfDay <= 659) {
+      // 04:00 - 10:59
+      timeOfDayName = 'Pagi';
+    } else if (minuteOfDay >= 660 && minuteOfDay <= 899) {
+      // 11:00 - 14:59
+      timeOfDayName = 'Siang Hari';
+    } else if (minuteOfDay >= 900 && minuteOfDay <= 1109) {
+      // 15:00 - 18:29
+      timeOfDayName = 'Sore Hari';
+    } else if (minuteOfDay >= 1110 && minuteOfDay <= 1439) {
+      // 18:30 - 23:59
+      timeOfDayName = 'Malam Hari';
+    } else {
+      // 00:00 - 03:59
+      timeOfDayName = 'Subuh';
+    }
+
+    final prefix = sportsType == SportsType.ride ? 'Bersepeda' : 'Lari';
+    return '$prefix $timeOfDayName';
+  }
+
+  /// Judul tampilan aktivitas: menggunakan catatan khusus jika diisi, atau defaultTitle
+  String get displayTitle {
+    if (notes != null && notes!.trim().isNotEmpty) {
+      return notes!.trim();
+    }
+    return defaultTitle;
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,

@@ -29,7 +29,7 @@ class ActivityDetailScreen extends StatelessWidget {
       backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: Text(
-          'Detail ${session.sportsType.displayName}',
+          session.displayTitle,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -90,7 +90,7 @@ class ActivityDetailScreen extends StatelessWidget {
                             Icon(
                               session.sportsType == SportsType.run
                                   ? Icons.directions_run_rounded
-                                  : Icons.directions_bike_rounded,
+                                  : Icons.pedal_bike_rounded,
                               size: 16,
                               color: AppColors.primaryOrange,
                             ),

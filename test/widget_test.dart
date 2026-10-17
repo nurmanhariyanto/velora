@@ -40,8 +40,9 @@ void main() {
     await tester.pumpWidget(const VeloraApp());
     await tester.pump();
 
-    // Pastikan bar navigasi bawah memiliki tab Pelacakan dan Riwayat
+    // Pastikan bar navigasi bawah memiliki tab Pelacakan, Riwayat, dan Profil
     expect(find.text('Pelacakan'), findsOneWidget);
     expect(find.text('Riwayat'), findsOneWidget);
+    expect(find.text('Profil'), findsOneWidget);
   });
 }

@@ -263,7 +263,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       child: Icon(
                         session.sportsType == SportsType.run
                             ? Icons.directions_run_rounded
-                            : Icons.directions_bike_rounded,
+                            : Icons.pedal_bike_rounded,
                         color: AppColors.primaryOrange,
                         size: 20,
                       ),
@@ -274,7 +274,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            session.sportsType.displayName,
+                            session.displayTitle,
                             style: const TextStyle(
                               color: AppColors.textPrimary,
                               fontWeight: FontWeight.bold,

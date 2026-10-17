@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import 'history_screen.dart';
+import 'profile_records_screen.dart';
 import 'tracking_screen.dart';
 
 import '../services/foreground_service_handler.dart';
 import '../services/update_service.dart';
 
-/// Navigasi Utama Aplikasi Velora (Pelacakan & Riwayat)
+/// Navigasi Utama Aplikasi Velora (Pelacakan, Riwayat, Profil & Prestasi)
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
@@ -29,6 +30,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = const [
     TrackingScreen(),
     HistoryScreen(),
+    ProfileRecordsScreen(),
   ];
 
   @override
@@ -64,6 +66,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               icon: Icon(Icons.history_rounded),
               selectedIcon: Icon(Icons.history_toggle_off_rounded, color: AppColors.primaryOrange),
               label: 'Riwayat',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.emoji_events_outlined),
+              selectedIcon: Icon(Icons.emoji_events_rounded, color: AppColors.primaryOrange),
+              label: 'Profil',
             ),
           ],
         ),

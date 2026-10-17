@@ -114,12 +114,12 @@ class SocialShareCard extends StatelessWidget {
                             ],
                           ),
                           child: Text(
-                            'VELORA ${session.sportsType.shortName}',
+                            session.displayTitle,
                             style: const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
                               fontSize: 13,
-                              letterSpacing: 2.0,
+                              letterSpacing: 1.2,
                             ),
                           ),
                         ),
