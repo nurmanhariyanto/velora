@@ -81,4 +81,3 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Optimasi ProGuard/R8:** Menerapkan aturan kompilasi rilis di `android/app/proguard-rules.pro`.
 * [x] **Rilis Perdana GitHub (v1.0.0):** Kompilasi file APK rilis dan publikasi rilis di GitHub Releases.
 * [x] **Rilis Pembaruan GitHub (v1.0.1):** Publikasi rilis patch v1.0.1 dengan file binary APK mandiri untuk mendukung in-app auto-update.
-* [x] **Rilis Pembaruan GitHub (v1.0.1):** Kompilasi hotfix APK, penyegaran release assets, dan verifikasi alur auto-update.
