@@ -5,10 +5,13 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 ## [v1.0.3.2] - 2026-10-17
 
 ### 🐛 Perbaikan Bug Minor (Hotfix)
-- **Perbaikan Pemrosesan Ekspor Gambar Kartu (Social Share):** Memperbaiki kendala munculnya pesan *"Batal atau gagal memproses gambar kartu"* saat menekan tombol *BAGIKAN (IG / WA)* di layar pratinjau kartu media sosial:
-  - Sinkronisasi *rasterization frame pipeline* menggunakan `WidgetsBinding.instance.endOfFrame` untuk menjamin rendering kartu selesai sebelum konversi ke gambar.
-  - Penanganan status `debugNeedsPaint` pada `RenderRepaintBoundary` dengan verifikasi keterikatan pohon widget (*attached check*) dan mekanisme *retry loop* otomatis hingga 3 kali percobaan.
-  - Penyempurnaan alur berbagi native `SharePlus` agar modal share sheet sistem Android/iOS selalu terbuka tanpa terhalang kegagalan snapshot frame.
+- **Perbaikan Pemrosesan Ekspor Gambar Kartu (Social Share):** Memperbaiki kendala munculnya pesan peringatan *"Batal atau gagal memproses gambar kartu"* saat menekan tombol *BAGIKAN (IG / WA)* di layar pratinjau kartu media sosial:
+  - **Sinkronisasi Frame Pipeline Flutter:** Menggunakan `WidgetsBinding.instance.endOfFrame` sebelum mengakses `RenderRepaintBoundary`, menghilangkan konflik ras (*race condition*) antara pembaruan status tombol (`_isSharing = true`) dan proses ekstraksi citra bitmap.
+  - **Pemeriksaan Status Pohon Render (*Attachment Check*):** Menambahkan verifikasi `boundary.attached` dan penundaan adaptif jika `currentContext` sedang dalam fase mounting atau layout ulang.
+  - **Penanganan Status `debugNeedsPaint`:** Menambahkan mekanisme penungguan hingga 10 frame secara aman jika pohon render masih berstatus *dirty* atau membutuhkan proses cat ulang.
+  - **Toleransi Kegagalan Rasterisasi Peta (*3x Retry Loop*):** Menambahkan penanganan galat dan pengulangan hingga 3 kali percobaan pada `boundary.toImage()` untuk menjamin *tile* OpenStreetMap dan garis lintasan rute ter-rasterisasi sempurna tanpa *AssertionError*.
+  - **Pembersihan Logika Status Berbagi (*Share Sheet Integration*):** Menghilangkan deteksi kegagalan palsu (*false negative*) pada platform Android ketika lembar berbagi (*ACTION_SEND*) dibuka atau dialihkan ke aplikasi target (WhatsApp / Instagram).
+  - **Penyempurnaan Pesan Notifikasi UI:** Mengganti pesan ambigu *"Batal atau gagal memproses gambar kartu"* dengan notifikasi kesalahan spesifik berlatar belakang merah neon hanya jika terjadi pengecualian (*exception*) riil.
 
 ---
 
