@@ -2,6 +2,31 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.3.7] - 2026-10-18
+
+### 🚀 Fitur Baru & Peningkatan
+- **Animated Route Flyover & Video Replay ala Strava Flyover / Relive:**
+  - Menghadirkan pemutaran animasi rute dinamis (*dynamic route flyover*) di layar `RouteReplayScreen` untuk menonton kembali aktivitas lari & gowes secara visual dan sinematik:
+    - Garis lintasan rute tergambar maju secara bertahap (*progressive polyline*) dengan efek neon glow berlapis khas Velora.
+    - Penunjuk posisi atlet (*rider avatar*) bergerak maju dengan rotasi derajat arah (*bearing*) yang presisi sesuai kelokan jalan.
+    - Kamera peta otomatis mengikuti atlet (*smooth auto-follow*) dengan kontrol tombol untuk beralih ke kamera bebas (*free pan/zoom*).
+    - HUD dinamis beresolusi tinggi menyajikan statistik *real-time*: **JARAK** (km berjalan), **KECEPATAN / PACE**, **ELEVASI**, dan **WAKTU**.
+    - *Milestone pop-up chime*: Kartu notifikasi animasi saat melewati kilometer baru (KM 1, KM 2...), Max Speed (⚡), dan Puncak Elevasi (▲).
+    - Kontrol pemutaran interaktif: Play / Pause, Slider Scrubber, Pengubah Kecepatan (1x, 2x, 4x, 8x), dan tombol Restart.
+  - Akses cepat langsung dari layar rincian aktivitas (`ActivityDetailScreen`) melalui tombol mengambang peta *"PUTAR ULANG (FLYOVER)"* dan kartu aksi utama.
+- **Kualitas Visual Full HD & Anti-Blur (Retina Mode):**
+  - Mengaktifkan `retinaMode: true` pada `TileLayer` OpenStreetMap untuk memastikan detail peta dan teks tajam berkualitas Full HD (1080p, anti-blur) pada layar berdensitas tinggi (High DPI).
+  - Resolusi visual kanvas dan drop shadow berdaya kontras tinggi untuk visibilitas maksimal.
+- **Perbaikan & Optimalisasi Kode:**
+  - Memperbaiki konflik ambiguous import `Haversine` pada `RouteReplayScreen` dengan menyembunyikan `Haversine` dari paket `latlong2`.
+  - Memperbaiki penanganan `MapController` yang aman (*graceful initialization check*) sebelum frame peta selesai dirender.
+
+### 🧪 Penjaminan Kualitas & Pengujian Otomatis
+- Menambahkan dan menyempurnakan `test/route_replay_test.dart` yang memverifikasi HUD statistik, tombol play/pause, pengubah kecepatan (1x-8x), dan toggle kamera auto-follow.
+- Seluruh **65 pengujian otomatis** pada suite Velora lulus 100% dan analisis kode `flutter analyze` menghasilkan **0 issues**.
+
+---
+
 ## [v1.0.3.6] - 2026-10-18
 
 ### 🚀 Fitur Baru & Peningkatan

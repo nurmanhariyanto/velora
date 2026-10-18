@@ -10,6 +10,7 @@ import '../services/track_analysis_service.dart';
 import '../widgets/elevation_chart.dart';
 import '../widgets/live_map_view.dart';
 import '../widgets/metric_card.dart';
+import 'route_replay_screen.dart';
 import 'share_preview_screen.dart';
 
 /// Layar Rincian Hasil Latihan & Replay Rute dengan Penanda Lintasan ala Strava
@@ -71,6 +72,18 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
         ),
         actions: [
           IconButton(
+            icon: const Icon(Icons.play_circle_fill_rounded, color: AppColors.electricAmber),
+            tooltip: 'Putar Ulang Rute (Flyover)',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RouteReplayScreen(session: widget.session),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.file_download_outlined, color: AppColors.neonCyan),
             tooltip: 'Ekspor GPX',
             onPressed: () => GpxService.exportAndShareGpx(widget.session),
@@ -94,17 +107,78 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // 1. Tampilan Peta Replay Rute dengan Penanda Lintasan Langsung ala Strava
-            SizedBox(
-              height: 290,
-              width: double.infinity,
-              child: LiveMapView(
-                coordinates: widget.session.coordinates,
-                isTracking: false,
-                autoCenter: true,
-                showTrackMilestones: true,
-                sportsType: widget.session.sportsType,
-                highlightedSegment: _highlightedSegment,
-              ),
+            Stack(
+              children: [
+                SizedBox(
+                  height: 290,
+                  width: double.infinity,
+                  child: LiveMapView(
+                    coordinates: widget.session.coordinates,
+                    isTracking: false,
+                    autoCenter: true,
+                    showTrackMilestones: true,
+                    sportsType: widget.session.sportsType,
+                    highlightedSegment: _highlightedSegment,
+                  ),
+                ),
+                // Tombol Mengambang Putar Ulang Flyover di Atas Peta
+                if (widget.session.coordinates.length >= 2)
+                  Positioned(
+                    bottom: 14,
+                    left: 14,
+                    child: InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => RouteReplayScreen(session: widget.session),
+                          ),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(20),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [
+                              AppColors.electricAmber,
+                              AppColors.primaryOrange,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black54,
+                              blurRadius: 10,
+                              offset: Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 6),
+                            Text(
+                              'PUTAR ULANG (FLYOVER)',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
 
             // 2. Konten Ringkasan & Tanggal
@@ -308,6 +382,44 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                       ),
                     ),
                   ),
+
+                  // Tombol Putar Ulang Rute Flyover ala Strava & Relive
+                  if (widget.session.coordinates.length >= 2) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => RouteReplayScreen(session: widget.session),
+                            ),
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.electricAmber,
+                          side: const BorderSide(
+                            color: AppColors.electricAmber,
+                            width: 1.5,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        icon: const Icon(Icons.play_circle_fill_rounded, size: 22),
+                        label: const Text(
+                          'PUTAR ULANG RUTE (FLYOVER ALA STRAVA)',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 12),
 
