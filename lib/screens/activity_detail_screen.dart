@@ -438,7 +438,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                       ),
                       icon: const Icon(Icons.file_download_outlined, size: 20),
                       label: const Text(
-                        'EKSPOR FILE GPX (STRAVA / GARMIN)',
+                        'EKSPOR BERKAS GPX STANDAR',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,

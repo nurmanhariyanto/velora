@@ -6,7 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/activity_session.dart';
 
 /// Layanan ekspor lintasan GPS ke format universal GPX (GPS Exchange Format v1.1)
-/// Memungkinkan ekspor data rute untuk diimpor ke aplikasi pihak ketiga (Strava, Garmin Connect, Google Earth, dll.).
+/// Memungkinkan ekspor data rute untuk diimpor ke aplikasi pihak ketiga, Garmin Connect, Google Earth, dll.
 class GpxService {
   /// Mengonversi ActivitySession dan deretan titik koordinatnya ke string XML GPX 1.1
   static String generateGpx(ActivitySession session) {
