@@ -72,6 +72,14 @@ class DatabaseHelper {
     await db.execute('''
       CREATE INDEX idx_titik_aktivitas ON titik_koordinat (aktivitas_id)
     ''');
+
+    // 3. Tabel Pengaturan & Profil Pengguna Lokal
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS user_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
   }
 
   Future<void> close() async {

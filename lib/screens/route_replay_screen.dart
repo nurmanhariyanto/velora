@@ -23,10 +23,12 @@ import 'share_preview_screen.dart';
 /// Layar Pemutar Animasi Ulang Lintasan Rute (Route Flyover Replay Sinematik)
 class RouteReplayScreen extends StatefulWidget {
   final ActivitySession session;
+  final bool autoStartVideoExport;
 
   const RouteReplayScreen({
     super.key,
     required this.session,
+    this.autoStartVideoExport = false,
   });
 
   @override
@@ -49,6 +51,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   bool _autoFollow = true;
   bool _mapDarkTheme = true;
   bool _isMapReady = false;
+  bool _povMode = true; // Mode POV Flyover kamera berputar mengikuti arah hadap atlet
+  double _smoothedBearing = 0.0;
 
   // Titik aktif & notifikasi milestone
   TrackMilestone? _latestChimeMilestone;
@@ -163,6 +167,15 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         _animController.forward();
         _isPlaying = true;
       }
+
+      // Jika dibuka dengan permintaan ekspor video otomatis dari detail aktivitas
+      if (widget.autoStartVideoExport) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _startInAppVideoRender();
+          }
+        });
+      }
     }
   }
 
@@ -231,24 +244,56 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     if (_autoFollow && _isMapReady) {
       final now = DateTime.now();
       final targetPos = LatLng(currentPoint.latitude, currentPoint.longitude);
-      final shouldMoveCamera = _lastCameraMoveTime == null ||
-          now.difference(_lastCameraMoveTime!).inMilliseconds >= 250 ||
+      final shouldMoveCamera = _isRenderingVideo ||
+          _lastCameraMoveTime == null ||
+          now.difference(_lastCameraMoveTime!).inMilliseconds >= 200 ||
           (_lastCameraPos != null &&
               Haversine.calculateDistance(
                     _lastCameraPos!.latitude,
                     _lastCameraPos!.longitude,
                     targetPos.latitude,
                     targetPos.longitude,
-                  ) >= 25.0);
+                  ) >= 20.0);
 
       if (shouldMoveCamera) {
         _lastCameraMoveTime = now;
         _lastCameraPos = targetPos;
         try {
-          _mapController.move(
-            targetPos,
-            _mapController.camera.zoom,
-          );
+          if (_povMode || _cleanRecordMode || _isRenderingVideo) {
+            // Hitung arah hadap kendaraan (bearing) ke titik rute berikutnya
+            final nextIdx = (index + 1).clamp(0, totalPoints - 1);
+            final nextPt = widget.session.coordinates[nextIdx];
+            final rawBearing = Haversine.calculateBearing(
+              currentPoint.latitude,
+              currentPoint.longitude,
+              nextPt.latitude,
+              nextPt.longitude,
+            );
+
+            // Interpolasi rotasi sudut agar pergerakan kamera halus seperti kamera drone POV
+            if (_smoothedBearing == 0.0) {
+              _smoothedBearing = rawBearing;
+            } else {
+              double diff = (rawBearing - _smoothedBearing) % 360;
+              if (diff > 180) diff -= 360;
+              if (diff < -180) diff += 360;
+              _smoothedBearing = (_smoothedBearing + diff * 0.35) % 360;
+            }
+
+            // Putar kamera ke -_smoothedBearing agar arah laju kendaraan selalu menghadap ke atas layar (POV)
+            final targetZoom = _isRenderingVideo ? 16.5 : _mapController.camera.zoom;
+            _mapController.moveAndRotate(
+              targetPos,
+              targetZoom,
+              -_smoothedBearing,
+            );
+          } else {
+            _mapController.moveAndRotate(
+              targetPos,
+              _mapController.camera.zoom,
+              0.0,
+            );
+          }
         } catch (_) {
           // Abaikan jika map controller belum siap atau belum dirender
         }
@@ -602,7 +647,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
           // 4. Panel HUD Statistik Berjalan & Pengontrol Pemutaran Bawah
           Positioned(
-            bottom: 24,
+            bottom: _cleanRecordMode ? 36 : 24,
             left: 16,
             right: 16,
             child: _cleanRecordMode
@@ -827,7 +872,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ],
             ),
             child: Transform.rotate(
-              angle: (bearingDegrees * math.pi / 180.0),
+              angle: ((_povMode || _cleanRecordMode || _isRenderingVideo)
+                      ? 0.0
+                      : bearingDegrees) *
+                  math.pi /
+                  180.0,
               child: Icon(
                 isRide ? Icons.navigation_rounded : Icons.directions_run_rounded,
                 size: 18,
@@ -928,6 +977,23 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 ),
               ],
             ),
+          ),
+          // Tombol Mode POV Flyover (Chase Cam vs 2D Datar)
+          IconButton(
+            icon: Icon(
+              _povMode ? Icons.explore_rounded : Icons.explore_off_rounded,
+              color: _povMode ? AppColors.electricAmber : Colors.white60,
+              size: 22,
+            ),
+            tooltip: _povMode ? 'Mode POV Kamera Aktif' : 'Mode Kamera Datar (Utara)',
+            onPressed: () {
+              setState(() {
+                _povMode = !_povMode;
+                if (!_povMode) {
+                  _mapController.rotate(0.0);
+                }
+              });
+            },
           ),
           // Tombol Kunci Kamera Follow
           IconButton(
@@ -1483,7 +1549,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Video flyover rute berformat MP4 telah selesai dirender dan tersimpan di memori ponsel Anda.',
+                'Video flyover rute MP4 Full HD (1080p) telah selesai dibuat dan tersimpan otomatis di Galeri ponsel (folder Download/Velora).',
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
               ),
               const SizedBox(height: 12),
@@ -1501,7 +1567,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        fileName,
+                        'Download/Velora/$fileName',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -2028,96 +2094,139 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     required double currentElevation,
     required int elapsedSeconds,
   }) {
+    final isRun = widget.session.sportsType == SportsType.run;
+    final speedValue = isRun
+        ? (currentSpeedKmh > 1.0
+            ? PaceCalculator.formatPace(3600.0 / currentSpeedKmh)
+            : "--'--\"")
+        : currentSpeedKmh.toStringAsFixed(1);
+    final speedUnit = isRun ? '/KM' : 'KM/H';
+    final speedLabel = isRun ? 'PACE' : 'SPEED';
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withAlpha(200),
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(color: Colors.white24, width: 1),
+        color: Colors.black.withAlpha(225),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white24, width: 1.2),
         boxShadow: const [
           BoxShadow(
-            color: Colors.black54,
-            blurRadius: 16,
+            color: Colors.black87,
+            blurRadius: 20,
             offset: Offset(0, 6),
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildCompactMetric(
+          // 1. JARAK
+          _buildHudMetricColumn(
+            icon: Icons.straighten_rounded,
+            label: 'JARAK',
             value: currentDistKm.toStringAsFixed(2),
             unit: 'KM',
-            color: AppColors.neonCyan,
+            valueColor: AppColors.neonCyan,
           ),
-          _buildDotDivider(),
-          _buildCompactMetric(
-            value: widget.session.sportsType == SportsType.run
-                ? (currentSpeedKmh > 1.0
-                    ? PaceCalculator.formatPace(3600.0 / currentSpeedKmh)
-                    : "--'--\"")
-                : currentSpeedKmh.toStringAsFixed(1),
-            unit: widget.session.sportsType == SportsType.run ? '/KM' : 'KM/H',
-            color: AppColors.primaryOrange,
+          _buildHudDivider(),
+
+          // 2. SPEED / PACE
+          _buildHudMetricColumn(
+            icon: Icons.speed_rounded,
+            label: speedLabel,
+            value: speedValue,
+            unit: speedUnit,
+            valueColor: AppColors.primaryOrange,
           ),
-          _buildDotDivider(),
-          _buildCompactMetric(
+          _buildHudDivider(),
+
+          // 3. ELEVASI
+          _buildHudMetricColumn(
+            icon: Icons.terrain_rounded,
+            label: 'ELEVASI',
             value: '+${currentElevation.toStringAsFixed(0)}',
             unit: 'M',
-            color: const Color(0xFF818CF8),
+            valueColor: const Color(0xFF818CF8),
           ),
-          _buildDotDivider(),
-          _buildCompactMetric(
+          _buildHudDivider(),
+
+          // 4. WAKTU
+          _buildHudMetricColumn(
+            icon: Icons.timer_outlined,
+            label: 'WAKTU',
             value: PaceCalculator.formatDuration(elapsedSeconds),
             unit: '',
-            color: Colors.white,
+            valueColor: Colors.white,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCompactMetric({
+  Widget _buildHudMetricColumn({
+    required IconData icon,
+    required String label,
     required String value,
     required String unit,
-    required Color color,
+    required Color valueColor,
   }) {
-    return Row(
+    return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.baseline,
-      textBaseline: TextBaseline.alphabetic,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          value,
-          style: TextStyle(
-            color: color,
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        if (unit.isNotEmpty) ...[
-          const SizedBox(width: 3),
-          Text(
-            unit,
-            style: TextStyle(
-              color: color.withAlpha(180),
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: AppColors.textMuted),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: AppColors.textMuted,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
+        const SizedBox(height: 3),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text(
+              value,
+              style: TextStyle(
+                color: valueColor,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+              ),
+            ),
+            if (unit.isNotEmpty) ...[
+              const SizedBox(width: 2.5),
+              Text(
+                unit,
+                style: TextStyle(
+                  color: valueColor.withAlpha(200),
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ],
+        ),
       ],
     );
   }
 
-  Widget _buildDotDivider() {
+  Widget _buildHudDivider() {
     return Container(
-      width: 4,
-      height: 4,
-      decoration: const BoxDecoration(
-        color: Colors.white30,
-        shape: BoxShape.circle,
-      ),
+      width: 1,
+      height: 30,
+      color: Colors.white12,
     );
   }
 }

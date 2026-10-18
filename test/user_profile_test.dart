@@ -12,6 +12,7 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+    UserProfileService.resetCacheForTesting();
   });
 
   group('UserProfileService Tests', () {

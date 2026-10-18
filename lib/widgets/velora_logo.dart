@@ -12,7 +12,7 @@ class VeloraLogo extends StatelessWidget {
     super.key,
     this.size = 40.0,
     this.showText = true,
-    this.showTagline = true,
+    this.showTagline = false,
     this.color,
   });
 

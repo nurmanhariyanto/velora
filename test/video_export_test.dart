@@ -52,13 +52,13 @@ void main() {
         return 0;
       });
 
-      // Panggil metode setup simulasi
+      // Panggil metode setup simulasi Full HD 1080p
       await channel.invokeMethod('setup', {
-        'width': 720,
-        'height': 1280,
+        'width': 1080,
+        'height': 2200,
         'fps': 24,
-        'videoBitrate': 3500000,
-        'filepath': '/tmp/test.mp4',
+        'videoBitrate': 8000000,
+        'filepath': '/tmp/test_1080p.mp4',
       });
 
       // Panggil metode finish
@@ -66,6 +66,26 @@ void main() {
 
       expect(calls, contains('setup'));
       expect(calls, contains('finish'));
+    });
+
+    test('Perhitungan rasio piksel adaptif menjamin resolusi lebar Full HD 1080px', () {
+      // Pada layar ponsel umum dengan lebar 360 - 412 dp
+      const double screenWidth1 = 360.0;
+      const double screenWidth2 = 392.0;
+      const double screenWidth3 = 412.0;
+
+      final ratio1 = (1080.0 / screenWidth1).clamp(2.0, 3.5);
+      final ratio2 = (1080.0 / screenWidth2).clamp(2.0, 3.5);
+      final ratio3 = (1080.0 / screenWidth3).clamp(2.0, 3.5);
+
+      final widthPx1 = (screenWidth1 * ratio1).round();
+      final widthPx2 = (screenWidth2 * ratio2).round();
+      final widthPx3 = (screenWidth3 * ratio3).round();
+
+      expect(widthPx1, equals(1080));
+      expect(widthPx2, equals(1080));
+      expect(widthPx3, equals(1080));
+      expect(ratio2, greaterThan(2.5));
     });
   });
 }

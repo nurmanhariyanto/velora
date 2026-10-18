@@ -61,8 +61,14 @@ class VideoExportService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final outputPath = '${videosDir.path}/velora_flyover_$timestamp.mp4';
 
-      // 2. Ambil frame pertama untuk mengukur dimensi resolusi video (harus genap)
-      final initialImage = await boundary.toImage(pixelRatio: 1.0);
+      // 2. Tentukan rasio piksel adaptif untuk menghasilkan video Full HD 1080p yang jernih dan bebas blur
+      final boundaryWidth = boundary.size.width;
+      final double effectivePixelRatio = (boundaryWidth > 0)
+          ? (1080.0 / boundaryWidth).clamp(2.0, 3.5)
+          : 2.5;
+
+      // Ambil frame pertama untuk mengukur dimensi resolusi video (harus genap untuk MediaCodec)
+      final initialImage = await boundary.toImage(pixelRatio: effectivePixelRatio);
       final rawWidth = initialImage.width;
       final rawHeight = initialImage.height;
       final videoWidth = (rawWidth ~/ 2) * 2;
@@ -70,15 +76,15 @@ class VideoExportService {
       initialImage.dispose();
 
       debugPrint(
-        'VideoExportService: Memulai encode MP4 ($videoWidth x $videoHeight, $fps FPS, $totalFrames frames)',
+        'VideoExportService: Memulai encode MP4 Full HD ($videoWidth x $videoHeight, $fps FPS, $totalFrames frames, ratio $effectivePixelRatio)',
       );
 
-      // 3. Konfigurasi encoder video hardware
+      // 3. Konfigurasi encoder video hardware H.264
       await FlutterQuickVideoEncoder.setup(
         width: videoWidth,
         height: videoHeight,
         fps: fps,
-        videoBitrate: 3500000, // 3.5 Mbps untuk kualitas tajam Full HD
+        videoBitrate: 8000000, // 8.0 Mbps untuk kualitas Full HD super tajam tanpa artefak blur
         profileLevel: ProfileLevel.highAutoLevel,
         audioChannels: 0,
         audioBitrate: 0,
@@ -105,8 +111,8 @@ class VideoExportService {
         // Gerakkan kamera dan titik rute ke posisi frame ke-i
         await onStepFrame(i, progress);
 
-        // Ambil snapshot piksel dari RepaintBoundary
-        final image = await boundary.toImage(pixelRatio: 1.0);
+        // Ambil snapshot piksel Full HD dari RepaintBoundary
+        final image = await boundary.toImage(pixelRatio: effectivePixelRatio);
         final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
         final imageW = image.width;
         final imageH = image.height;
@@ -133,6 +139,31 @@ class VideoExportService {
       // 5. Finalisasi berkas video
       await FlutterQuickVideoEncoder.finish();
       debugPrint('VideoExportService: Video berhasil ditulis ke $outputPath');
+
+      // 6. Salin juga ke folder publik Download & Movies ponsel agar langsung terdeteksi Galeri & File Manager
+      try {
+        final downloadDir = Directory('/storage/emulated/0/Download/Velora');
+        if (!await downloadDir.exists()) {
+          await downloadDir.create(recursive: true);
+        }
+        final publicFile = File('${downloadDir.path}/velora_flyover_$timestamp.mp4');
+        await File(outputPath).copy(publicFile.path);
+        debugPrint('VideoExportService: Salinan publik tersimpan di: ${publicFile.path}');
+      } catch (e) {
+        debugPrint('VideoExportService: Info copy ke Download: $e');
+      }
+
+      try {
+        final moviesDir = Directory('/storage/emulated/0/Movies/Velora');
+        if (!await moviesDir.exists()) {
+          await moviesDir.create(recursive: true);
+        }
+        final moviesFile = File('${moviesDir.path}/velora_flyover_$timestamp.mp4');
+        await File(outputPath).copy(moviesFile.path);
+        debugPrint('VideoExportService: Salinan galeri tersimpan di: ${moviesFile.path}');
+      } catch (e) {
+        debugPrint('VideoExportService: Info copy ke Movies: $e');
+      }
 
       final file = File(outputPath);
       if (await file.exists() && await file.length() > 0) {

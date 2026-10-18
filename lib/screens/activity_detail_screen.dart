@@ -72,21 +72,9 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_download_outlined, color: AppColors.neonCyan),
-            tooltip: 'Ekspor GPX',
-            onPressed: () => GpxService.exportAndShareGpx(widget.session),
-          ),
-          IconButton(
             icon: const Icon(Icons.share_rounded, color: AppColors.primaryOrange),
-            tooltip: 'Bagikan',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SharePreviewScreen(session: widget.session),
-                ),
-              );
-            },
+            tooltip: 'Bagikan Aktivitas',
+            onPressed: () => _showShareChoiceModal(context),
           ),
         ],
       ),
@@ -323,14 +311,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                         child: SizedBox(
                           height: 52,
                           child: OutlinedButton.icon(
-                            onPressed: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => SharePreviewScreen(session: widget.session),
-                                ),
-                              );
-                            },
+                            onPressed: () => _showShareChoiceModal(context),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: AppColors.electricAmber,
                               side: const BorderSide(
@@ -359,6 +340,228 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  void _showShareChoiceModal(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.cardSurface,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(28),
+              topRight: Radius.circular(28),
+            ),
+            border: Border(
+              top: BorderSide(color: AppColors.borderSubtle, width: 1.2),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            14,
+            20,
+            MediaQuery.of(context).padding.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Handle indikator geser
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 18),
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              const Text(
+                'Bagikan Aktivitas',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Pilih format konten yang ingin Anda bagikan ke media sosial',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12.5,
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Opsi 1: Ringkasan Poster HD
+              _buildShareChoiceCard(
+                icon: Icons.photo_library_rounded,
+                iconColor: AppColors.primaryOrange,
+                title: 'Poster Ringkasan Latihan (HD)',
+                subtitle: 'Poster foto & peta visual HD untuk Instagram Story, WhatsApp Status, atau Galeri.',
+                badgeText: 'FOTO & PETA',
+                badgeColor: AppColors.primaryOrange,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SharePreviewScreen(session: widget.session),
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              // Opsi 2: Video Flyover Rute POV (MP4 Sinematik)
+              if (widget.session.coordinates.length >= 2) ...[
+                _buildShareChoiceCard(
+                  icon: Icons.movie_filter_rounded,
+                  iconColor: AppColors.neonCyan,
+                  title: 'Video Flyover Rute (MP4 Sinematik)',
+                  subtitle: 'Animasi kamera POV 3D Full HD dengan speedometer & elevasi untuk Reels, TikTok, atau WhatsApp.',
+                  badgeText: 'VIDEO MP4',
+                  badgeColor: AppColors.neonCyan,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => RouteReplayScreen(
+                          session: widget.session,
+                          autoStartVideoExport: true,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // Opsi 3: Ekspor Berkas GPX
+              _buildShareChoiceCard(
+                icon: Icons.file_download_outlined,
+                iconColor: const Color(0xFF818CF8),
+                title: 'Ekspor Berkas GPS (GPX)',
+                subtitle: 'Simpan atau bagikan koordinat rute mentah dalam format standar GPX.',
+                badgeText: 'FILE GPX',
+                badgeColor: const Color(0xFF818CF8),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  GpxService.exportAndShareGpx(widget.session);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildShareChoiceCard({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required String badgeText,
+    required Color badgeColor,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.cardSurfaceElevated,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderSubtle),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconColor.withAlpha(35),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: iconColor.withAlpha(90), width: 1.2),
+                ),
+                child: Center(
+                  child: Icon(icon, color: iconColor, size: 24),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withAlpha(35),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: badgeColor.withAlpha(120), width: 0.8),
+                          ),
+                          child: Text(
+                            badgeText,
+                            style: TextStyle(
+                              color: badgeColor,
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11.5,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white38,
+                size: 22,
+              ),
+            ],
+          ),
         ),
       ),
     );

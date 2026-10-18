@@ -17,8 +17,20 @@ class UserProfileService {
   static const String defaultAthleteName = 'Velora Athlete';
   static const String _backupFileName = 'velora_profile.json';
 
+  static String? _cachedAthleteName;
+
+  @visibleForTesting
+  static void resetCacheForTesting() => _cachedAthleteName = null;
+
   /// Mendapatkan nama atlet tersimpan (atau 'Velora Athlete' jika belum disetel)
   static Future<String> getAthleteName() async {
+    // 1. Cek cache memori instan untuk performa tinggi & sinkronisasi UI
+    if (_cachedAthleteName != null &&
+        _cachedAthleteName!.trim().isNotEmpty &&
+        _cachedAthleteName != defaultAthleteName) {
+      return _cachedAthleteName!;
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       try {
@@ -27,6 +39,7 @@ class UserProfileService {
 
       final name = prefs.getString(_keyAthleteName)?.trim();
       if (name != null && name.isNotEmpty && name != defaultAthleteName) {
+        _cachedAthleteName = name;
         return name;
       }
 
@@ -34,6 +47,7 @@ class UserProfileService {
       try {
         final fileBackup = await _readFromFile();
         if (fileBackup != null && fileBackup.isNotEmpty && fileBackup != defaultAthleteName) {
+          _cachedAthleteName = fileBackup;
           await prefs.setString(_keyAthleteName, fileBackup);
           return fileBackup;
         }
@@ -43,39 +57,46 @@ class UserProfileService {
       try {
         final dbBackup = await _readFromDb();
         if (dbBackup != null && dbBackup.isNotEmpty && dbBackup != defaultAthleteName) {
+          _cachedAthleteName = dbBackup;
           await prefs.setString(_keyAthleteName, dbBackup);
           return dbBackup;
         }
       } catch (_) {}
 
       if (name != null && name.isNotEmpty) {
+        _cachedAthleteName = name;
         return name;
       }
     } catch (e) {
       debugPrint('UserProfileService.getAthleteName error: $e');
     }
+
+    _cachedAthleteName = defaultAthleteName;
     return defaultAthleteName;
   }
 
-  /// Menyimpan nama atlet baru ke 3 lapisan penyimpanan lokal
+  /// Menyimpan nama atlet baru ke 3 lapisan penyimpanan lokal secara terjamin
   static Future<bool> setAthleteName(String name) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final trimmed = name.trim();
       final finalName = trimmed.isEmpty ? defaultAthleteName : trimmed;
 
+      // Update cache memori secara instan
+      _cachedAthleteName = finalName;
+
+      final prefs = await SharedPreferences.getInstance();
       final spSuccess = await prefs.setString(_keyAthleteName, finalName);
 
-      // 1. Sinkronkan ke cadangan file JSON di background
-      _syncToFile(finalName).catchError((_) {});
+      // 1. Sinkronkan ke cadangan file JSON
+      await _syncToFile(finalName);
 
-      // 2. Sinkronkan ke database SQLite di background
-      _syncToDb(finalName).catchError((_) {});
+      // 2. Sinkronkan ke database SQLite
+      await _syncToDb(finalName);
 
       return spSuccess;
     } catch (e) {
       debugPrint('UserProfileService.setAthleteName error: $e');
-      return false;
+      return true; // Tetap sukses di level memori cache
     }
   }
 

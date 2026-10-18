@@ -753,6 +753,12 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
                   controller: controller,
                   maxLength: 28,
                   autofocus: true,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (value) {
+                    if (formKey.currentState?.validate() ?? false) {
+                      Navigator.pop(ctx, controller.text.trim());
+                    }
+                  },
                   style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Nama Atlet',
@@ -817,11 +823,14 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
     );
 
     if (result != null && result.isNotEmpty) {
-      final success = await UserProfileService.setAthleteName(result);
-      if (success && mounted) {
-        setState(() {
-          _athleteName = result;
-        });
+      // Perbarui state lokal secara instan tanpa menunggu background I/O
+      setState(() {
+        _athleteName = result;
+      });
+
+      await UserProfileService.setAthleteName(result);
+
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Nama profil berhasil disimpan: "$result"'),
