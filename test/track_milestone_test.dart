@@ -8,7 +8,7 @@ import 'package:velora/widgets/live_map_view.dart';
 import 'package:velora/widgets/track_milestone_pin.dart';
 
 void main() {
-  group('TrackAnalysisService & Track Milestones Tests (Penanda Lintasan ala Strava)', () {
+  group('TrackAnalysisService & Track Milestones Tests (Penanda Lintasan)', () {
     List<CoordinatePoint> generateTestPoints({
       required int count,
       required double distancePerStepMeters,

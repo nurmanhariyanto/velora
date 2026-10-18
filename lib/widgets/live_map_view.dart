@@ -132,9 +132,10 @@ class _LiveMapViewState extends State<LiveMapView> {
           mapController: _mapController,
           options: MapOptions(
             initialCenter: center,
-            initialZoom: 16.5,
+            initialZoom: 16.0,
             minZoom: 4.0,
             maxZoom: 19.0,
+            backgroundColor: AppColors.darkBackground,
             onPositionChanged: (pos, hasGesture) {
               if (hasGesture) {
                 _userInteracted = true;
@@ -142,11 +143,17 @@ class _LiveMapViewState extends State<LiveMapView> {
             },
           ),
           children: [
-            // 1. Lapisan Tile OpenStreetMap (100% Bebas API Key)
+            // 1. Lapisan Tile OpenStreetMap (100% Bebas API Key, Smooth Caching & Buffering)
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'online.nurmancloud.velora',
-              tileDisplay: const TileDisplay.instantaneous(),
+              panBuffer: 2,
+              keepBuffer: 6,
+              tileDisplay: const TileDisplay.fadeIn(
+                duration: Duration(milliseconds: 150),
+              ),
+              retinaMode: false,
+              maxNativeZoom: 19,
               tileBuilder: _currentTheme == MapThemeMode.dark
                   ? (context, tileWidget, tile) {
                       return ColorFiltered(
@@ -202,7 +209,7 @@ class _LiveMapViewState extends State<LiveMapView> {
               ),
             ],
 
-            // 3. Lapisan Marker (Penanda Lintasan ala Strava & Lokasi Pengguna)
+            // 3. Lapisan Marker (Penanda Lintasan & Lokasi Pengguna)
             MarkerLayer(
               markers: [
                 // Jika Penanda Lintasan Aktif, Tampilkan Seluruh Milestone
@@ -308,7 +315,7 @@ class _LiveMapViewState extends State<LiveMapView> {
           ),
         ),
 
-        // Banner Detail Penanda Milestone saat Disentuh (Bottom Tooltip ala Strava)
+        // Banner Detail Penanda Milestone saat Disentuh (Bottom Tooltip)
         if (_selectedMilestone != null)
           Positioned(
             bottom: 16,

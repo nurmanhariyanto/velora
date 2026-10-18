@@ -5,7 +5,7 @@ import 'package:velora/models/sports_type.dart';
 import 'package:velora/services/achievement_service.dart';
 
 void main() {
-  group('Strava Time-of-Day Activity Naming (Deteksi Waktu Cerdas)', () {
+  group('Time-of-Day Activity Naming (Deteksi Waktu Cerdas)', () {
     DateTime makeTime(int hour, int minute) {
       return DateTime(2026, 10, 17, hour, minute);
     }

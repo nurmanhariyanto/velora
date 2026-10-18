@@ -67,7 +67,7 @@ class ActivitySession {
     return '${averageSpeedKmh.toStringAsFixed(1)} km/h';
   }
 
-  /// Judul default aktivitas otomatis berdasarkan waktu mulai sesi (Strava-style)
+  /// Judul default aktivitas otomatis berdasarkan waktu mulai sesi
   String get defaultTitle {
     final date = DateTime.fromMillisecondsSinceEpoch(startTime);
     final minuteOfDay = date.hour * 60 + date.minute;

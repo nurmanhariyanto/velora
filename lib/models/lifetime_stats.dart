@@ -1,7 +1,7 @@
 import '../algorithms/pace_calculator.dart';
 import 'sports_type.dart';
 
-/// Statistik akumulasi seumur hidup (All-Time Lifetime Stats) per jenis olahraga ala Strava
+/// Statistik akumulasi seumur hidup (All-Time Lifetime Stats) per jenis olahraga
 class LifetimeStats {
   final SportsType sportsType;
   final double totalDistanceMeters;

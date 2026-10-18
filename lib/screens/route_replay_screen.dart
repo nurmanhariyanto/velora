@@ -11,11 +11,14 @@ import '../models/activity_session.dart';
 import '../models/coordinate_point.dart';
 import '../models/sports_type.dart';
 import '../models/track_milestone.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../services/track_analysis_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/track_milestone_pin.dart';
+import 'share_preview_screen.dart';
 
-/// Layar Pemutar Animasi Ulang Lintasan Rute (Route Flyover / 3D-2D Replay ala Strava & Relive)
+/// Layar Pemutar Animasi Ulang Lintasan Rute (Route Flyover Replay Sinematik)
 class RouteReplayScreen extends StatefulWidget {
   final ActivitySession session;
 
@@ -49,6 +52,15 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   TrackMilestone? _latestChimeMilestone;
   Timer? _chimeTimer;
   int _lastChimeKm = 0;
+
+  // Kamera throttled update untuk mencegah spam request tile OSM (kotak hitam/putih)
+  DateTime? _lastCameraMoveTime;
+  LatLng? _lastCameraPos;
+
+  // Status Mode Rekam Layar Bersih (Clean Screen Record)
+  bool _cleanRecordMode = false;
+  bool _showRecordTooltip = false;
+  Timer? _recordTooltipTimer;
 
   // Matriks OpenStreetMap Mode Gelap Khas Velora
   static const List<double> _darkMatrix = <double>[
@@ -160,14 +172,32 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     }
 
     // Kamera mengikuti posisi titik penunjuk atlet jika auto-follow aktif
+    // Throttled (min 250ms atau delta jarak >= 25 meter) agar request tile OSM stabil
+    // dan tidak mengalami rate-limiting yang memicu kotak hitam/putih.
     if (_autoFollow && _isMapReady) {
-      try {
-        _mapController.move(
-          LatLng(currentPoint.latitude, currentPoint.longitude),
-          _mapController.camera.zoom,
-        );
-      } catch (_) {
-        // Abaikan jika map controller belum siap atau belum dirender
+      final now = DateTime.now();
+      final targetPos = LatLng(currentPoint.latitude, currentPoint.longitude);
+      final shouldMoveCamera = _lastCameraMoveTime == null ||
+          now.difference(_lastCameraMoveTime!).inMilliseconds >= 250 ||
+          (_lastCameraPos != null &&
+              Haversine.calculateDistance(
+                    _lastCameraPos!.latitude,
+                    _lastCameraPos!.longitude,
+                    targetPos.latitude,
+                    targetPos.longitude,
+                  ) >= 25.0);
+
+      if (shouldMoveCamera) {
+        _lastCameraMoveTime = now;
+        _lastCameraPos = targetPos;
+        try {
+          _mapController.move(
+            targetPos,
+            _mapController.camera.zoom,
+          );
+        } catch (_) {
+          // Abaikan jika map controller belum siap atau belum dirender
+        }
       }
     }
 
@@ -233,14 +263,24 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
   void _seekTo(double value) {
     _animController.value = value;
+    _lastCameraMoveTime = null;
+    _lastCameraPos = null;
     final totalPoints = widget.session.coordinates.length;
     final idx = (value * (totalPoints - 1)).floor().clamp(0, totalPoints - 1);
     if (_cumulativeDistances.isNotEmpty) {
       _lastChimeKm = (_cumulativeDistances[idx] / 1000.0).floor();
     }
+    if (_autoFollow && _isMapReady) {
+      try {
+        final p = widget.session.coordinates[idx];
+        _mapController.move(LatLng(p.latitude, p.longitude), _mapController.camera.zoom);
+      } catch (_) {}
+    }
   }
 
   void _restartReplay() {
+    _lastCameraMoveTime = null;
+    _lastCameraPos = null;
     _seekTo(0.0);
     _lastChimeKm = 0;
     if (!_isPlaying) {
@@ -253,6 +293,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   @override
   void dispose() {
     _chimeTimer?.cancel();
+    _recordTooltipTimer?.cancel();
     _animController.removeListener(_onAnimationTick);
     _animController.dispose();
     _mapController.dispose();
@@ -323,9 +364,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             mapController: _mapController,
             options: MapOptions(
               initialCenter: LatLng(currentPt.latitude, currentPt.longitude),
-              initialZoom: 16.5,
+              initialZoom: 16.0,
               minZoom: 4.0,
               maxZoom: 19.0,
+              backgroundColor: AppColors.darkBackground,
               onMapReady: () {
                 if (mounted) {
                   _isMapReady = true;
@@ -333,12 +375,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               },
             ),
             children: [
-              // Tile OSM (Retina High-Definition Mode, Tajam & Anti-Blur)
+              // Tile OSM (Smooth Caching & Buffering, Bebas Kotak Hitam/Putih)
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'online.nurmancloud.velora',
-                tileDisplay: const TileDisplay.instantaneous(),
-                retinaMode: true,
+                panBuffer: 2,
+                keepBuffer: 6,
+                tileDisplay: const TileDisplay.fadeIn(
+                  duration: Duration(milliseconds: 150),
+                ),
+                retinaMode: false,
+                maxNativeZoom: 19,
                 tileBuilder: _mapDarkTheme
                     ? (context, tileWidget, tile) {
                         return ColorFiltered(
@@ -415,16 +462,31 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             ],
           ),
 
-          // 2. Bar Header Atas (Nama Atlet, Tombol Kembali, Kontrol Kamera)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: _buildTopHeaderBar(),
-          ),
+          // Area Ketukan Layar untuk Keluar dari Mode Rekam Bersih
+          if (_cleanRecordMode)
+            Positioned.fill(
+              child: GestureDetector(
+                key: const ValueKey('exit_clean_record_tap_area'),
+                behavior: HitTestBehavior.translucent,
+                onTap: () {
+                  setState(() {
+                    _cleanRecordMode = false;
+                  });
+                },
+              ),
+            ),
+
+          // 2. Bar Header Atas (Nama Atlet, Tombol Kembali, Kontrol Kamera, Tombol Bagikan Video)
+          if (!_cleanRecordMode)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: _buildTopHeaderBar(),
+            ),
 
           // 3. Pop-up Chime Banner saat Melewati Milestone KM
-          if (_latestChimeMilestone != null)
+          if (_latestChimeMilestone != null && !_cleanRecordMode)
             Positioned(
               top: 100,
               left: 20,
@@ -437,14 +499,62 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             bottom: 24,
             left: 16,
             right: 16,
-            child: _buildBottomHudAndControls(
-              currentDistKm: currentDistKm,
-              currentSpeedKmh: currentSpeed,
-              currentElevation: currentElevation,
-              elapsedSeconds: elapsedSec,
-              progress: progress,
-            ),
+            child: _cleanRecordMode
+                ? _buildCleanRecordHud(
+                    currentDistKm: currentDistKm,
+                    currentSpeedKmh: currentSpeed,
+                    currentElevation: currentElevation,
+                    elapsedSeconds: elapsedSec,
+                  )
+                : _buildBottomHudAndControls(
+                    currentDistKm: currentDistKm,
+                    currentSpeedKmh: currentSpeed,
+                    currentElevation: currentElevation,
+                    elapsedSeconds: elapsedSec,
+                    progress: progress,
+                  ),
           ),
+
+          // 5. Toast / Tooltip saat Mode Rekam Bersih Baru Dimulai
+          if (_cleanRecordMode && _showRecordTooltip)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              left: 24,
+              right: 24,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(210),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppColors.primaryOrange.withAlpha(150),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.fiber_manual_record_rounded,
+                      color: Colors.redAccent,
+                      size: 14,
+                    ),
+                    SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        'Mode Rekam Aktif • Ketuk layar untuk keluar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -618,6 +728,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 _mapDarkTheme = !_mapDarkTheme;
               });
             },
+          ),
+          // Tombol Rekam & Bagikan Video
+          IconButton(
+            icon: const Icon(
+              Icons.videocam_rounded,
+              color: AppColors.primaryOrange,
+              size: 24,
+            ),
+            tooltip: 'Rekam & Bagikan Video',
+            onPressed: _showShareVideoSheet,
           ),
         ],
       ),
@@ -867,9 +987,19 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                           .clamp(0, totalPoints - 1);
                       _mapController.move(
                         LatLng(coords[idx].latitude, coords[idx].longitude),
-                        16.5,
+                        16.0,
                       );
                     },
+                  ),
+                  const SizedBox(width: 4),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.share_rounded,
+                      color: AppColors.primaryOrange,
+                      size: 20,
+                    ),
+                    tooltip: 'Bagikan Video / Rekam Layar',
+                    onPressed: _showShareVideoSheet,
                   ),
                 ],
               ),
@@ -953,6 +1083,485 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       width: 1,
       height: 24,
       color: Colors.white12,
+    );
+  }
+
+  // ==========================================
+  // FITUR REKAM & BAGIKAN VIDEO KE MEDIA SOSIAL
+  // ==========================================
+
+  void _enterCleanRecordMode() {
+    Navigator.of(context, rootNavigator: true).pop();
+    setState(() {
+      _cleanRecordMode = true;
+      _showRecordTooltip = true;
+      _autoFollow = true;
+    });
+
+    // Reset dan putar dari awal
+    _animController.reset();
+    _lastChimeKm = 0;
+    _lastCameraMoveTime = null;
+    _lastCameraPos = null;
+    _animController.forward();
+    _isPlaying = true;
+
+    _recordTooltipTimer?.cancel();
+    _recordTooltipTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        setState(() {
+          _showRecordTooltip = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _showShareVideoSheet() async {
+    final wasPlaying = _isPlaying;
+    if (wasPlaying) {
+      _togglePlayPause();
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.cardSurface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(color: AppColors.borderHighlight, width: 1.5),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Handle drag indicator
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Judul & Deskripsi
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryOrange.withAlpha(40),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: AppColors.primaryOrange.withAlpha(120),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.video_library_rounded,
+                      color: AppColors.primaryOrange,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Bagikan Video Flyover Rute',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Instagram Reels, TikTok, YouTube Shorts & WhatsApp',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Opsi 1: Mode Rekam Layar Bersih
+              _buildShareActionTile(
+                icon: Icons.fiber_smart_record_rounded,
+                iconColor: AppColors.primaryOrange,
+                title: 'Mulai Mode Rekam Layar Bersih',
+                subtitle:
+                    'Sembunyikan tombol antarmuka dan putar rute dari KM 0 untuk direkam dengan Perekam Layar bawaan HP.',
+                badge: 'REKOMENDASI',
+                badgeColor: AppColors.primaryOrange,
+                onTap: _enterCleanRecordMode,
+              ),
+              const SizedBox(height: 10),
+
+              // Opsi 2: Bagikan Video dari Galeri
+              _buildShareActionTile(
+                icon: Icons.upload_file_rounded,
+                iconColor: AppColors.neonCyan,
+                title: 'Bagikan Berkas Video dari Galeri',
+                subtitle:
+                    'Kirim langsung hasil rekaman layar ke WhatsApp, Instagram Reels, TikTok, atau aplikasi lainnya.',
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await _pickAndShareRecordedVideo();
+                },
+              ),
+              const SizedBox(height: 10),
+
+              // Opsi 3: Bagikan Kartu Ringkasan (Foto & Peta HD)
+              _buildShareActionTile(
+                icon: Icons.photo_library_rounded,
+                iconColor: AppColors.electricAmber,
+                title: 'Bagikan Kartu Ringkasan (Foto & Peta HD)',
+                subtitle:
+                    'Buat gambar poster statistik Full HD rasio 9:16 untuk Instagram Story atau Status WA.',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SharePreviewScreen(session: widget.session),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Panduan Singkat Cara Merekam Layar
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.cardSurfaceElevated,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.borderSubtle),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 16,
+                          color: AppColors.neonCyan,
+                        ),
+                        SizedBox(width: 8),
+                        Text(
+                          'Cara Merekam Video di HP Anda:',
+                          style: TextStyle(
+                            color: AppColors.neonCyan,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    _buildStepRow(
+                      step: '1',
+                      text:
+                          'Tarik bar notifikasi atas HP ke bawah, aktifkan "Perekam Layar" (Screen Recorder).',
+                    ),
+                    const SizedBox(height: 6),
+                    _buildStepRow(
+                      step: '2',
+                      text:
+                          'Tekan "Mulai Mode Rekam Bersih" di atas. Layar akan bersih dari tombol dan rute berputar otomatis.',
+                    ),
+                    const SizedBox(height: 6),
+                    _buildStepRow(
+                      step: '3',
+                      text:
+                          'Setelah rute selesai, hentikan perekam layar. Video HD siap dibagikan ke media sosial!',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+    );
+  }
+
+  Future<void> _pickAndShareRecordedVideo() async {
+    try {
+      final picker = ImagePicker();
+      final video = await picker.pickVideo(source: ImageSource.gallery);
+      if (video != null) {
+        final sportsName = widget.session.sportsType == SportsType.ride
+            ? 'Gowes'
+            : 'Lari';
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(video.path)],
+            text:
+                'Rute $sportsName: ${widget.session.displayTitle} (${(widget.session.distanceMeters / 1000).toStringAsFixed(2)} km) • Velora: Run & Ride',
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal membuka galeri: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildShareActionTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    String? badge,
+    Color? badgeColor,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.cardSurfaceElevated,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderSubtle),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: iconColor.withAlpha(35),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (badgeColor ?? AppColors.primaryOrange)
+                                .withAlpha(40),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: badgeColor ?? AppColors.primaryOrange,
+                              width: 0.8,
+                            ),
+                          ),
+                          child: Text(
+                            badge,
+                            style: TextStyle(
+                              color: badgeColor ?? AppColors.primaryOrange,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.white38,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepRow({required String step, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 18,
+          height: 18,
+          alignment: Alignment.center,
+          decoration: const BoxDecoration(
+            color: AppColors.neonCyan,
+            shape: BoxShape.circle,
+          ),
+          child: Text(
+            step,
+            style: const TextStyle(
+              color: Colors.black87,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 11.5,
+              height: 1.3,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCleanRecordHud({
+    required double currentDistKm,
+    required double currentSpeedKmh,
+    required double currentElevation,
+    required int elapsedSeconds,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withAlpha(200),
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(color: Colors.white24, width: 1),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildCompactMetric(
+            value: currentDistKm.toStringAsFixed(2),
+            unit: 'KM',
+            color: AppColors.neonCyan,
+          ),
+          _buildDotDivider(),
+          _buildCompactMetric(
+            value: widget.session.sportsType == SportsType.run
+                ? (currentSpeedKmh > 1.0
+                    ? PaceCalculator.formatPace(3600.0 / currentSpeedKmh)
+                    : "--'--\"")
+                : currentSpeedKmh.toStringAsFixed(1),
+            unit: widget.session.sportsType == SportsType.run ? '/KM' : 'KM/H',
+            color: AppColors.primaryOrange,
+          ),
+          _buildDotDivider(),
+          _buildCompactMetric(
+            value: '+${currentElevation.toStringAsFixed(0)}',
+            unit: 'M',
+            color: const Color(0xFF818CF8),
+          ),
+          _buildDotDivider(),
+          _buildCompactMetric(
+            value: PaceCalculator.formatDuration(elapsedSeconds),
+            unit: '',
+            color: Colors.white,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCompactMetric({
+    required String value,
+    required String unit,
+    required Color color,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        if (unit.isNotEmpty) ...[
+          const SizedBox(width: 3),
+          Text(
+            unit,
+            style: TextStyle(
+              color: color.withAlpha(180),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildDotDivider() {
+    return Container(
+      width: 4,
+      height: 4,
+      decoration: const BoxDecoration(
+        color: Colors.white30,
+        shape: BoxShape.circle,
+      ),
     );
   }
 }

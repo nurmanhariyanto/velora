@@ -13,7 +13,7 @@ import '../widgets/metric_card.dart';
 import 'route_replay_screen.dart';
 import 'share_preview_screen.dart';
 
-/// Layar Rincian Hasil Latihan & Replay Rute dengan Penanda Lintasan ala Strava
+/// Layar Rincian Hasil Latihan & Replay Rute dengan Penanda Lintasan
 class ActivityDetailScreen extends StatefulWidget {
   final ActivitySession session;
 
@@ -106,7 +106,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Tampilan Peta Replay Rute dengan Penanda Lintasan Langsung ala Strava
+            // 1. Tampilan Peta Replay Rute dengan Penanda Lintasan Langsung
             Stack(
               children: [
                 SizedBox(
@@ -317,7 +317,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                     elevationGain: widget.session.elevationGain,
                   ),
 
-                  // 5. Analisis Split Kilometer & Rekor Lintasan ala Strava
+                  // 5. Analisis Split Kilometer & Rekor Lintasan
                   _buildSplitsAndRecordsSection(kmSplits),
 
                   if (widget.session.notes != null && widget.session.notes!.isNotEmpty) ...[
@@ -383,7 +383,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                     ),
                   ),
 
-                  // Tombol Putar Ulang Rute Flyover ala Strava & Relive
+                  // Tombol Putar Ulang Rute Flyover Sinematik
                   if (widget.session.coordinates.length >= 2) ...[
                     const SizedBox(height: 12),
                     SizedBox(
@@ -410,7 +410,7 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                         ),
                         icon: const Icon(Icons.play_circle_fill_rounded, size: 22),
                         label: const Text(
-                          'PUTAR ULANG RUTE (FLYOVER ALA STRAVA)',
+                          'PUTAR ULANG RUTE (FLYOVER REPLAY)',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w800,

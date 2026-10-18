@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../models/trophy_badge.dart';
 
-/// Kartu tampilan lencana (Trophy Badge) ala Strava dengan efek glowing gold/orange jika terbuka
+/// Kartu tampilan lencana (Trophy Badge) dengan efek glowing gold/orange jika terbuka
 /// dan frosted glass dark elegan dengan progress bar jika masih terkunci.
 class TrophyBadgeCard extends StatelessWidget {
   final TrophyBadge badge;

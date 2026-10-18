@@ -3,7 +3,7 @@ import '../constants/app_colors.dart';
 import '../models/sports_type.dart';
 import '../models/track_milestone.dart';
 
-/// Widget Pin Penanda Titik Penting di Atas Garis Lintasan Peta ala Strava
+/// Widget Pin Penanda Titik Penting di Atas Garis Lintasan Peta
 class TrackMilestonePin extends StatelessWidget {
   final TrackMilestone milestone;
   final SportsType sportsType;
@@ -50,7 +50,7 @@ class TrackMilestonePin extends StatelessWidget {
 
       case TrackMilestoneType.kmSplit:
         if (milestone.isFastestKm) {
-          // Kilometer Tercepat (Aksen Emas Menyala ala Strava)
+          // Kilometer Tercepat (Aksen Emas Menyala)
           return Container(
             width: 28,
             height: 28,

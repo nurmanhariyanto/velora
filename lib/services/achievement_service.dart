@@ -72,7 +72,7 @@ class AchievementService {
     return await _repository.getLifetimeStats(sportsType);
   }
 
-  /// Ekstraksi rekor jarak patokan (Best Efforts) ala Strava
+  /// Ekstraksi rekor jarak patokan (Best Efforts)
   static List<BestEffort> extractBestEfforts(
     SportsType sportsType,
     List<ActivitySession> activities,

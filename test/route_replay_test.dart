@@ -20,7 +20,7 @@ void main() {
     });
   });
 
-  group('RouteReplayScreen (Flyover 3D/2D Route Replay ala Strava) Tests', () {
+  group('RouteReplayScreen (Flyover Route Replay) Tests', () {
     final startTime = DateTime(2026, 10, 18, 7, 30, 0).millisecondsSinceEpoch;
     final dummyCoordinates = List.generate(25, (i) {
       return CoordinatePoint(
@@ -127,6 +127,55 @@ void main() {
         find.text('Titik koordinat tidak cukup untuk animasi flyover rute.'),
         findsOneWidget,
       );
+    });
+
+    testWidgets('Membuka dialog Bagikan Video dan mengaktifkan Mode Rekam Bersih',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteReplayScreen(session: testSession),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Verifikasi tombol Rekam & Bagikan Video ada
+      final videoBtn = find.byTooltip('Rekam & Bagikan Video');
+      expect(videoBtn, findsOneWidget);
+
+      // Buka bottom sheet bagikan video
+      await tester.tap(videoBtn);
+      await tester.pumpAndSettle();
+
+      // Verifikasi isi bottom sheet
+      expect(find.text('Bagikan Video Flyover Rute'), findsOneWidget);
+      expect(find.text('Mulai Mode Rekam Layar Bersih'), findsOneWidget);
+      expect(find.text('Bagikan Berkas Video dari Galeri'), findsOneWidget);
+      expect(find.text('Bagikan Kartu Ringkasan (Foto & Peta HD)'), findsOneWidget);
+
+      // Ketuk opsi Mode Rekam Layar Bersih
+      await tester.tap(find.text('Mulai Mode Rekam Layar Bersih'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Sekarang tombol header atas harus tersembunyi dan tooltip rekam aktif terlihat
+      expect(find.text('FLYOVER REPLAY'), findsNothing);
+      expect(
+        find.text('Mode Rekam Aktif • Ketuk layar untuk keluar'),
+        findsOneWidget,
+      );
+
+      // Ketuk layar untuk keluar dari mode rekam bersih
+      await tester.tap(
+        find.byKey(const ValueKey('exit_clean_record_tap_area')),
+        warnIfMissed: false,
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Tombol header atas kembali terlihat
+      expect(find.text('FLYOVER REPLAY'), findsOneWidget);
     });
   });
 }

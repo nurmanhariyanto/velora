@@ -2,7 +2,7 @@ import 'package:intl/intl.dart';
 import '../algorithms/pace_calculator.dart';
 import 'sports_type.dart';
 
-/// Rekor jarak terbaik (Best Effort) ala Strava untuk jarak standar/patokan
+/// Rekor jarak terbaik (Best Effort) untuk jarak standar/patokan
 class BestEffort {
   final String id;
   final String label;

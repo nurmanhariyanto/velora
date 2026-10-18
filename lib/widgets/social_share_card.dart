@@ -11,7 +11,7 @@ import 'velora_logo.dart';
 
 /// Gaya tampilan kartu berbagi media sosial
 enum ShareCardStyle {
-  map, // Peta OpenStreetMap dengan lintasan rute nyata (Default ala Strava)
+  map, // Peta OpenStreetMap dengan lintasan rute nyata
   photo, // Foto latar belakang pengguna (Kamera / Galeri)
   minimal, // Desain minimalis gelap futuristik
 }
@@ -391,6 +391,7 @@ class SocialShareCard extends StatelessWidget {
                 ),
           minZoom: 3.0,
           maxZoom: 18.0,
+          backgroundColor: AppColors.darkBackground,
           interactionOptions: const InteractionOptions(
             flags: InteractiveFlag.none,
           ),

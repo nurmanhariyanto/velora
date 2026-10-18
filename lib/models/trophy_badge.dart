@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'sports_type.dart';
 
-/// Model medali atau lencana prestasi (Digital Trophy / Badge) ala Strava
+/// Model medali atau lencana prestasi (Digital Trophy / Badge)
 class TrophyBadge {
   final String id;
   final String title;

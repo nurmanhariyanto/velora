@@ -90,7 +90,7 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
 
                     const SizedBox(height: 24),
 
-                    // 4. Rekor Jarak Terbaik (Best Efforts ala Strava)
+                    // 4. Rekor Jarak Terbaik (Best Efforts)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: _buildBestEffortsSection(achievement),

@@ -5,18 +5,23 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 ## [v1.0.4] - 2026-10-18
 
 ### 🚀 Pembaruan Utama (Major Feature Update)
-- **Animated Route Flyover & Video Replay ala Strava Flyover / Relive:**
-  - Menghadirkan pemutaran animasi rute dinamis (*dynamic route flyover*) di layar `RouteReplayScreen` untuk menonton kembali aktivitas lari & gowes secara visual dan sinematik:
-    - Garis lintasan rute tergambar maju secara bertahap (*progressive polyline*) dengan efek neon glow berlapis khas Velora.
-    - Penunjuk posisi atlet (*rider avatar*) bergerak maju dengan rotasi derajat arah (*bearing*) yang presisi sesuai kelokan jalan.
-    - Kamera peta otomatis mengikuti atlet (*smooth auto-follow*) dengan kontrol tombol untuk beralih ke kamera bebas (*free pan/zoom*).
-    - HUD dinamis beresolusi tinggi menyajikan statistik *real-time*: **JARAK** (km berjalan), **KECEPATAN / PACE**, **ELEVASI**, dan **WAKTU**.
-    - *Milestone pop-up chime*: Kartu notifikasi animasi saat melewati kilometer baru (KM 1, KM 2...), Max Speed (⚡), dan Puncak Elevasi (▲).
-    - Kontrol pemutaran interaktif: Play / Pause, Slider Scrubber, Pengubah Kecepatan (1x, 2x, 4x, 8x), dan tombol Restart.
-  - Akses cepat langsung dari layar rincian aktivitas (`ActivityDetailScreen`) melalui tombol mengambang peta *"PUTAR ULANG (FLYOVER)"* dan kartu aksi utama.
-- **Kualitas Visual Full HD & Anti-Blur (Retina Mode):**
-  - Mengaktifkan `retinaMode: true` pada `TileLayer` OpenStreetMap untuk memastikan detail peta dan teks tajam berkualitas Full HD (1080p, anti-blur) pada layar berdensitas tinggi (High DPI).
-  - Resolusi visual kanvas dan drop shadow berdaya kontras tinggi untuk visibilitas maksimal.
+- **Pemutar Rute Animasi Flyover Sinematik & Fitur Berbagi Video Sosial:**
+  - Menghadirkan pemutaran animasi rute dinamis (*dynamic route flyover*) di layar `RouteReplayScreen` untuk menonton kembali aktivitas lari & gowes secara visual dan sinematik.
+  - **Fitur Baru: Mode Rekam Layar Bersih (*Clean Screen Record Mode*):**
+    - Menyediakan tombol cepat untuk menyembunyikan seluruh tombol antarmuka (header bar, scrubber, tombol navigasi) dan memutar rute dari awal secara bersih.
+    - Menampilkan *HUD Telemetry Capsule* minimalis melayang berisi metrik aktif (Jarak, Kecepatan/Pace, Elevasi, Waktu) untuk rekaman video sinematik Full HD 60 FPS bebas gangguan tombol.
+    - Ketuk layar kapan saja untuk mengembalikan kontrol antarmuka.
+  - **Fitur Baru: Lembar Aksi Bagikan Video & Panduan Rekam Layar:**
+    - Tombol aksi *"Rekam & Bagikan Video"* di header atas dan baris kontrol bawah.
+    - Modal interaktif dengan opsi: **Mulai Mode Rekam Bersih**, **Bagikan Berkas Video dari Galeri** langsung ke WhatsApp, Instagram Reels, TikTok, atau YouTube Shorts, serta pintasan **Bagikan Kartu Ringkasan (Foto & Peta HD)**.
+    - Panduan praktis 3 langkah merekam layar menggunakan *Screen Recorder* bawaan ponsel Android.
+- **Peningkatan Kelancaran Rendering Peta (Bebas Kotak Hitam / Putih):**
+  - **Kamera Throttling (Stabilisasi Request):** Membatasi pergerakan kamera otomatis agar tidak membanjiri request tile OSM (kamera diperbarui setiap interval stabil atau saat delta jarak >= 25 meter), mengeliminasi masalah *rate-limiting* dan pembatalan koneksi tile.
+  - **Peningkatan Buffering & Transisi Halus:** Mengaktifkan `panBuffer: 2`, `keepBuffer: 6`, dan efek transisi lembut `TileDisplay.fadeIn(150ms)` dengan latar belakang solid gelap `AppColors.darkBackground` sehingga tampilan peta terasa mulus tanpa kedipan kotak hitam/putih.
+  - Penyesuaian `initialZoom: 16.0` untuk sudut pandang rute yang lebih luas dan efisien dalam konsumsi data internet.
+- **Penegasan Identitas Orisinal Velora:**
+  - Membersihkan seluruh referensi brand eksternal di seluruh antarmuka dan basis kode aplikasi demi menjaga orisinalitas branding dan integritas produk Velora.
+  - Label tombol ekspor rute distandarkan menjadi *"EKSPOR BERKAS GPX STANDAR"*.
 - **Penyempurnaan Pemasang Paket APK Mandiri (In-App APK Installer):**
   - Mengaktifkan skema penandatanganan ganda `enableV1Signing = true` (JAR signing) dan `enableV2Signing = true` (APK Signature v2) untuk kompatibilitas penuh di seluruh varian Android (Xiaomi/MIUI, Samsung One UI, ColorOS, dsb).
   - Menambahkan deteksi otomatis izin pemasangan aplikasi tidak dikenal (`canRequestPackageInstalls()`) dengan pengalihan langsung ke Pengaturan sistem (`ACTION_MANAGE_UNKNOWN_APP_SOURCES`).
@@ -24,8 +29,8 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
   - Sinkronisasi versi semantik 3-digit `1.0.4` untuk mencegah dialog pembaruan berulang.
 
 ### 🧪 Penjaminan Kualitas & Pengujian Otomatis
-- Menambahkan dan menyempurnakan `test/route_replay_test.dart` yang memverifikasi HUD statistik, tombol play/pause, pengubah kecepatan (1x-8x), dan toggle kamera auto-follow.
-- Seluruh **65 pengujian otomatis** pada suite Velora lulus 100% dan analisis kode `flutter analyze` menghasilkan **0 issues**.
+- Menambahkan dan menyempurnakan `test/route_replay_test.dart` yang memverifikasi HUD statistik, tombol play/pause, pengubah kecepatan (1x-8x), toggle kamera auto-follow, lembar aksi bagikan video, dan aktivasi mode rekam bersih.
+- Seluruh **66 pengujian otomatis** pada suite Velora lulus 100% dan analisis kode `flutter analyze` menghasilkan **0 issues**.
 
 ---
 
@@ -42,7 +47,7 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
   - Menampilkan metrik **MAX SPEED** (`session.maxSpeedKmh.toStringAsFixed(1) km/h`) pada baris statistik sekunder di kartu berbagi media sosial (`SocialShareCard`).
   - Baris statistik kini menyajikan 4 metrik lengkap: **DURASI** | **AVG SPEED / PACE** | **MAX SPEED** | **ELEVASI**, diatur dengan *divider* vertikal tipis dan tata letak berskala otomatis (*auto-scaled*) tanpa *layout overflow*.
 
-- **Penandaan Lintasan Peta Langsung & Analisis Split ala Strava (*On-Track Milestones & KM Splits*):**
+- **Penandaan Lintasan Peta Langsung & Analisis Split (*On-Track Milestones & KM Splits*):**
   - Mengimplementasikan `TrackAnalysisService` untuk mengekstrak titik-titik penting di sepanjang lintasan GPS:
     - **KM Split Pins:** Menampilkan pin penanda bernomor (`1`, `2`, `3`...) langsung di atas garis lintasan rute pada setiap kelipatan 1.000 meter.
     - **Fastest KM:** Kilometer dengan catatan waktu tercepat otomatis dihiasi dengan lingkaran emas menyala (*Electric Amber*) dan lencana `⚡ TERCEPAT`.
@@ -153,10 +158,10 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 ## [v1.0.3] - 2026-10-17
 
 ### 🚀 Fitur Baru & Peningkatan (Latest Release)
-- **Statistik Sepanjang Masa (All-Time Lifetime Stats) Ala Strava:** Menampilkan rekor seumur hidup untuk Bersepeda & Lari secara terpisah (Tanjakan Tertinggi / *Biggest Climb*, Jarak Terjauh / *Longest Ride*, Kecepatan Puncak / *Top Speed*, Kecepatan Rata-Rata Terbaik, Pace Terbaik, serta akumulasi total kilometer, waktu, elevasi, dan sesi).
+- **Statistik Sepanjang Masa (All-Time Lifetime Stats):** Menampilkan rekor seumur hidup untuk Bersepeda & Lari secara terpisah (Tanjakan Tertinggi / *Biggest Climb*, Jarak Terjauh / *Longest Ride*, Kecepatan Puncak / *Top Speed*, Kecepatan Rata-Rata Terbaik, Pace Terbaik, serta akumulasi total kilometer, waktu, elevasi, dan sesi).
 - **Pencapaian Terbaik (Best Efforts):** Ekstraksi rekor waktu tercepat pada jarak patokan standar (1K, 5K, 10K, Half Marathon 21.1K, 40K Time Trial) dengan algoritma sliding window GPS dan estimasi segmen.
 - **Lemari Trofi Digital (Trophy Case & Badges):** 11 lencana prestasi offline (Gran Fondo 100km, Half Fondo 50km, Century Rider 160.9km, Speed Demon >30km/h, 5K/10K/Half-Marathon Finisher, Climbing Legend >=1000m, King of the Hill >=500m, Early Bird, Night Owl, Consistent Athlete) dengan kartu berdesain emas bercahaya dan progress bar.
-- **Deteksi Waktu Aktivitas Cerdas (Time-of-Day Activity Naming):** Otomatis menamai kegiatan berdasarkan jam mulai secara akurat ala Strava dengan standar teks bersih murni tanpa simbol gender (`♂` / `‍♂`) maupun emoji, serta menggunakan istilah baku **"Bersepeda"** (bukan *"Gowes"*):
+- **Deteksi Waktu Aktivitas Cerdas (Time-of-Day Activity Naming):** Otomatis menamai kegiatan berdasarkan jam mulai secara akurat dengan standar teks bersih murni tanpa simbol gender (`♂` / `‍♂`) maupun emoji, serta menggunakan istilah baku **"Bersepeda"** (bukan *"Gowes"*):
   - `04:00 – 10:59`: *"Bersepeda Pagi"* / *"Lari Pagi"*
   - `11:00 – 14:59`: *"Bersepeda Siang Hari"* / *"Lari Siang Hari"*
   - `15:00 – 18:29`: *"Bersepeda Sore Hari"* / *"Lari Sore Hari"*
@@ -173,7 +178,7 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 - **Pintasan Kontrol Notifikasi Status Bar & Lockscreen:** Tombol aksi kontrol cepat (`JEDA`, `LANJUT`, dan `SELESAI`) kini selalu tampil aktif dan dapat ditekan langsung dari bilah notifikasi maupun layar kunci ponsel saat aplikasi di-minimize.
 - **Izin Notifikasi Runtime Android 13+ (POST_NOTIFICATIONS) & Saluran Notifikasi Prioritas Tinggi:** Memperbarui konfigurasi saluran notifikasi ke `HIGH` importance (`velora_tracking_channel_v2`) dengan visibilitas publik serta menambahkan dialog perizinan notifikasi otomatis saat aplikasi dibuka maupun saat sesi pelacakan dimulai.
 - **Sinkronisasi Durasi Real-Time Notifikasi:** Notifikasi foreground kini memperbarui waktu berjalan setiap 2 detik secara hening (*onlyAlertOnce*) tanpa getaran atau bunyi berulang.
-- **Kartu Berbagi Media Sosial Ala Strava (Default Map Background):** Menampilkan latar belakang peta OpenStreetMap Dark Mode secara otomatis dengan zoom presisi pada rute aktivitas, garis polyline oranye menyala, serta penanda Start & Finish. Pengguna juga dapat memilih foto pribadi atau mode minimalis.
+- **Kartu Berbagi Media Sosial (Default Map Background):** Menampilkan latar belakang peta OpenStreetMap Dark Mode secara otomatis dengan zoom presisi pada rute aktivitas, garis polyline oranye menyala, serta penanda Start & Finish. Pengguna juga dapat memilih foto pribadi atau mode minimalis.
 - **Pembaruan Mandiri di Dalam Aplikasi (In-App Streaming Updater):** Mengunduh berkas pembaruan APK langsung dari aplikasi dengan progress bar, persentase real-time, dan pemanggil otomatis paket instalasi Android (`FileProvider`).
 - **Pembersihan Otomatis Cache APK:** Menghapus berkas APK lama di memori sementara secara otomatis.
 - **Logo Aplikasi Resmi Velora:** Seluruh logo bawaan Flutter digantikan dengan simbol V chevron oranye neon Velora.
