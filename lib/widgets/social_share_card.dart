@@ -310,8 +310,8 @@ class SocialShareCard extends StatelessWidget {
                           ),
                         ),
                         const VeloraLogo(
-                          size: 38,
-                          showTagline: true,
+                          size: 34,
+                          showTagline: false,
                         ),
                       ],
                     ),

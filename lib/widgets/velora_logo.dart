@@ -4,12 +4,14 @@ import '../constants/app_colors.dart';
 /// Komponen visual Logo resmi Velora: Run & Ride (Panah ganda 'V' Oranye)
 class VeloraLogo extends StatelessWidget {
   final double size;
+  final bool showText;
   final bool showTagline;
   final Color? color;
 
   const VeloraLogo({
     super.key,
     this.size = 40.0,
+    this.showText = true,
     this.showTagline = true,
     this.color,
   });
@@ -24,7 +26,7 @@ class VeloraLogo extends StatelessWidget {
           size: Size(size, size),
           painter: _VeloraChevronPainter(color: color),
         ),
-        if (showTagline) ...[
+        if (showText) ...[
           SizedBox(width: size * 0.28),
           Column(
             mainAxisSize: MainAxisSize.min,
@@ -40,19 +42,21 @@ class VeloraLogo extends StatelessWidget {
                   height: 1.0,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                'RUN & RIDE',
-                style: TextStyle(
-                  color: color != null
-                      ? color!.withAlpha(200)
-                      : AppColors.primaryOrange,
-                  fontSize: size * 0.26,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 2.0,
-                  height: 1.0,
+              if (showTagline) ...[
+                const SizedBox(height: 2),
+                Text(
+                  'RUN & RIDE',
+                  style: TextStyle(
+                    color: color != null
+                        ? color!.withAlpha(200)
+                        : AppColors.primaryOrange,
+                    fontSize: size * 0.26,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 2.0,
+                    height: 1.0,
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],

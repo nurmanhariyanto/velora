@@ -2,6 +2,30 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.4.4] - 2026-10-19
+
+### 🛡️ Ketahanan Profil Atlet (Anti-Reset Saat Pembaruan Aplikasi)
+- **Penyimpanan Profil Berlapis Tiga (Triple-Layer Persistence):**
+  - Mengimplementasikan sistem penyimpanan persisten 3 lapis untuk nama profil atlet (`UserProfileService`):
+    1. **SharedPreferences:** Akses cepat instan dengan sinkronisasi `prefs.reload()`.
+    2. **File Cadangan JSON:** Berkas `velora_profile.json` tersimpan aman di direktori dokumen aplikasi.
+    3. **Database SQLite (`velora_local.db`):** Tabel `user_settings` yang tahan banting dan memiliki daur hidup permanen sama seperti seluruh riwayat aktivitas pengguna.
+  - Menambahkan konfigurasi `android:allowBackup="true"` pada `AndroidManifest.xml` agar data profil tidak terhapus saat pembaruan paket APK maupun pembersihan berkas cache.
+  - Memastikan nama atlet kustom tidak akan pernah kembali ke nama bawaan *"Velora Athlete"* saat memperbarui aplikasi.
+
+### 🎨 Desain Kartu Berbagi Lebih Ringkas & Hemat Ruang
+- **Penghapusan Tulisan Tagline 'RUN & RIDE' pada Kartu Berbagi:**
+  - Menghilangkan teks subtitle *'RUN & RIDE'* pada kartu berbagi media sosial (`SocialShareCard`) dan hanya menampilkan logo ikon panah ganda serta nama merk utama *'VELORA'*.
+  - Menghemat ruang vertikal secara signifikan sehingga peta rute, foto latar belakang, dan statistik aktivitas tampil lebih lega dan dominan tanpa terdesak teks branding.
+  - Memperbarui teks pesan bawaan saat berbagi tautan video agar lebih ringkas (*'• Velora'*).
+
+### 📤 Opsi Berbagi Instan "BAGIKAN KARTU HD" Tanpa Perlu Perekam Layar
+- **Solusi Berkas Galeri Kosong Saat Berbagi:**
+  - Menjelaskan secara transparan pada dialog pasca pemutaran rute bahwa tombol *"Bagikan dari Galeri"* ditujukan jika pengguna menyalakan fitur *Screen Recorder* bawaan ponsel.
+  - Menyediakan tombol utama **`[BAGIKAN KARTU HD]`** langsung di dalam dialog, sehingga pengguna yang tidak menyalakan perekam layar tetap dapat langsung membuat dan membagikan gambar poster rute Full HD beresolusi tinggi ke media sosial atau menyimpannya ke memori HP dalam 1 kali klik.
+
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.4.4` (`versionCode = 17`).
+
 ## [v1.0.4.3] - 2026-10-18
 
 ### 🎨 Desain Menu Minimalis, Peta Bersih Bebas Halangan & Berbagi Video Praktis

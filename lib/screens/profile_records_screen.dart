@@ -37,6 +37,13 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
     }
   }
 
+  Future<void> _refreshAll() async {
+    await _loadAthleteName();
+    if (mounted) {
+      context.read<AchievementProvider>().loadAchievements();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final achievement = context.watch<AchievementProvider>();
@@ -52,12 +59,12 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Segarkan',
-            onPressed: () => achievement.loadAchievements(),
+            onPressed: _refreshAll,
           ),
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: () => achievement.loadAchievements(),
+        onRefresh: _refreshAll,
         color: AppColors.primaryOrange,
         backgroundColor: AppColors.cardSurface,
         child: achievement.isLoading
@@ -809,7 +816,7 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
       },
     );
 
-    if (result != null && result.isNotEmpty && result != _athleteName) {
+    if (result != null && result.isNotEmpty) {
       final success = await UserProfileService.setAthleteName(result);
       if (success && mounted) {
         setState(() {

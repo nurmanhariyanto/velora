@@ -100,7 +100,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
         repaintKey: _repaintKey,
         activityTitle: title,
         destination: destination,
-        subject: 'Velora: Run & Ride Activity',
+        subject: 'Velora Activity',
         sharePositionOrigin: origin,
       );
 

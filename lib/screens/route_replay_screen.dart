@@ -1300,33 +1300,67 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 28),
             SizedBox(width: 10),
             Text(
-              'Rekaman Selesai!',
+              'Putar Rute Selesai!',
               style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
             ),
           ],
         ),
-        content: const Text(
-          'Hentikan fitur Perekam Layar HP Anda. File rekaman video otomatis tersimpan di Galeri ponsel Anda!\n\nIngin langsung memilih file video tersebut dan membagikannya ke WhatsApp, Instagram Reels, atau TikTok?',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Rute animasi flyover telah selesai diputar.\n',
+              style: TextStyle(color: Colors.white70, fontSize: 13),
+            ),
+            Text(
+              '• Langsung Bagikan Gambar HD (Tanpa Rekam):\n'
+              'Tekan tombol "BAGIKAN KARTU HD" untuk langsung membuat poster rute & statistik Full HD siap kirim ke media sosial!\n\n'
+              '• Sudah Merekam Layar HP?\n'
+              'Tekan "PILIH DARI GALERI" jika Anda telah mengaktifkan Perekam Layar HP untuk memilih file video rekaman tersebut.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
+            ),
+          ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('NANTI SAJA', style: TextStyle(color: AppColors.textMuted)),
+            child: const Text('TUTUP', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _pickAndShareRecordedVideo();
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.neonCyan,
+              side: const BorderSide(color: AppColors.neonCyan),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(Icons.video_library_rounded, size: 16),
+            label: const Text(
+              'PILIH DARI GALERI',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            ),
           ),
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(ctx);
-              _pickAndShareRecordedVideo();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SharePreviewScreen(session: widget.session),
+                ),
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryOrange,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
-            icon: const Icon(Icons.share_rounded, size: 18, color: Colors.white),
+            icon: const Icon(Icons.share_rounded, size: 16, color: Colors.white),
             label: const Text(
-              'BAGIKAN DARI GALERI',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              'BAGIKAN KARTU HD',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
         ],
@@ -1508,9 +1542,21 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ShareParams(
             files: [XFile(video.path)],
             text:
-                'Rute $sportsName: ${widget.session.displayTitle} (${(widget.session.distanceMeters / 1000).toStringAsFixed(2)} km) • Velora: Run & Ride',
+                'Rute $sportsName: ${widget.session.displayTitle} (${(widget.session.distanceMeters / 1000).toStringAsFixed(2)} km) • Velora',
           ),
         );
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Belum ada video rekaman yang dipilih. Tekan "BAGIKAN KARTU HD" untuk membagikan poster rute & foto!',
+              ),
+              backgroundColor: AppColors.primaryOrange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

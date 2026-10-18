@@ -131,7 +131,7 @@ class SocialShareService {
         ShareParams(
           files: [XFile(file.path, mimeType: 'image/png')],
           text: activityTitle,
-          subject: subject ?? 'Velora: Run & Ride Activity',
+          subject: subject ?? 'Velora Activity',
           sharePositionOrigin: sharePositionOrigin,
         ),
       );
