@@ -2,6 +2,21 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.4.5] - 2026-10-19
+
+### 🎬 Ekspor Video Flyover Rute Nyata (MP4 Otomatis 100% Offline)
+- **Pembuatan Berkas Video MP4 Otomatis di Perangkat:**
+  - Menghadirkan fitur baru **"Ekspor Video Flyover (MP4)"** pada `RouteReplayScreen` dan lembar aksi berbagi video.
+  - Aplikasi kini secara nyata **merender dan menghasilkan berkas video `.mp4` asli** langsung di memori perangkat pengguna menggunakan encoder hardware bawaan Android (`MediaCodec`).
+  - Tidak lagi mewajibkan pengguna untuk membuka control center dan menyalakan *Screen Recorder* secara manual—cukup tekan satu tombol, video langsung jadi!
+- **Modal Progres Rendering Interaktif:**
+  - Menampilkan dialog progres persentase yang informatif (`Frame 0/150 - 100%`) saat video sedang dienkode.
+  - Video berdurasi ideal ~6.25 detik (150 frame pada 24 FPS), sangat pas dan siap pakai untuk WhatsApp Status, Instagram Reels, TikTok, YouTube Shorts, atau disimpan ke galeri ponsel.
+- **Watermark Sinematik Eksklusif:**
+  - Video flyover yang diekspor dilengkapi dengan watermark minimalis di pojok kiri atas berupa logo panah ganda `VELORA` dan nama atlet kustom pengguna.
+- **Berbagi Langsung 1-Klik:**
+  - Setelah render selesai, dialog hasil menampilkan nama berkas video MP4 dan tombol instan **`[BAGIKAN VIDEO SEKARANG]`** yang langsung membuka lembar berbagi sistem ke WhatsApp, Instagram Reels, Google Drive, atau simpan ke memori HP.
+
 ## [v1.0.4.4] - 2026-10-19
 
 ### 🛡️ Ketahanan Profil Atlet (Anti-Reset Saat Pembaruan Aplikasi)

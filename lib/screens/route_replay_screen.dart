@@ -16,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/map_precache_service.dart';
 import '../services/track_analysis_service.dart';
 import '../services/user_profile_service.dart';
+import '../services/video_export_service.dart';
 import '../widgets/track_milestone_pin.dart';
 import 'share_preview_screen.dart';
 
@@ -57,6 +58,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   // Kamera throttled update untuk mencegah spam request tile OSM (kotak hitam/putih)
   DateTime? _lastCameraMoveTime;
   LatLng? _lastCameraPos;
+
+  // Kunci RepaintBoundary untuk Menangkap Snapshot Render Video Flyover MP4
+  final GlobalKey _recordBoundaryKey = GlobalKey();
+  bool _isRenderingVideo = false;
 
   // Status Mode Rekam Layar Bersih (Clean Screen Record)
   bool _cleanRecordMode = false;
@@ -405,9 +410,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     return Scaffold(
       backgroundColor: AppColors.darkBackground,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
+      body: RepaintBoundary(
+        key: _recordBoundaryKey,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
           // 1. Lapisan Peta OpenStreetMap Interaktif
           FlutterMap(
             mapController: _mapController,
@@ -511,8 +518,58 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             ],
           ),
 
-          // Area Ketukan Layar untuk Keluar dari Mode Rekam Bersih
+          // Watermark Logo Velora & Nama Atlet (Tampil Sinematik saat Clean Mode / Render Video)
           if (_cleanRecordMode)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 14,
+              left: 18,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(180),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white24, width: 0.8),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black45,
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.keyboard_double_arrow_right_rounded,
+                      color: AppColors.primaryOrange,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      'VELORA',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                        letterSpacing: 1.1,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '• $_athleteName',
+                      style: const TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Area Ketukan Layar untuk Keluar dari Mode Rekam Bersih
+          if (_cleanRecordMode && !_isRenderingVideo)
             Positioned.fill(
               child: GestureDetector(
                 key: const ValueKey('exit_clean_record_tap_area'),
@@ -565,9 +622,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ),
 
           // 5. Toast / Tooltip saat Mode Rekam Bersih Baru Dimulai
-          if (_cleanRecordMode && _showRecordTooltip)
+          if (_cleanRecordMode && _showRecordTooltip && !_isRenderingVideo)
             Positioned(
-              top: MediaQuery.of(context).padding.top + 16,
+              top: MediaQuery.of(context).padding.top + 56,
               left: 24,
               right: 24,
               child: Container(
@@ -610,7 +667,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             _buildPreloadingOverlay(),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildPreloadingOverlay() {
@@ -1228,6 +1286,273 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   // FITUR REKAM & BAGIKAN VIDEO KE MEDIA SOSIAL
   // ==========================================
 
+  /// Merender animasi flyover rute menjadi berkas video MP4 secara otomatis
+  Future<void> _startInAppVideoRender() async {
+    // 1. Jeda pemutaran animasi jika sedang aktif
+    if (_isPlaying) {
+      _togglePlayPause();
+    }
+
+    bool isCancelled = false;
+    double exportProgress = 0.0;
+    int currentFrameNum = 0;
+    const totalFrames = 150; // ~6.25 detik video flyover pada 24 FPS
+    StateSetter? dialogSetState;
+
+    // 2. Aktifkan clean record mode & rendering flag
+    setState(() {
+      _cleanRecordMode = true;
+      _isRenderingVideo = true;
+      _autoFollow = true;
+    });
+
+    // Tampilkan modal dialog progres rendering MP4
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            dialogSetState = setDialogState;
+            final percent = (exportProgress * 100).clamp(0, 100).toInt();
+            return AlertDialog(
+              backgroundColor: AppColors.cardSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(24),
+                side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.movie_creation_rounded, color: AppColors.primaryOrange, size: 26),
+                  SizedBox(width: 10),
+                  Text(
+                    'Merender Video Flyover',
+                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Mengenkode animasi rute flyover ke berkas MP4 beresolusi tinggi...',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+                  ),
+                  const SizedBox(height: 18),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: exportProgress,
+                      backgroundColor: Colors.white12,
+                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+                      minHeight: 8,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Frame $currentFrameNum / $totalFrames',
+                        style: const TextStyle(
+                          color: AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '$percent%',
+                        style: const TextStyle(
+                          color: AppColors.primaryOrange,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardSurfaceElevated,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.borderSubtle),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt_rounded, color: AppColors.neonCyan, size: 14),
+                        SizedBox(width: 6),
+                        Text(
+                          'Hardware MediaCodec • 100% Offline',
+                          style: TextStyle(
+                            color: AppColors.neonCyan,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    isCancelled = true;
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text(
+                    'BATALKAN',
+                    style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    // 3. Jalankan loop render frame-by-frame
+    String? exportedVideoPath;
+    try {
+      exportedVideoPath = await VideoExportService.renderWidgetToVideo(
+        boundaryKey: _recordBoundaryKey,
+        totalFrames: totalFrames,
+        fps: 24,
+        isCancelled: () => isCancelled,
+        onStepFrame: (frameIndex, progress) async {
+          _animController.value = progress;
+          _lastCameraMoveTime = null; // paksa kamera bergerak mengikuti titik rute
+          _onAnimationTick();
+          if (mounted) setState(() {});
+          await Future.delayed(const Duration(milliseconds: 20));
+        },
+        onProgress: (progress, currentFrame, total) {
+          exportProgress = progress;
+          currentFrameNum = currentFrame;
+          if (dialogSetState != null) {
+            dialogSetState!(() {});
+          }
+        },
+      );
+    } catch (e) {
+      debugPrint('Error during video render: $e');
+    }
+
+    // 4. Tutup dialog progress jika masih terbuka
+    if (mounted && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
+
+    // Kembalikan clean record mode & flag rendering ke false
+    if (mounted) {
+      setState(() {
+        _cleanRecordMode = false;
+        _isRenderingVideo = false;
+      });
+    }
+
+    if (isCancelled) return;
+
+    // 5. Tampilkan dialog hasil video MP4 yang siap dibagikan ke sosmed
+    if (exportedVideoPath != null && mounted) {
+      final fileName = exportedVideoPath.split('/').last;
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.cardSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: AppColors.neonGreen, width: 1.5),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 28),
+              SizedBox(width: 10),
+              Text(
+                'Video Berhasil Dibuat!',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Video flyover rute berformat MP4 telah selesai dirender dan tersimpan di memori ponsel Anda.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.cardSurfaceElevated,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.borderSubtle),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.movie_rounded, color: AppColors.primaryOrange, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        fileName,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('TUTUP', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await VideoExportService.shareVideo(
+                  exportedVideoPath!,
+                  text: 'Flyover Rute Latihan • Velora',
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(Icons.share_rounded, size: 18, color: Colors.white),
+              label: const Text(
+                'BAGIKAN VIDEO SEKARANG',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12.5),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Gagal membuat berkas video MP4. Silakan coba kembali.'),
+          backgroundColor: Colors.redAccent,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _showStartRecordConfirmDialog() {
     Navigator.of(context, rootNavigator: true).pop();
     showDialog<void>(
@@ -1314,10 +1639,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
             Text(
-              '• Langsung Bagikan Gambar HD (Tanpa Rekam):\n'
-              'Tekan tombol "BAGIKAN KARTU HD" untuk langsung membuat poster rute & statistik Full HD siap kirim ke media sosial!\n\n'
+              '• Ingin Berkas Video Flyover Langsung Jadi?\n'
+              'Tekan tombol "EKSPOR VIDEO MP4" untuk membuat file video MP4 siap bagikan!\n\n'
               '• Sudah Merekam Layar HP?\n'
-              'Tekan "PILIH DARI GALERI" jika Anda telah mengaktifkan Perekam Layar HP untuk memilih file video rekaman tersebut.',
+              'Tekan "PILIH DARI GALERI" untuk membagikan file video rekaman layar tersebut.',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
             ),
           ],
@@ -1326,6 +1651,22 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('TUTUP', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _startInAppVideoRender();
+            },
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.neonGreen,
+              side: const BorderSide(color: AppColors.neonGreen),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(Icons.movie_creation_rounded, size: 16),
+            label: const Text(
+              'EKSPOR VIDEO MP4',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+            ),
           ),
           OutlinedButton.icon(
             onPressed: () {
@@ -1478,20 +1819,34 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ),
               const SizedBox(height: 20),
 
-              // Opsi 1: Mode Rekam Layar Bersih
+              // Opsi 1: Ekspor Video Flyover (MP4) Otomatis
+              _buildShareActionTile(
+                icon: Icons.movie_creation_rounded,
+                iconColor: AppColors.primaryOrange,
+                title: 'Ekspor Video Flyover (MP4)',
+                subtitle:
+                    'Render rute animasi menjadi berkas video MP4 siap bagikan ke WhatsApp, Reels, TikTok, atau simpan ke memori HP.',
+                badge: 'OTOMATIS & PRAKTIS',
+                badgeColor: AppColors.neonGreen,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _startInAppVideoRender();
+                },
+              ),
+              const SizedBox(height: 10),
+
+              // Opsi 2: Mode Rekam Layar Bersih
               _buildShareActionTile(
                 icon: Icons.fiber_smart_record_rounded,
-                iconColor: AppColors.primaryOrange,
+                iconColor: AppColors.neonCyan,
                 title: 'Mulai Mode Rekam Layar Bersih',
                 subtitle:
                     'Sembunyikan tombol antarmuka dan putar rute dari KM 0 untuk direkam dengan Perekam Layar bawaan HP.',
-                badge: 'REKOMENDASI',
-                badgeColor: AppColors.primaryOrange,
                 onTap: _showStartRecordConfirmDialog,
               ),
               const SizedBox(height: 10),
 
-              // Opsi 2: Bagikan Video dari Galeri
+              // Opsi 3: Bagikan Video dari Galeri
               _buildShareActionTile(
                 icon: Icons.upload_file_rounded,
                 iconColor: AppColors.neonCyan,
@@ -1505,7 +1860,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ),
               const SizedBox(height: 10),
 
-              // Opsi 3: Bagikan Kartu Ringkasan (Foto & Peta HD)
+              // Opsi 4: Bagikan Kartu Ringkasan (Foto & Peta HD)
               _buildShareActionTile(
                 icon: Icons.photo_library_rounded,
                 iconColor: AppColors.electricAmber,

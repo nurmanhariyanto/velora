@@ -1,0 +1,166 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_quick_video_encoder/flutter_quick_video_encoder.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
+/// Layanan untuk merender animasi flyover rute menjadi berkas video MP4
+/// secara mandiri di perangkat (100% offline, hardware-accelerated MediaCodec).
+class VideoExportService {
+  /// Memotong atau menyesuaikan buffer piksel mentah ke dimensi genap (kelipatan 2)
+  /// yang diwajibkan oleh encoder H.264/MediaCodec.
+  static Uint8List cropToEvenDimensions(
+    Uint8List src,
+    int srcW,
+    int srcH,
+    int dstW,
+    int dstH,
+  ) {
+    if (srcW == dstW && srcH == dstH) return src;
+    final dst = Uint8List(dstW * dstH * 4);
+    final srcStride = srcW * 4;
+    final dstStride = dstW * 4;
+    for (int y = 0; y < dstH; y++) {
+      dst.setRange(
+        y * dstStride,
+        y * dstStride + dstStride,
+        src,
+        y * srcStride,
+      );
+    }
+    return dst;
+  }
+
+  /// Merender frame dari widget RepaintBoundary menjadi berkas video MP4
+  static Future<String?> renderWidgetToVideo({
+    required GlobalKey boundaryKey,
+    required int totalFrames,
+    required int fps,
+    required Future<void> Function(int frameIndex, double progress) onStepFrame,
+    required void Function(double progress, int currentFrame, int totalFrames) onProgress,
+    bool Function()? isCancelled,
+  }) async {
+    try {
+      final boundary = boundaryKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+      if (boundary == null) {
+        debugPrint('VideoExportService: RepaintBoundary tidak ditemukan.');
+        return null;
+      }
+
+      // 1. Tentukan direktori penyimpanan video
+      final dir = await getApplicationDocumentsDirectory();
+      final videosDir = Directory('${dir.path}/velora_videos');
+      if (!await videosDir.exists()) {
+        await videosDir.create(recursive: true);
+      }
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final outputPath = '${videosDir.path}/velora_flyover_$timestamp.mp4';
+
+      // 2. Ambil frame pertama untuk mengukur dimensi resolusi video (harus genap)
+      final initialImage = await boundary.toImage(pixelRatio: 1.0);
+      final rawWidth = initialImage.width;
+      final rawHeight = initialImage.height;
+      final videoWidth = (rawWidth ~/ 2) * 2;
+      final videoHeight = (rawHeight ~/ 2) * 2;
+      initialImage.dispose();
+
+      debugPrint(
+        'VideoExportService: Memulai encode MP4 ($videoWidth x $videoHeight, $fps FPS, $totalFrames frames)',
+      );
+
+      // 3. Konfigurasi encoder video hardware
+      await FlutterQuickVideoEncoder.setup(
+        width: videoWidth,
+        height: videoHeight,
+        fps: fps,
+        videoBitrate: 3500000, // 3.5 Mbps untuk kualitas tajam Full HD
+        profileLevel: ProfileLevel.highAutoLevel,
+        audioChannels: 0,
+        audioBitrate: 0,
+        sampleRate: 0,
+        filepath: outputPath,
+      );
+
+      // 4. Loop render tiap frame rute
+      for (int i = 0; i < totalFrames; i++) {
+        if (isCancelled?.call() == true) {
+          debugPrint('VideoExportService: Proses dibatalkan oleh pengguna.');
+          try {
+            await FlutterQuickVideoEncoder.finish();
+            final partialFile = File(outputPath);
+            if (await partialFile.exists()) {
+              await partialFile.delete();
+            }
+          } catch (_) {}
+          return null;
+        }
+
+        final progress = (i + 1) / totalFrames;
+
+        // Gerakkan kamera dan titik rute ke posisi frame ke-i
+        await onStepFrame(i, progress);
+
+        // Ambil snapshot piksel dari RepaintBoundary
+        final image = await boundary.toImage(pixelRatio: 1.0);
+        final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+        final imageW = image.width;
+        final imageH = image.height;
+        image.dispose();
+
+        if (byteData == null) continue;
+
+        // Pastikan ukuran buffer sesuai persis dengan width * height * 4
+        final rawRgba = cropToEvenDimensions(
+          byteData.buffer.asUint8List(),
+          imageW,
+          imageH,
+          videoWidth,
+          videoHeight,
+        );
+
+        // Tambahkan frame ke encoder video
+        await FlutterQuickVideoEncoder.appendVideoFrame(rawRgba);
+
+        // Beritahukan progres ke UI dialog
+        onProgress(progress, i + 1, totalFrames);
+      }
+
+      // 5. Finalisasi berkas video
+      await FlutterQuickVideoEncoder.finish();
+      debugPrint('VideoExportService: Video berhasil ditulis ke $outputPath');
+
+      final file = File(outputPath);
+      if (await file.exists() && await file.length() > 0) {
+        return outputPath;
+      }
+      return null;
+    } catch (e, stack) {
+      debugPrint('VideoExportService error: $e\n$stack');
+      try {
+        await FlutterQuickVideoEncoder.finish();
+      } catch (_) {}
+      return null;
+    }
+  }
+
+  /// Membagikan berkas video yang telah selesai diekspor ke aplikasi lain (WhatsApp, Reels, TikTok, dsb)
+  static Future<ShareResult> shareVideo(String filePath, {String? text}) async {
+    final file = File(filePath);
+    if (!await file.exists()) {
+      throw Exception('Berkas video tidak ditemukan pada: $filePath');
+    }
+
+    return await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(filePath, mimeType: 'video/mp4')],
+        text: text ?? 'Flyover Rute Latihan • Velora',
+        subject: 'Flyover Rute Latihan • Velora',
+      ),
+    );
+  }
+}
