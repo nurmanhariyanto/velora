@@ -75,6 +75,8 @@ void main() {
       expect(find.text('25.40'), findsOneWidget);
       expect(find.text('KM'), findsOneWidget);
       expect(find.text('Bersepeda Pagi'), findsOneWidget);
+      expect(find.text('MAX SPEED'), findsOneWidget);
+      expect(find.text('38.5 km/h'), findsOneWidget);
 
       // Uji penangkapan PNG dari RepaintBoundary
       final Uint8List? pngBytes = await tester.runAsync<Uint8List?>(() async {
@@ -243,6 +245,36 @@ void main() {
 
       expect(width, greaterThanOrEqualTo(1080), reason: 'Lebar gambar harus minimal 1080px Full HD');
       expect(height, greaterThanOrEqualTo(1900), reason: 'Tinggi gambar harus minimal 1900px Full HD');
+    });
+
+    testWidgets('Merender nama atlet kustom pada SocialShareCard',
+        (WidgetTester tester) async {
+      final repaintKey = GlobalKey();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 360,
+                height: 640,
+                child: SocialShareCard(
+                  session: dummySession,
+                  athleteName: 'John Doe',
+                  style: ShareCardStyle.minimal,
+                  repaintKey: repaintKey,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('John Doe'), findsOneWidget);
+      expect(find.text('MAX SPEED'), findsOneWidget);
+      expect(find.text('38.5 km/h'), findsOneWidget);
     });
 
     test('SocialShareService.saveBytesToTempFile berhasil menulis berkas PNG', () async {

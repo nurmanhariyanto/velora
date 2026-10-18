@@ -5,6 +5,7 @@ import '../models/best_effort.dart';
 import '../models/lifetime_stats.dart';
 import '../models/sports_type.dart';
 import '../providers/achievement_provider.dart';
+import '../services/user_profile_service.dart';
 import '../widgets/trophy_badge_card.dart';
 
 /// Layar Profil Atlet, Statistik Seumur Hidup, Rekor Terbaik (Best Efforts), dan Lemari Trofi
@@ -16,12 +17,24 @@ class ProfileRecordsScreen extends StatefulWidget {
 }
 
 class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
+  String _athleteName = UserProfileService.defaultAthleteName;
+
   @override
   void initState() {
     super.initState();
+    _loadAthleteName();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AchievementProvider>().loadAchievements();
     });
+  }
+
+  Future<void> _loadAthleteName() async {
+    final name = await UserProfileService.getAthleteName();
+    if (mounted) {
+      setState(() {
+        _athleteName = name;
+      });
+    }
   }
 
   @override
@@ -163,23 +176,45 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text(
-                      'Velora Athlete',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
+                InkWell(
+                  onTap: _showEditNameDialog,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          _athleteName,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Icon(
-                      Icons.verified_rounded,
-                      size: 16,
-                      color: Colors.amber.shade400,
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.verified_rounded,
+                        size: 16,
+                        color: Colors.amber.shade400,
+                      ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOrange.withAlpha(35),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.edit_rounded,
+                          size: 13,
+                          color: AppColors.primaryOrange,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
@@ -664,5 +699,130 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
         ),
       ],
     );
+  }
+
+  Future<void> _showEditNameDialog() async {
+    final controller = TextEditingController(text: _athleteName);
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: const BorderSide(color: AppColors.borderSubtle),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.edit_rounded, color: AppColors.primaryOrange, size: 22),
+              SizedBox(width: 10),
+              Text(
+                'Edit Nama Profil',
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Nama ini akan ditampilkan pada profil dan kartu riwayat saat dibagikan ke media sosial.',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: controller,
+                  maxLength: 28,
+                  autofocus: true,
+                  style: const TextStyle(color: AppColors.textPrimary),
+                  decoration: InputDecoration(
+                    labelText: 'Nama Atlet',
+                    labelStyle: const TextStyle(color: AppColors.textMuted),
+                    hintText: 'Misal: John Doe',
+                    hintStyle: const TextStyle(color: AppColors.textMuted),
+                    counterStyle: const TextStyle(color: AppColors.textMuted),
+                    filled: true,
+                    fillColor: AppColors.cardSurfaceElevated,
+                    prefixIcon: const Icon(
+                      Icons.person_outline_rounded,
+                      color: AppColors.primaryOrange,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: AppColors.borderSubtle),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(
+                        color: AppColors.primaryOrange,
+                        width: 1.5,
+                      ),
+                    ),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Nama tidak boleh kosong';
+                    }
+                    if (value.trim().length > 28) {
+                      return 'Maksimal 28 karakter';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                if (formKey.currentState?.validate() ?? false) {
+                  Navigator.pop(ctx, controller.text.trim());
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != null && result.isNotEmpty && result != _athleteName) {
+      final success = await UserProfileService.setAthleteName(result);
+      if (success && mounted) {
+        setState(() {
+          _athleteName = result;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Nama profil berhasil disimpan: "$result"'),
+            backgroundColor: AppColors.neonGreen,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 }

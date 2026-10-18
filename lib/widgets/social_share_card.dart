@@ -23,6 +23,7 @@ class SocialShareCard extends StatelessWidget {
   final ShareCardStyle style;
   final bool mapDarkTheme;
   final GlobalKey repaintKey;
+  final String? athleteName;
 
   const SocialShareCard({
     super.key,
@@ -31,6 +32,7 @@ class SocialShareCard extends StatelessWidget {
     this.style = ShareCardStyle.map,
     this.mapDarkTheme = true,
     required this.repaintKey,
+    this.athleteName,
   });
 
   /// Filter warna matrix untuk mode gelap OpenStreetMap khas Velora
@@ -132,7 +134,11 @@ class SocialShareCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          formattedDate,
+                          (athleteName != null &&
+                                  athleteName!.trim().isNotEmpty &&
+                                  athleteName!.trim() != 'Velora Athlete')
+                              ? '${athleteName!.trim()} • $formattedDate'
+                              : formattedDate,
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 12,
@@ -202,7 +208,7 @@ class SocialShareCard extends StatelessWidget {
 
                         const SizedBox(height: 12),
 
-                        // Baris Metrik Sekunder (Waktu, Pace/Speed, Elevasi)
+                        // Baris Metrik Sekunder (Waktu, Pace/Speed, Max Speed, Elevasi)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 16,
@@ -232,10 +238,22 @@ class SocialShareCard extends StatelessWidget {
                                   color: Colors.white24,
                                 ),
                                 _buildMetricItem(
-                                  session.sportsType.primaryMetricLabel,
+                                  session.sportsType == SportsType.run
+                                      ? 'PACE'
+                                      : 'AVG SPEED',
                                   session.sportsType == SportsType.run
                                       ? session.formattedPace
                                       : session.formattedSpeed,
+                                ),
+                                Container(
+                                  width: 1,
+                                  height: 32,
+                                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                                  color: Colors.white24,
+                                ),
+                                _buildMetricItem(
+                                  'MAX SPEED',
+                                  '${session.maxSpeedKmh.toStringAsFixed(1)} km/h',
                                 ),
                                 Container(
                                   width: 1,

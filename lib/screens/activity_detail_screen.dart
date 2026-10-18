@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
 import '../models/activity_session.dart';
+import '../models/coordinate_point.dart';
 import '../models/sports_type.dart';
+import '../models/track_milestone.dart';
 import '../services/gpx_service.dart';
+import '../services/track_analysis_service.dart';
 import '../widgets/elevation_chart.dart';
 import '../widgets/live_map_view.dart';
 import '../widgets/metric_card.dart';
 import 'share_preview_screen.dart';
 
-/// Layar Rincian Hasil Latihan & Replay Rute
-class ActivityDetailScreen extends StatelessWidget {
+/// Layar Rincian Hasil Latihan & Replay Rute dengan Penanda Lintasan ala Strava
+class ActivityDetailScreen extends StatefulWidget {
   final ActivitySession session;
 
   const ActivityDetailScreen({
@@ -19,24 +22,58 @@ class ActivityDetailScreen extends StatelessWidget {
   });
 
   @override
+  State<ActivityDetailScreen> createState() => _ActivityDetailScreenState();
+}
+
+class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
+  late final List<TrackMilestone> _milestones;
+  late final List<CoordinatePoint>? _fastest1kSegment;
+  List<CoordinatePoint>? _highlightedSegment;
+  bool _highlightFastestActive = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _milestones = TrackAnalysisService.analyzeTrack(
+      widget.session.coordinates,
+      widget.session.sportsType,
+    );
+    _fastest1kSegment = TrackAnalysisService.findFastestSegment(
+      widget.session.coordinates,
+    );
+    _highlightedSegment = _fastest1kSegment;
+  }
+
+  void _toggleHighlightFastest() {
+    setState(() {
+      _highlightFastestActive = !_highlightFastestActive;
+      _highlightedSegment = _highlightFastestActive ? _fastest1kSegment : null;
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('EEEE, d MMMM yyyy • HH:mm', 'id_ID');
     final formattedStartTime = dateFormat.format(
-      DateTime.fromMillisecondsSinceEpoch(session.startTime),
+      DateTime.fromMillisecondsSinceEpoch(widget.session.startTime),
     );
+
+    final kmSplits = _milestones
+        .where((m) => m.type == TrackMilestoneType.kmSplit)
+        .toList();
 
     return Scaffold(
       backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: Text(
-          session.displayTitle,
+          widget.session.displayTitle,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.file_download_outlined, color: AppColors.neonCyan),
             tooltip: 'Ekspor GPX',
-            onPressed: () => GpxService.exportAndShareGpx(session),
+            onPressed: () => GpxService.exportAndShareGpx(widget.session),
           ),
           IconButton(
             icon: const Icon(Icons.share_rounded, color: AppColors.primaryOrange),
@@ -45,7 +82,7 @@ class ActivityDetailScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => SharePreviewScreen(session: session),
+                  builder: (_) => SharePreviewScreen(session: widget.session),
                 ),
               );
             },
@@ -56,14 +93,17 @@ class ActivityDetailScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Tampilan Peta Replay Rute
+            // 1. Tampilan Peta Replay Rute dengan Penanda Lintasan Langsung ala Strava
             SizedBox(
-              height: 280,
+              height: 290,
               width: double.infinity,
               child: LiveMapView(
-                coordinates: session.coordinates,
+                coordinates: widget.session.coordinates,
                 isTracking: false,
                 autoCenter: true,
+                showTrackMilestones: true,
+                sportsType: widget.session.sportsType,
+                highlightedSegment: _highlightedSegment,
               ),
             ),
 
@@ -88,7 +128,7 @@ class ActivityDetailScreen extends StatelessWidget {
                         child: Row(
                           children: [
                             Icon(
-                              session.sportsType == SportsType.run
+                              widget.session.sportsType == SportsType.run
                                   ? Icons.directions_run_rounded
                                   : Icons.pedal_bike_rounded,
                               size: 16,
@@ -96,7 +136,7 @@ class ActivityDetailScreen extends StatelessWidget {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              session.sportsType.shortName,
+                              widget.session.sportsType.shortName,
                               style: const TextStyle(
                                 color: AppColors.primaryOrange,
                                 fontWeight: FontWeight.bold,
@@ -127,7 +167,7 @@ class ActivityDetailScreen extends StatelessWidget {
                       Expanded(
                         child: MetricCard(
                           label: 'TOTAL JARAK',
-                          value: session.distanceKm.toStringAsFixed(2),
+                          value: widget.session.distanceKm.toStringAsFixed(2),
                           unit: 'km',
                           accentColor: AppColors.neonCyan,
                           isLarge: true,
@@ -137,7 +177,7 @@ class ActivityDetailScreen extends StatelessWidget {
                       Expanded(
                         child: MetricCard(
                           label: 'DURASI AKTIF',
-                          value: session.formattedDuration,
+                          value: widget.session.formattedDuration,
                           accentColor: AppColors.primaryOrange,
                           isLarge: true,
                         ),
@@ -151,11 +191,11 @@ class ActivityDetailScreen extends StatelessWidget {
                     children: [
                       Expanded(
                         child: MetricCard(
-                          label: session.sportsType.primaryMetricLabel,
-                          value: session.sportsType == SportsType.run
-                              ? session.formattedPace
-                              : session.formattedSpeed,
-                          unit: session.sportsType.primaryMetricUnit,
+                          label: widget.session.sportsType.primaryMetricLabel,
+                          value: widget.session.sportsType == SportsType.run
+                              ? widget.session.formattedPace
+                              : widget.session.formattedSpeed,
+                          unit: widget.session.sportsType.primaryMetricUnit,
                           icon: Icons.speed_rounded,
                         ),
                       ),
@@ -163,7 +203,7 @@ class ActivityDetailScreen extends StatelessWidget {
                       Expanded(
                         child: MetricCard(
                           label: 'MAX SPEED',
-                          value: session.maxSpeedKmh.toStringAsFixed(1),
+                          value: widget.session.maxSpeedKmh.toStringAsFixed(1),
                           unit: 'km/h',
                           icon: Icons.bolt_rounded,
                         ),
@@ -178,7 +218,7 @@ class ActivityDetailScreen extends StatelessWidget {
                       Expanded(
                         child: MetricCard(
                           label: 'ELEVASI',
-                          value: '+${session.elevationGain.toStringAsFixed(0)}',
+                          value: '+${widget.session.elevationGain.toStringAsFixed(0)}',
                           unit: 'meter',
                           icon: Icons.terrain_rounded,
                         ),
@@ -187,7 +227,7 @@ class ActivityDetailScreen extends StatelessWidget {
                       Expanded(
                         child: MetricCard(
                           label: 'TITIK RUTE',
-                          value: '${session.coordinates.length}',
+                          value: '${widget.session.coordinates.length}',
                           unit: 'pts',
                           icon: Icons.timeline_rounded,
                         ),
@@ -199,11 +239,14 @@ class ActivityDetailScreen extends StatelessWidget {
 
                   // 4. Grafik Profil Elevasi Rute
                   ElevationChart(
-                    coordinates: session.coordinates,
-                    elevationGain: session.elevationGain,
+                    coordinates: widget.session.coordinates,
+                    elevationGain: widget.session.elevationGain,
                   ),
 
-                  if (session.notes != null && session.notes!.isNotEmpty) ...[
+                  // 5. Analisis Split Kilometer & Rekor Lintasan ala Strava
+                  _buildSplitsAndRecordsSection(kmSplits),
+
+                  if (widget.session.notes != null && widget.session.notes!.isNotEmpty) ...[
                     const SizedBox(height: 20),
                     const Text(
                       'CATATAN LATIHAN',
@@ -224,7 +267,7 @@ class ActivityDetailScreen extends StatelessWidget {
                         border: Border.all(color: AppColors.borderSubtle),
                       ),
                       child: Text(
-                        session.notes!,
+                        widget.session.notes!,
                         style: const TextStyle(
                           color: AppColors.textPrimary,
                           fontSize: 14,
@@ -244,7 +287,7 @@ class ActivityDetailScreen extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => SharePreviewScreen(session: session),
+                            builder: (_) => SharePreviewScreen(session: widget.session),
                           ),
                         );
                       },
@@ -273,7 +316,7 @@ class ActivityDetailScreen extends StatelessWidget {
                     width: double.infinity,
                     height: 50,
                     child: OutlinedButton.icon(
-                      onPressed: () => GpxService.exportAndShareGpx(session),
+                      onPressed: () => GpxService.exportAndShareGpx(widget.session),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.neonCyan,
                         side: const BorderSide(color: AppColors.neonCyan, width: 1.5),
@@ -298,6 +341,184 @@ class ActivityDetailScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSplitsAndRecordsSection(List<TrackMilestone> kmSplits) {
+    if (kmSplits.isEmpty && _fastest1kSegment == null) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 22),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'SPLIT KILOMETER & REKOR LINTASAN',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.0,
+              ),
+            ),
+            if (_fastest1kSegment != null)
+              InkWell(
+                onTap: _toggleHighlightFastest,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _highlightFastestActive
+                        ? AppColors.electricAmber.withAlpha(35)
+                        : AppColors.cardSurface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: _highlightFastestActive
+                          ? AppColors.electricAmber
+                          : AppColors.borderSubtle,
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.auto_awesome_rounded,
+                        size: 13,
+                        color: _highlightFastestActive
+                            ? AppColors.electricAmber
+                            : AppColors.textMuted,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        _highlightFastestActive ? 'Segmen 1K Aktif' : 'Sorot 1K',
+                        style: TextStyle(
+                          color: _highlightFastestActive
+                              ? AppColors.electricAmber
+                              : AppColors.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (kmSplits.isNotEmpty)
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.cardSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppColors.borderSubtle),
+            ),
+            child: ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: kmSplits.length,
+              separatorBuilder: (context, index) => const Divider(
+                color: AppColors.borderSubtle,
+                height: 1,
+              ),
+              itemBuilder: (context, index) {
+                final split = kmSplits[index];
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 2,
+                  ),
+                  leading: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: split.isFastestKm
+                          ? AppColors.electricAmber.withAlpha(40)
+                          : AppColors.cardSurfaceElevated,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: split.isFastestKm
+                            ? AppColors.electricAmber
+                            : AppColors.borderSubtle,
+                        width: split.isFastestKm ? 2 : 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        '${split.kmNumber}',
+                        style: TextStyle(
+                          color: split.isFastestKm
+                              ? AppColors.electricAmber
+                              : AppColors.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+                  title: Row(
+                    children: [
+                      Text(
+                        'KM ${split.kmNumber}',
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      if (split.isFastestKm) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.electricAmber.withAlpha(40),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: AppColors.electricAmber,
+                              width: 0.8,
+                            ),
+                          ),
+                          child: const Text(
+                            '⚡ TERCEPAT',
+                            style: TextStyle(
+                              color: AppColors.electricAmber,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  subtitle: Text(
+                    split.description,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
+                  trailing: Text(
+                    split.formattedSplitDuration,
+                    style: TextStyle(
+                      color: split.isFastestKm
+                          ? AppColors.electricAmber
+                          : AppColors.textPrimary,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }

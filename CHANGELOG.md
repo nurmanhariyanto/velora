@@ -2,6 +2,40 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.3.6] - 2026-10-18
+
+### 🚀 Fitur Baru & Peningkatan
+- **Kustomisasi Nama Profil Atlet (Edit Nama Offline):**
+  - Mengimplementasikan layanan lokal persisten `UserProfileService` berbasis `SharedPreferences` untuk menyimpan dan membaca nama atlet pengguna.
+  - Memperbarui layar *Profil Atlet & Prestasi* (`ProfileRecordsScreen`) dengan antarmuka edit nama interaktif (ikon pensil dan dialog modal) lengkap dengan validasi teks (maksimal 28 karakter).
+  - Nama profil tersimpan langsung secara offline dan ditampilkan secara dinamis di *header banner* profil atlet serta konfirmasi notifikasi *SnackBar*.
+  - Mengintegrasikan nama atlet kustom ke dalam kartu berbagi media sosial (`SocialShareCard`) sehingga nama pengguna otomatis tertera berdampingan dengan tanggal aktivitas (contoh: `"Budi • Minggu, 18 Oktober 2026 • 08:30"`).
+
+- **Penambahan Metrik MAX SPEED pada Kartu Media Sosial:**
+  - Menampilkan metrik **MAX SPEED** (`session.maxSpeedKmh.toStringAsFixed(1) km/h`) pada baris statistik sekunder di kartu berbagi media sosial (`SocialShareCard`).
+  - Baris statistik kini menyajikan 4 metrik lengkap: **DURASI** | **AVG SPEED / PACE** | **MAX SPEED** | **ELEVASI**, diatur dengan *divider* vertikal tipis dan tata letak berskala otomatis (*auto-scaled*) tanpa *layout overflow*.
+
+- **Penandaan Lintasan Peta Langsung & Analisis Split ala Strava (*On-Track Milestones & KM Splits*):**
+  - Mengimplementasikan `TrackAnalysisService` untuk mengekstrak titik-titik penting di sepanjang lintasan GPS:
+    - **KM Split Pins:** Menampilkan pin penanda bernomor (`1`, `2`, `3`...) langsung di atas garis lintasan rute pada setiap kelipatan 1.000 meter.
+    - **Fastest KM:** Kilometer dengan catatan waktu tercepat otomatis dihiasi dengan lingkaran emas menyala (*Electric Amber*) dan lencana `⚡ TERCEPAT`.
+    - **Max Speed Pin (⚡):** Menandai titik geografis persis saat kecepatan puncak tercapai.
+    - **Puncak Ketinggian Pin (▲):** Menandai puncak elevasi maksimum rute.
+    - **Pin Start (🟢) & Finish (🏁):** Menandai titik awal dan garis akhir lintasan rute.
+    - **Sorotan Segmen 1K Tercepat:** Menyorot potongan lintasan 1 km tercepat dengan garis ganda neon emas menyala pada peta.
+  - Menghadirkan interaktivitas sentuh: Mengetuk pin penanda di peta langsung memunculkan kartu mengambang (*bottom tooltip*) interaktif berisi rincian waktu, kecepatan split, pace, dan elevasi.
+  - Menambahkan tombol kontrol mengambang (*floating toggle button*) di peta untuk menyalakan/mematikan penanda rute sesuai preferensi pengguna.
+  - Menambahkan bagian baru **"SPLIT KILOMETER & REKOR LINTASAN"** di layar rincian aktivitas (`ActivityDetailScreen`) dengan tombol *toggle* sorotan segmen 1K.
+
+### 🧪 Penjaminan Kualitas & Pengujian Otomatis
+- **Peningkatan Suite Pengujian Unit & Widget:**
+  - Menambahkan berkas pengujian baru `test/user_profile_test.dart` untuk menguji penyimpanan persisten `UserProfileService` dan skenario interaksi dialog edit nama pada `ProfileRecordsScreen`.
+  - Menambahkan berkas pengujian baru `test/track_milestone_test.dart` untuk menguji ekstraksi split kilometer, penentuan KM tercepat, segmen tercepat, dan perenderan pin penanda lintasan pada `LiveMapView`.
+  - Memperbarui `test/social_share_test.dart` untuk menguji kemunculan metrik `MAX SPEED` dan perenderan nama atlet kustom pada `SocialShareCard`.
+  - Seluruh **63 pengujian unit & widget** lolos 100% dan 0 peringatan *linting* (`flutter analyze`).
+
+---
+
 ## [v1.0.3.5] - 2026-10-17
 
 ### 🐛 Perbaikan Bug & Alur Pengguna (Hotfix Tombol Selesai & Reset Status)

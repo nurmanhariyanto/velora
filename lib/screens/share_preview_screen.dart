@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import '../constants/app_colors.dart';
 import '../models/activity_session.dart';
 import '../services/social_share_service.dart';
+import '../services/user_profile_service.dart';
 import '../widgets/social_share_card.dart';
 
 /// Layar Pratinjau Ekspor Gambar Media Sosial (WhatsApp / Instagram Story)
@@ -27,6 +28,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
   bool _mapDarkTheme = true;
   bool _isSharing = false;
   ShareDestination? _activeDestination;
+  String _athleteName = UserProfileService.defaultAthleteName;
 
   @override
   void initState() {
@@ -38,6 +40,16 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
           : ShareCardStyle.minimal;
     } else {
       _currentStyle = ShareCardStyle.map;
+    }
+    _loadAthleteName();
+  }
+
+  Future<void> _loadAthleteName() async {
+    final name = await UserProfileService.getAthleteName();
+    if (mounted) {
+      setState(() {
+        _athleteName = name;
+      });
     }
   }
 
@@ -140,6 +152,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                     style: _currentStyle,
                     mapDarkTheme: _mapDarkTheme,
                     repaintKey: _repaintKey,
+                    athleteName: _athleteName,
                   ),
                 ),
               ),

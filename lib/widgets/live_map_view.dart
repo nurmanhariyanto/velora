@@ -3,6 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../constants/app_colors.dart';
 import '../models/coordinate_point.dart';
+import '../models/sports_type.dart';
+import '../models/track_milestone.dart';
+import '../services/track_analysis_service.dart';
+import 'track_milestone_pin.dart';
 
 enum MapThemeMode {
   dark,
@@ -16,6 +20,10 @@ class LiveMapView extends StatefulWidget {
   final LatLng? currentLocation;
   final bool isTracking;
   final bool autoCenter;
+  final bool showTrackMilestones;
+  final SportsType sportsType;
+  final List<CoordinatePoint>? highlightedSegment;
+  final void Function(TrackMilestone)? onMilestoneTapped;
 
   const LiveMapView({
     super.key,
@@ -23,6 +31,10 @@ class LiveMapView extends StatefulWidget {
     this.currentLocation,
     this.isTracking = false,
     this.autoCenter = true,
+    this.showTrackMilestones = false,
+    this.sportsType = SportsType.ride,
+    this.highlightedSegment,
+    this.onMilestoneTapped,
   });
 
   @override
@@ -33,6 +45,8 @@ class _LiveMapViewState extends State<LiveMapView> {
   late final MapController _mapController;
   MapThemeMode _currentTheme = MapThemeMode.dark;
   bool _userInteracted = false;
+  late bool _showMilestones;
+  TrackMilestone? _selectedMilestone;
 
   // Koordinat default jika GPS belum didapatkan
   static const LatLng _defaultLocation = LatLng(-0.026330, 109.342504);
@@ -51,11 +65,15 @@ class _LiveMapViewState extends State<LiveMapView> {
   void initState() {
     super.initState();
     _mapController = MapController();
+    _showMilestones = widget.showTrackMilestones;
   }
 
   @override
   void didUpdateWidget(covariant LiveMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.showTrackMilestones != oldWidget.showTrackMilestones) {
+      _showMilestones = widget.showTrackMilestones;
+    }
     if (widget.autoCenter &&
         !_userInteracted &&
         widget.currentLocation != null &&
@@ -97,6 +115,16 @@ class _LiveMapViewState extends State<LiveMapView> {
     final polylinePoints = widget.coordinates
         .map((p) => LatLng(p.latitude, p.longitude))
         .toList();
+
+    final highlightedPoints = widget.highlightedSegment != null
+        ? widget.highlightedSegment!
+            .map((p) => LatLng(p.latitude, p.longitude))
+            .toList()
+        : const <LatLng>[];
+
+    final milestones = (_showMilestones && widget.coordinates.length >= 2)
+        ? TrackAnalysisService.analyzeTrack(widget.coordinates, widget.sportsType)
+        : const <TrackMilestone>[];
 
     return Stack(
       children: [
@@ -152,11 +180,50 @@ class _LiveMapViewState extends State<LiveMapView> {
               ),
             ],
 
-            // 3. Lapisan Marker (Start Point & Current Location)
+            // 2b. Sorotan Segmen Rekor / Tercepat (Highlight Polyline Emas)
+            if (highlightedPoints.isNotEmpty) ...[
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: highlightedPoints,
+                    strokeWidth: 12.0,
+                    color: AppColors.electricAmber.withAlpha(90),
+                    strokeCap: StrokeCap.round,
+                    strokeJoin: StrokeJoin.round,
+                  ),
+                  Polyline(
+                    points: highlightedPoints,
+                    strokeWidth: 7.0,
+                    color: AppColors.electricAmber,
+                    strokeCap: StrokeCap.round,
+                    strokeJoin: StrokeJoin.round,
+                  ),
+                ],
+              ),
+            ],
+
+            // 3. Lapisan Marker (Penanda Lintasan ala Strava & Lokasi Pengguna)
             MarkerLayer(
               markers: [
-                // Titik Start (Hijau)
-                if (polylinePoints.isNotEmpty)
+                // Jika Penanda Lintasan Aktif, Tampilkan Seluruh Milestone
+                if (_showMilestones && milestones.isNotEmpty)
+                  ...milestones.map(
+                    (m) => Marker(
+                      point: LatLng(m.latitude, m.longitude),
+                      width: m.isFastestKm ? 30 : 26,
+                      height: m.isFastestKm ? 30 : 26,
+                      child: TrackMilestonePin(
+                        milestone: m,
+                        sportsType: widget.sportsType,
+                        onTap: () {
+                          setState(() => _selectedMilestone = m);
+                          widget.onMilestoneTapped?.call(m);
+                        },
+                      ),
+                    ),
+                  )
+                else if (polylinePoints.isNotEmpty)
+                  // Mode Minimalis (Titik Start Standar Hijau)
                   Marker(
                     point: polylinePoints.first,
                     width: 24,
@@ -219,9 +286,96 @@ class _LiveMapViewState extends State<LiveMapView> {
                 color: AppColors.neonCyan,
                 onPressed: _toggleMapTheme,
               ),
+              if (widget.coordinates.length >= 2) ...[
+                const SizedBox(height: 10),
+                _buildFloatingActionBtn(
+                  icon: Icons.flag_circle_rounded,
+                  tooltip: _showMilestones
+                      ? 'Sembunyikan Penanda Rute'
+                      : 'Tampilkan Penanda Rute (KM & Rekor)',
+                  color: _showMilestones
+                      ? AppColors.electricAmber
+                      : AppColors.textSecondary,
+                  onPressed: () {
+                    setState(() {
+                      _showMilestones = !_showMilestones;
+                      if (!_showMilestones) _selectedMilestone = null;
+                    });
+                  },
+                ),
+              ],
             ],
           ),
         ),
+
+        // Banner Detail Penanda Milestone saat Disentuh (Bottom Tooltip ala Strava)
+        if (_selectedMilestone != null)
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.cardSurface.withAlpha(245),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _selectedMilestone!.isFastestKm
+                      ? AppColors.electricAmber
+                      : AppColors.borderSubtle,
+                  width: 1.2,
+                ),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black54,
+                    blurRadius: 12,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  TrackMilestonePin(
+                    milestone: _selectedMilestone!,
+                    sportsType: widget.sportsType,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _selectedMilestone!.title,
+                          style: const TextStyle(
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _selectedMilestone!.description,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 18,
+                      color: AppColors.textMuted,
+                    ),
+                    onPressed: () => setState(() => _selectedMilestone = null),
+                  ),
+                ],
+              ),
+            ),
+          ),
       ],
     );
   }
