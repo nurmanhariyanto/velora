@@ -103,9 +103,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _animController.addListener(_onAnimationTick);
     _animController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
+        final wasCleanRecord = _cleanRecordMode;
         setState(() {
           _isPlaying = false;
+          _cleanRecordMode = false;
         });
+        if (wasCleanRecord && mounted) {
+          _showCleanRecordCompletedDialog();
+        }
       }
     });
 
@@ -1134,40 +1139,6 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: Icon(
-                      _autoFollow
-                          ? Icons.my_location_rounded
-                          : Icons.location_searching_rounded,
-                      color: _autoFollow ? AppColors.neonCyan : Colors.white38,
-                    ),
-                    tooltip: 'Pusatkan Posisi Atlet',
-                    onPressed: () {
-                      setState(() {
-                        _autoFollow = true;
-                      });
-                      final coords = widget.session.coordinates;
-                      final totalPoints = coords.length;
-                      final idx = (_animController.value * (totalPoints - 1))
-                          .floor()
-                          .clamp(0, totalPoints - 1);
-                      _mapController.move(
-                        LatLng(coords[idx].latitude, coords[idx].longitude),
-                        16.0,
-                      );
-                    },
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.share_rounded,
-                      color: AppColors.primaryOrange,
-                      size: 20,
-                    ),
-                    tooltip: 'Bagikan Video / Rekam Layar',
-                    onPressed: _showShareVideoSheet,
-                  ),
                 ],
               ),
 
@@ -1257,8 +1228,113 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   // FITUR REKAM & BAGIKAN VIDEO KE MEDIA SOSIAL
   // ==========================================
 
-  void _enterCleanRecordMode() {
+  void _showStartRecordConfirmDialog() {
     Navigator.of(context, rootNavigator: true).pop();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.videocam_rounded, color: AppColors.primaryOrange, size: 28),
+            SizedBox(width: 10),
+            Text(
+              'Siapkan Perekam Layar',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '1. Tarik bar status/notifikasi atas ponsel Anda ke bawah.\n'
+              '2. Nyalakan fitur "Perekam Layar" (Screen Recorder) bawaan HP.\n'
+              '3. Tekan "MULAI PUTAR RUTE" di bawah.\n\n'
+              'Seluruh tombol akan disembunyikan dan hasil video rekaman layar otomatis tersimpan di Galeri ponsel Anda.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.45),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('BATAL', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _enterCleanRecordMode();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(Icons.play_arrow_rounded, size: 18, color: Colors.white),
+            label: const Text(
+              'MULAI PUTAR RUTE',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCleanRecordCompletedDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.cardSurface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: const BorderSide(color: AppColors.neonCyan, width: 1.5),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 28),
+            SizedBox(width: 10),
+            Text(
+              'Rekaman Selesai!',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Hentikan fitur Perekam Layar HP Anda. File rekaman video otomatis tersimpan di Galeri ponsel Anda!\n\nIngin langsung memilih file video tersebut dan membagikannya ke WhatsApp, Instagram Reels, atau TikTok?',
+          style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('NANTI SAJA', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _pickAndShareRecordedVideo();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            ),
+            icon: const Icon(Icons.share_rounded, size: 18, color: Colors.white),
+            label: const Text(
+              'BAGIKAN DARI GALERI',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _enterCleanRecordMode() {
     setState(() {
       _cleanRecordMode = true;
       _showRecordTooltip = true;
@@ -1377,7 +1453,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     'Sembunyikan tombol antarmuka dan putar rute dari KM 0 untuk direkam dengan Perekam Layar bawaan HP.',
                 badge: 'REKOMENDASI',
                 badgeColor: AppColors.primaryOrange,
-                onTap: _enterCleanRecordMode,
+                onTap: _showStartRecordConfirmDialog,
               ),
               const SizedBox(height: 10),
 
@@ -1411,58 +1487,6 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     ),
                   );
                 },
-              ),
-              const SizedBox(height: 16),
-
-              // Panduan Singkat Cara Merekam Layar
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.cardSurfaceElevated,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.borderSubtle),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline_rounded,
-                          size: 16,
-                          color: AppColors.neonCyan,
-                        ),
-                        SizedBox(width: 8),
-                        Text(
-                          'Cara Merekam Video di HP Anda:',
-                          style: TextStyle(
-                            color: AppColors.neonCyan,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    _buildStepRow(
-                      step: '1',
-                      text:
-                          'Tarik bar notifikasi atas HP ke bawah, aktifkan "Perekam Layar" (Screen Recorder).',
-                    ),
-                    const SizedBox(height: 6),
-                    _buildStepRow(
-                      step: '2',
-                      text:
-                          'Tekan "Mulai Mode Rekam Bersih" di atas. Layar akan bersih dari tombol dan rute berputar otomatis.',
-                    ),
-                    const SizedBox(height: 6),
-                    _buildStepRow(
-                      step: '3',
-                      text:
-                          'Setelah rute selesai, hentikan perekam layar. Video HD siap dibagikan ke media sosial!',
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
@@ -1594,42 +1618,6 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildStepRow({required String step, required String text}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 18,
-          height: 18,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(
-            color: AppColors.neonCyan,
-            shape: BoxShape.circle,
-          ),
-          child: Text(
-            step,
-            style: const TextStyle(
-              color: Colors.black87,
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 11.5,
-              height: 1.3,
-            ),
-          ),
-        ),
-      ],
     );
   }
 

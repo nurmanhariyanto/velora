@@ -166,8 +166,14 @@ void main() {
 
       // Ketuk opsi Mode Rekam Layar Bersih
       await tester.tap(find.text('Mulai Mode Rekam Layar Bersih'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+
+      // Dialog konfirmasi petunjuk rekam layar
+      if (find.text('MULAI PUTAR RUTE').evaluate().isNotEmpty) {
+        await tester.tap(find.text('MULAI PUTAR RUTE'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+      }
 
       // Sekarang tombol header atas harus tersembunyi dan tooltip rekam aktif terlihat
       expect(find.text('FLYOVER REPLAY'), findsNothing);

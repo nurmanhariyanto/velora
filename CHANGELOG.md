@@ -2,6 +2,20 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.4.3] - 2026-10-18
+
+### 🎨 Desain Menu Minimalis, Peta Bersih Bebas Halangan & Berbagi Video Praktis
+- **Desain Menu Minimalis & Eliminasi Tombol Duplikat (`ActivityDetailScreen`):**
+  - **Peta Bersih 100% Bebas Halangan:** Menghapus tombol mengambang dari atas peta. Area peta kini sepenuhnya bersih sehingga saat pengguna menyentuh pin penanda lintasan (KM 1, KM 2, Milestone Kecepatan Maksimum, Puncak Elevasi), keterangan lencana tampil utuh dan jelas tanpa terhalang tombol apa pun.
+  - **Menu Aksi Ramping Dua Tombol:** Mengganti deretan 3 tombol bertumpuk yang memadati layar dengan satu bilah aksi elegan sejajar: `[▶ PUTAR RUTE]` dan `[📤 BAGIKAN]`. Ekspor GPX disematkan rapi pada ikon AppBar atas.
+- **Minimalisasi Panel Kontrol & Lembar Berbagi (`RouteReplayScreen`):**
+  - Menyederhanakan kontrol pemutar bawah: Menghapus ikon duplikat pelacakan kamera dan berbagi yang sebelumnya berdesakan di tengah, menyisakan tombol pemutar utama yang lega, responsif, dan mudah ditekan.
+  - Lembar aksi berbagi video dibuat ramping dan fokus pada 2 opsi utama (Rekam Video Flyover & Bagikan Kartu Foto HD) ditambah tombol cepat berbagi video dari Galeri.
+- **Panduan & Alur Berbagi Video Rekaman:**
+  - Menambahkan dialog persiapan interaktif sebelum memutar rute untuk memberikan panduan jelas mengenai perekaman layar menggunakan *Screen Recorder* bawaan ponsel.
+  - Dialog otomatis saat animasi selesai dengan tombol langsung *"BAGIKAN DARI GALERI"* yang membuka pemilih video dan meneruskannya ke WhatsApp, Instagram Reels, TikTok, atau penyimpanan file.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.4.3` (`versionCode = 16`).
+
 ## [v1.0.4.2] - 2026-10-18
 
 ### 🚀 Optimasi Performa & Pre-Buffering Peta (60 FPS di Semua HP)

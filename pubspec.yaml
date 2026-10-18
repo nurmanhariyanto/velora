@@ -49,7 +49,6 @@ dependencies:
   url_launcher: ^6.3.3
   http: ^1.6.0
   shared_preferences: ^2.5.2
-
 dev_dependencies:
   flutter_test:
     sdk: flutter

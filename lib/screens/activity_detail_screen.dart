@@ -72,18 +72,6 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.play_circle_fill_rounded, color: AppColors.electricAmber),
-            tooltip: 'Putar Ulang Rute (Flyover)',
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => RouteReplayScreen(session: widget.session),
-                ),
-              );
-            },
-          ),
-          IconButton(
             icon: const Icon(Icons.file_download_outlined, color: AppColors.neonCyan),
             tooltip: 'Ekspor GPX',
             onPressed: () => GpxService.exportAndShareGpx(widget.session),
@@ -106,79 +94,18 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Tampilan Peta Replay Rute dengan Penanda Lintasan Langsung
-            Stack(
-              children: [
-                SizedBox(
-                  height: 290,
-                  width: double.infinity,
-                  child: LiveMapView(
-                    coordinates: widget.session.coordinates,
-                    isTracking: false,
-                    autoCenter: true,
-                    showTrackMilestones: true,
-                    sportsType: widget.session.sportsType,
-                    highlightedSegment: _highlightedSegment,
-                  ),
-                ),
-                // Tombol Mengambang Putar Ulang Flyover di Atas Peta
-                if (widget.session.coordinates.length >= 2)
-                  Positioned(
-                    bottom: 14,
-                    left: 14,
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => RouteReplayScreen(session: widget.session),
-                          ),
-                        );
-                      },
-                      borderRadius: BorderRadius.circular(20),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [
-                              AppColors.electricAmber,
-                              AppColors.primaryOrange,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black54,
-                              blurRadius: 10,
-                              offset: Offset(0, 3),
-                            ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.play_arrow_rounded, color: Colors.white, size: 20),
-                            SizedBox(width: 6),
-                            Text(
-                              'PUTAR ULANG (FLYOVER)',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 11,
-                                letterSpacing: 0.8,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+            // 1. Tampilan Peta Replay Rute dengan Penanda Lintasan Langsung (Bersih tanpa tombol yang menghalangi badge)
+            SizedBox(
+              height: 290,
+              width: double.infinity,
+              child: LiveMapView(
+                coordinates: widget.session.coordinates,
+                isTracking: false,
+                autoCenter: true,
+                showTrackMilestones: true,
+                sportsType: widget.session.sportsType,
+                highlightedSegment: _highlightedSegment,
+              ),
             ),
 
             // 2. Konten Ringkasan & Tanggal
@@ -350,102 +277,83 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
-                  // Tombol Bagikan ke Media Sosial
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SharePreviewScreen(session: widget.session),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryOrange,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      icon: const Icon(Icons.share_rounded, size: 22),
-                      label: const Text(
-                        'BAGIKAN KE MEDIA SOSIAL',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // Tombol Putar Ulang Rute Flyover Sinematik
-                  if (widget.session.coordinates.length >= 2) ...[
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => RouteReplayScreen(session: widget.session),
+                  // Menu Aksi Utama Minimalis (Putar Rute & Bagikan)
+                  Row(
+                    children: [
+                      if (widget.session.coordinates.length >= 2) ...[
+                        Expanded(
+                          flex: 3,
+                          child: SizedBox(
+                            height: 52,
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => RouteReplayScreen(session: widget.session),
+                                  ),
+                                );
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryOrange,
+                                foregroundColor: Colors.white,
+                                elevation: 3,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                              ),
+                              icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                              label: const Text(
+                                'PUTAR RUTE',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.8,
+                                ),
+                              ),
                             ),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.electricAmber,
-                          side: const BorderSide(
-                            color: AppColors.electricAmber,
-                            width: 1.5,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        icon: const Icon(Icons.play_circle_fill_rounded, size: 22),
-                        label: const Text(
-                          'PUTAR ULANG RUTE (FLYOVER REPLAY)',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.8,
+                        const SizedBox(width: 12),
+                      ],
+                      Expanded(
+                        flex: 2,
+                        child: SizedBox(
+                          height: 52,
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => SharePreviewScreen(session: widget.session),
+                                ),
+                              );
+                            },
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.electricAmber,
+                              side: const BorderSide(
+                                color: AppColors.electricAmber,
+                                width: 1.5,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                            icon: const Icon(Icons.share_rounded, size: 20),
+                            label: const Text(
+                              'BAGIKAN',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-
-                  const SizedBox(height: 12),
-
-                  // Tombol Ekspor File GPX
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: OutlinedButton.icon(
-                      onPressed: () => GpxService.exportAndShareGpx(widget.session),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.neonCyan,
-                        side: const BorderSide(color: AppColors.neonCyan, width: 1.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      icon: const Icon(Icons.file_download_outlined, size: 20),
-                      label: const Text(
-                        'EKSPOR BERKAS GPX STANDAR',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ),
+                    ],
                   ),
                 ],
               ),
