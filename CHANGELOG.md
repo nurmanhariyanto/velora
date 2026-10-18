@@ -2,6 +2,46 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.4.6] - 2026-10-19
+
+### 🎥 Sudut Pandang Kamera POV Flyover Dinamis & Video Full HD 1080p (Bebas Blur)
+- **Kamera POV Dinamis (Chase Cam Bearing Follow):**
+  - Mengimplementasikan sudut pandang kamera POV (*Point of View*) yang berputar secara mulus mengikuti arah laju kendaraan (*bearing follow*).
+  - Peta di bawah atlet berputar halus secara dinamis dengan interpolasi sudut sehingga atlet selalu melaju menghadap ke atas layar (*forward-facing chase camera*).
+  - Dilengkapi tombol sakelar kompas di AppBar atas untuk beralih antara **Mode POV Kamera Dinamis** dan **Mode Peta Datar (Utara)** kapan saja.
+- **Video Full HD 1080p & Bitrate Tinggi 8.0 Mbps:**
+  - Mengatasi kendala video buram (*blurry video*) dengan meningkatkan rasio piksel render RepaintBoundary secara adaptif menargetkan lebar 1080px (`effectivePixelRatio: 2.5 - 3.5`).
+  - Bitrate video MediaCodec hardware H.264 ditingkatkan drastis menjadi **8,000,000 bps (8.0 Mbps)** dengan profile `ProfileLevel.highAutoLevel` untuk kualitas visual tajam tanpa artefak kompresi.
+- **Penyimpanan Ganda & Otomatis Terdeteksi di Galeri Ponsel:**
+  - Video MP4 yang diekspor kini secara otomatis disalin ke folder publik perangkat di `/storage/emulated/0/Download/Velora/` dan `/storage/emulated/0/Movies/Velora/`.
+  - Berkas video langsung terdeteksi di aplikasi **Galeri Ponsel / Google Photos / File Manager**, siap dibagikan ke Instagram Reels, TikTok, YouTube Shorts, atau WhatsApp Status.
+
+### 📊 Telemetri HUD Lengkap pada Video (Jarak, Speed/Pace, Elevasi & Waktu)
+- Pada saat video dirender dan mode rekam layar bersih aktif, HUD telemetri 4-kolom berdesain *broadcast* ditampilkan dengan kontras tinggi di bagian bawah:
+  1. 📏 **JARAK**: Jarak tempuh dinamis per frame (contoh: `5.24 KM`).
+  2. ⚡ **SPEED / PACE**: Kecepatan aktual (`28.4 KM/H` untuk sepeda, atau `5'12" /KM` untuk lari).
+  3. ⛰️ **ELEVASI**: Ketinggian elevasi aktual (+M).
+  4. ⏱️ **WAKTU**: Stopwatch durasi latihan yang berjalan (`HH:MM:SS`).
+- Posisi HUD ditinggikan dengan *safe margin* (`bottom: 36`) agar tidak tertutup oleh tombol navigasi atau *progress bar* pemutar video media sosial.
+
+### 📤 Menu Bagikan Satu Pintu (Unified Share Modal)
+- **Tombol Bagikan Ringkas & Terpadu (`ActivityDetailScreen`):**
+  - Menggabungkan menu ekspor/berbagi ke dalam satu tombol `[📤 BAGIKAN]` di bagian bawah layar dan ikon share tunggal di AppBar.
+  - Membuka lembar pilihan format modern (*Modal Bottom Sheet*) dengan opsi terpisah:
+    1. 📸 **Poster Ringkasan Latihan (HD)**: Membuka layar pratinjau kartu foto & peta visual HD untuk Story dan Status.
+    2. 🎬 **Video Flyover Rute (MP4 Sinematik)**: Langsung membuka layar pemutar dan otomatis memulai pembuatan video.
+    3. 📄 **Ekspor Berkas GPS (GPX)**: Berkas data lintasan mentah.
+- **Desain Kartu Sosial Media Lebih Bersih Tanpa Tagline:**
+  - Menghilangkan teks tagline "RUN & RIDE" pada poster sosial media sehingga ruang kartu lebih lapang, bersih, dan fokus pada data statistik olahraga.
+
+### 🛡️ Perbaikan Nama Profil Atlet (100% Persisten & Anti-Reset)
+- **Sinkronisasi Memori & State Seketika:**
+  - Perubahan nama atlet di dialog profil kini langsung diperbarui di layar secara instan (*zero latency*).
+  - Menambahkan dukungan tombol **Enter / Done** pada keyboard Android untuk langsung menyimpan nama.
+  - Mengintegrasikan *static in-memory cache* pada `UserProfileService` yang terikat kuat ke tabel database SQLite `user_settings` dan file cadangan lokal sehingga nama profil **dijamin tidak akan pernah kembali ke default saat aplikasi di-update**.
+
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.4.6` (`versionCode = 19`).
+
 ## [v1.0.4.5] - 2026-10-19
 
 ### 🎬 Ekspor Video Flyover Rute Nyata (MP4 Otomatis 100% Offline)
