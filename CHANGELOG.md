@@ -2,9 +2,11 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
-## [v1.0.4] - 2026-10-18
+## [v1.0.4.1] - 2026-10-18
 
 ### 🚀 Pembaruan Utama (Major Feature Update)
+- **Rilis Minor Patch `v1.0.4.1` (Penyempurnaan Jalur Pembaruan):**
+  - Menaikkan versi aplikasi menjadi `1.0.4.1` dengan `versionCode = 14` pada konfigurasi Gradle Android untuk mengatasi kendala pemasangan pembaruan dari rilis `1.0.4` dan memastikan auto-updater mendeteksi serta memasang berkas paket APK baru secara mulus.
 - **Pemutar Rute Animasi Flyover Sinematik & Fitur Berbagi Video Sosial:**
   - Menghadirkan pemutaran animasi rute dinamis (*dynamic route flyover*) di layar `RouteReplayScreen` untuk menonton kembali aktivitas lari & gowes secara visual dan sinematik.
   - **Fitur Baru: Mode Rekam Layar Bersih (*Clean Screen Record Mode*):**
@@ -26,7 +28,6 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
   - Mengaktifkan skema penandatanganan ganda `enableV1Signing = true` (JAR signing) dan `enableV2Signing = true` (APK Signature v2) untuk kompatibilitas penuh di seluruh varian Android (Xiaomi/MIUI, Samsung One UI, ColorOS, dsb).
   - Menambahkan deteksi otomatis izin pemasangan aplikasi tidak dikenal (`canRequestPackageInstalls()`) dengan pengalihan langsung ke Pengaturan sistem (`ACTION_MANAGE_UNKNOWN_APP_SOURCES`).
   - Memperluas pemetaan direktori penyimpanan `file_paths.xml` (cache, files, external files).
-  - Sinkronisasi versi semantik 3-digit `1.0.4` untuk mencegah dialog pembaruan berulang.
 
 ### 🧪 Penjaminan Kualitas & Pengujian Otomatis
 - Menambahkan dan menyempurnakan `test/route_replay_test.dart` yang memverifikasi HUD statistik, tombol play/pause, pengubah kecepatan (1x-8x), toggle kamera auto-follow, lembar aksi bagikan video, dan aktivasi mode rekam bersih.
