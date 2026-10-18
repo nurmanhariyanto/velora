@@ -100,9 +100,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Silakan berikan izin pemasangan aplikasi tidak dikenal jika diminta.',
+              'Silakan aktifkan "Izinkan dari sumber ini" di Pengaturan, lalu tekan "PASANG SEKARANG" kembali.',
             ),
             backgroundColor: AppColors.primaryOrange,
+            duration: Duration(seconds: 5),
           ),
         );
       }

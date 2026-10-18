@@ -2,9 +2,9 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
-## [v1.0.3.7] - 2026-10-18
+## [v1.0.4] - 2026-10-18
 
-### 🚀 Fitur Baru & Peningkatan
+### 🚀 Pembaruan Utama (Major Feature Update)
 - **Animated Route Flyover & Video Replay ala Strava Flyover / Relive:**
   - Menghadirkan pemutaran animasi rute dinamis (*dynamic route flyover*) di layar `RouteReplayScreen` untuk menonton kembali aktivitas lari & gowes secara visual dan sinematik:
     - Garis lintasan rute tergambar maju secara bertahap (*progressive polyline*) dengan efek neon glow berlapis khas Velora.
@@ -17,9 +17,11 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 - **Kualitas Visual Full HD & Anti-Blur (Retina Mode):**
   - Mengaktifkan `retinaMode: true` pada `TileLayer` OpenStreetMap untuk memastikan detail peta dan teks tajam berkualitas Full HD (1080p, anti-blur) pada layar berdensitas tinggi (High DPI).
   - Resolusi visual kanvas dan drop shadow berdaya kontras tinggi untuk visibilitas maksimal.
-- **Perbaikan & Optimalisasi Kode:**
-  - Memperbaiki konflik ambiguous import `Haversine` pada `RouteReplayScreen` dengan menyembunyikan `Haversine` dari paket `latlong2`.
-  - Memperbaiki penanganan `MapController` yang aman (*graceful initialization check*) sebelum frame peta selesai dirender.
+- **Penyempurnaan Pemasang Paket APK Mandiri (In-App APK Installer):**
+  - Mengaktifkan skema penandatanganan ganda `enableV1Signing = true` (JAR signing) dan `enableV2Signing = true` (APK Signature v2) untuk kompatibilitas penuh di seluruh varian Android (Xiaomi/MIUI, Samsung One UI, ColorOS, dsb).
+  - Menambahkan deteksi otomatis izin pemasangan aplikasi tidak dikenal (`canRequestPackageInstalls()`) dengan pengalihan langsung ke Pengaturan sistem (`ACTION_MANAGE_UNKNOWN_APP_SOURCES`).
+  - Memperluas pemetaan direktori penyimpanan `file_paths.xml` (cache, files, external files).
+  - Sinkronisasi versi semantik 3-digit `1.0.4` untuk mencegah dialog pembaruan berulang.
 
 ### 🧪 Penjaminan Kualitas & Pengujian Otomatis
 - Menambahkan dan menyempurnakan `test/route_replay_test.dart` yang memverifikasi HUD statistik, tombol play/pause, pengubah kecepatan (1x-8x), dan toggle kamera auto-follow.
