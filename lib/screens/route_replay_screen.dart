@@ -13,6 +13,7 @@ import '../models/sports_type.dart';
 import '../models/track_milestone.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
+import '../services/map_precache_service.dart';
 import '../services/track_analysis_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/track_milestone_pin.dart';
@@ -62,6 +63,12 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   bool _showRecordTooltip = false;
   Timer? _recordTooltipTimer;
 
+  // Status Pre-buffering Tile Peta untuk 60 FPS Mulus di Semua HP
+  bool _isPreloadingTiles = true;
+  double _preloadProgress = 0.0;
+  int _preloadLoaded = 0;
+  int _preloadTotal = 0;
+
   // Matriks OpenStreetMap Mode Gelap Khas Velora
   static const List<double> _darkMatrix = <double>[
     0.45, 0.00, 0.00, 0, -68,
@@ -104,12 +111,49 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     _loadAthleteName();
 
-    // Mulai animasi otomatis setelah frame pertama selesai dirender
+    // Memuat awal (pre-cache) tile peta di sepanjang rute untuk performa 60 FPS mulus di semua ponsel
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && widget.session.coordinates.length >= 2) {
-        _animController.forward();
-      }
+      _startTilePrecache();
     });
+  }
+
+  Future<void> _startTilePrecache() async {
+    if (!mounted || widget.session.coordinates.length < 2) {
+      if (mounted) {
+        setState(() => _isPreloadingTiles = false);
+      }
+      return;
+    }
+
+    try {
+      await MapPrecacheService.precacheRouteTiles(
+        coordinates: widget.session.coordinates,
+        context: context,
+        zoom: 16,
+        maxTiles: 50,
+        onProgress: (progress, loaded, total) {
+          if (mounted) {
+            setState(() {
+              _preloadProgress = progress;
+              _preloadLoaded = loaded;
+              _preloadTotal = total;
+            });
+          }
+        },
+        timeout: const Duration(milliseconds: 3500),
+      );
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _isPreloadingTiles = false;
+      });
+      // Mulai playback otomatis setelah peta siap
+      if (!_isPlaying && widget.session.coordinates.length >= 2) {
+        _animController.forward();
+        _isPlaying = true;
+      }
+    }
   }
 
   Future<void> _loadAthleteName() async {
@@ -555,7 +599,130 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 ),
               ),
             ),
+
+          // 6. Pre-buffering Loading Overlay (Menyiapkan Peta untuk 60 FPS Mulus di Semua HP)
+          if (_isPreloadingTiles)
+            _buildPreloadingOverlay(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPreloadingOverlay() {
+    final percent = (_preloadProgress * 100).clamp(0, 100).toInt();
+
+    return Container(
+      color: Colors.black.withAlpha(200),
+      alignment: Alignment.center,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 32),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        decoration: BoxDecoration(
+          color: AppColors.cardSurface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: AppColors.neonCyan.withAlpha(120),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.neonCyan.withAlpha(50),
+              blurRadius: 20,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.neonCyan.withAlpha(35),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.speed_rounded,
+                color: AppColors.neonCyan,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Menyiapkan Peta Rute',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Memuat tile ke memori untuk animasi 60 FPS mulus di semua ponsel...',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withAlpha(180),
+                fontSize: 12.5,
+                height: 1.35,
+              ),
+            ),
+            const SizedBox(height: 18),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: _preloadProgress > 0 ? _preloadProgress : null,
+                minHeight: 6,
+                backgroundColor: Colors.white12,
+                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.neonCyan),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _preloadTotal > 0
+                      ? '$_preloadLoaded / $_preloadTotal Tile'
+                      : 'Menghitung rute...',
+                  style: TextStyle(
+                    color: Colors.white.withAlpha(150),
+                    fontSize: 11.5,
+                  ),
+                ),
+                Text(
+                  '$percent%',
+                  style: const TextStyle(
+                    color: AppColors.neonCyan,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _isPreloadingTiles = false;
+                });
+                if (!_isPlaying && widget.session.coordinates.length >= 2) {
+                  _animController.forward();
+                  _isPlaying = true;
+                }
+              },
+              icon: const Icon(Icons.play_arrow_rounded, color: AppColors.primaryOrange, size: 18),
+              label: const Text(
+                'Lewati & Langsung Putar',
+                style: TextStyle(
+                  color: AppColors.primaryOrange,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

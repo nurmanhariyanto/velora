@@ -58,7 +58,12 @@ void main() {
       );
 
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      if (find.text('Lewati & Langsung Putar').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Lewati & Langsung Putar'));
+        await tester.pumpAndSettle();
+      } else {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
 
       // Verifikasi Header Atas
       expect(find.text('Gowes Pagi Flyover'), findsOneWidget);
@@ -138,7 +143,12 @@ void main() {
       );
 
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 200));
+      if (find.text('Lewati & Langsung Putar').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Lewati & Langsung Putar'));
+        await tester.pumpAndSettle();
+      } else {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
 
       // Verifikasi tombol Rekam & Bagikan Video ada
       final videoBtn = find.byTooltip('Rekam & Bagikan Video');
@@ -176,6 +186,23 @@ void main() {
 
       // Tombol header atas kembali terlihat
       expect(find.text('FLYOVER REPLAY'), findsOneWidget);
+    });
+
+    testWidgets('Menangani siklus preloading tile peta dan memastikan kontrol siap',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteReplayScreen(session: testSession),
+        ),
+      );
+
+      // Preloading berjalan dan otomatis selesai di environment test
+      await tester.pumpAndSettle();
+
+      // Kontrol pemutaran rute siap digunakan
+      expect(find.text('Gowes Pagi Flyover'), findsOneWidget);
+      expect(find.text('FLYOVER REPLAY'), findsOneWidget);
+      expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
     });
   });
 }

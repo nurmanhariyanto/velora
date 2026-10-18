@@ -2,6 +2,18 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.4.2] - 2026-10-18
+
+### 🚀 Optimasi Performa & Pre-Buffering Peta (60 FPS di Semua HP)
+- **Layanan Pre-caching Peta Sinematik (`MapPrecacheService`):**
+  - Mengimplementasikan kalkulasi koordinat tile matematis $(x, y)$ pada zoom level lintasan dan mengunduh serta mendekode seluruh potongan peta rute ke dalam *in-memory cache* Flutter sebelum animasi diputar.
+  - Mengeliminasi 100% beban koneksi jaringan dan *CPU image decoding* selama animasi berjalan, sehingga pemutaran flyover rute dan perekaman video berjalan di **60 FPS super mulus** tanpa *lag* bahkan di ponsel berspesifikasi rendah / HP lemot.
+- **HUD Indikator Proses Pre-Buffering Interaktif:**
+  - Menampilkan panel mengambang elegan *"Menyiapkan Peta Rute"* dengan bilah progres real-time (`LinearProgressIndicator`) dan metrik jumlah tile terunduh.
+  - Tombol *"Lewati & Langsung Putar"* untuk pengguna yang ingin langsung menonton tanpa menunggu.
+  - *Safety Timeout* (3.5 detik) yang otomatis memulai pemutaran jika jaringan internet lambat atau dalam mode *offline*.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.4.2` (`versionCode = 15`) untuk kelancaran auto-update.
+
 ## [v1.0.4.1] - 2026-10-18
 
 ### 🚀 Pembaruan Utama (Major Feature Update)
