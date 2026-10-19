@@ -2,9 +2,24 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.4.8] - 2026-10-19
+
+### 🌄 Sudut Pandang Kamera 3D Perspektif Menyamping (2.5D Oblique Tilt)
+- **Sudut Pandang 3D Menyamping Sinematik:**
+  - Mengimplementasikan proyeksi transformasi matriks 3D pada kanvas peta dengan kemiringan ~35.5° (`rotateX(0.62)`) dan distorsi kedalaman z-axis (`setEntry(3, 2, 0.0012)`).
+  - Peta dan garis rute tampak rebah ke belakang menuju cakrawala (tampak dari atas menyamping layaknya pemandangan kokpit pesawat), menghadirkan efek kedalaman 3D yang elegan.
+  - Bekerja 100% mandiri secara offline di perangkat tanpa memerlukan server cloud GPU.
+- **Tombol Sakelar Perspektif 3D / 2D:**
+  - Menambahkan tombol sakelar instan di bar header atas (`Icons.view_in_ar_rounded`) untuk beralih kapan saja antara mode **Perspektif 3D Menyamping** dan mode **Tampilan 2D Datar**.
+- **HUD & Telemetri Tetap Tajam & Tegak:**
+  - Panel statistik bawah (Jarak, Kecepatan, Elevasi, Waktu), pin milestone lintasan, dan watermark Velora tetap tegak lurus horizontal tanpa distorsi.
+- **Dukungan Ekspor Video MP4 3D:**
+  - Perekaman video animasi MP4 Full HD 1080p secara otomatis menggunakan perspektif 3D miring ini secara konsisten.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.4.8` (`versionCode = 21`).
+
 ## [v1.0.4.7] - 2026-10-19
 
-### 🕊️ Flyover Rute Super Halus & Peta Stabil Bebas Pusing (Relive / Strava Style)
+### 🕊️ Flyover Rute Super Halus & Peta Stabil Sinematik Bebas Pusing
 - **Peta Stabil Menghadap Utara (Anti-Pusing):**
   - Mengeliminasi putaran peta yang terlalu drastis saat atlet berbelok di persimpangan jalan, yang sebelumnya dapat menimbulkan rasa pusing bagi penonton.
   - Orientasi peta kini dijadikan default **Peta Stabil (Utara Tetap, rotasi 0.0)** sehingga daratan, nama jalan, dan kontur lingkungan tetap tegak dan tenang.

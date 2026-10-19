@@ -52,6 +52,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   bool _mapDarkTheme = true;
   bool _isMapReady = false;
   bool _povMode = false; // Default: Mode Flyover Stabil & Mulus (Peta Menghadap Utara, Bebas Pusing)
+  bool _is3dTilted = true; // Default: Sudut Pandang 3D Menyamping (Perspective Tilt Oblique Bird's Eye View)
   double _smoothedBearing = 0.0;
 
   // Titik aktif & notifikasi milestone
@@ -294,7 +295,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               -_smoothedBearing,
             );
           } else {
-            // Mode Flyover Mulus & Stabil (Relive/Strava style):
+            // Mode Flyover Mulus & Stabil:
             // Peta tenang menghadap Utara tetap (rotasi 0.0), kamera meluncur mulus
             // tanpa berputar-putar yang membuat pusing.
             _mapController.moveAndRotate(
@@ -469,108 +470,31 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-          // 1. Lapisan Peta OpenStreetMap Interaktif
-          FlutterMap(
-            mapController: _mapController,
-            options: MapOptions(
-              initialCenter: LatLng(currentPt.latitude, currentPt.longitude),
-              initialZoom: 16.0,
-              minZoom: 4.0,
-              maxZoom: 19.0,
-              backgroundColor: AppColors.darkBackground,
-              onMapReady: () {
-                if (mounted) {
-                  _isMapReady = true;
-                }
-              },
-            ),
-            children: [
-              // Tile OSM (Smooth Caching & Buffering, Bebas Kotak Hitam/Putih)
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'online.nurmancloud.velora',
-                panBuffer: 2,
-                keepBuffer: 6,
-                tileDisplay: const TileDisplay.fadeIn(
-                  duration: Duration(milliseconds: 150),
-                ),
-                retinaMode: false,
-                maxNativeZoom: 19,
-                tileBuilder: _mapDarkTheme
-                    ? (context, tileWidget, tile) {
-                        return ColorFiltered(
-                          colorFilter: const ColorFilter.matrix(_darkMatrix),
-                          child: tileWidget,
-                        );
-                      }
-                    : null,
-              ),
-
-              // Garis Rute Keseluruhan (Transparan / Muted)
-              PolylineLayer(
-                polylines: [
-                  Polyline(
-                    points: fullRoutePoints,
-                    strokeWidth: 5.0,
-                    color: Colors.white.withAlpha(45),
-                    strokeCap: StrokeCap.round,
-                    strokeJoin: StrokeJoin.round,
-                  ),
-                ],
-              ),
-
-              // Garis Rute Aktif Tergambar Maju (Glow Neon Cyan)
-              if (traversedPoints.isNotEmpty)
-                PolylineLayer(
-                  polylines: [
-                    Polyline(
-                      points: traversedPoints,
-                      strokeWidth: 11.0,
-                      color: AppColors.neonCyan.withAlpha(80),
-                      strokeCap: StrokeCap.round,
-                      strokeJoin: StrokeJoin.round,
-                    ),
-                    Polyline(
-                      points: traversedPoints,
-                      strokeWidth: 6.0,
-                      color: AppColors.neonCyan,
-                      strokeCap: StrokeCap.round,
-                      strokeJoin: StrokeJoin.round,
-                    ),
-                  ],
-                ),
-
-              // Pin Milestone Lintasan
-              MarkerLayer(
-                markers: [
-                  // Milestone yang sudah atau akan dilewati
-                  ..._milestones.map((m) {
-                    final isPassed = m.distanceMeters <= currentDistanceM;
-                    return Marker(
-                      point: LatLng(m.latitude, m.longitude),
-                      width: m.isFastestKm ? 28 : 24,
-                      height: m.isFastestKm ? 28 : 24,
-                      child: Opacity(
-                        opacity: isPassed ? 1.0 : 0.5,
-                        child: TrackMilestonePin(
-                          milestone: m,
-                          sportsType: widget.session.sportsType,
-                        ),
+          // 1. Lapisan Peta OpenStreetMap Interaktif (Mendukung Perspektif 3D Menyamping)
+          _is3dTilted
+              ? ClipRect(
+                  child: Transform(
+                    alignment: const FractionalOffset(0.5, 0.72),
+                    transform: Matrix4.identity()
+                      ..setEntry(3, 2, 0.0012)
+                      ..rotateX(0.62),
+                    child: Transform.scale(
+                      scale: 1.45,
+                      child: _buildFlutterMap(
+                        currentInterpPos: currentInterpPos,
+                        fullRoutePoints: fullRoutePoints,
+                        traversedPoints: traversedPoints,
+                        currentDistanceM: currentDistanceM,
                       ),
-                    );
-                  }),
-
-                  // Penunjuk Avatar Atlet yang Sedang Bergerak Maju
-                  Marker(
-                    point: currentInterpPos,
-                    width: 52,
-                    height: 52,
-                    child: _buildRiderMarker(_smoothedBearing),
+                    ),
                   ),
-                ],
-              ),
-            ],
-          ),
+                )
+              : _buildFlutterMap(
+                  currentInterpPos: currentInterpPos,
+                  fullRoutePoints: fullRoutePoints,
+                  traversedPoints: traversedPoints,
+                  currentDistanceM: currentDistanceM,
+                ),
 
           // Watermark Logo Velora & Nama Atlet (Tampil Sinematik saat Clean Mode / Render Video)
           if (_cleanRecordMode)
@@ -844,6 +768,115 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     );
   }
 
+  Widget _buildFlutterMap({
+    required LatLng currentInterpPos,
+    required List<LatLng> fullRoutePoints,
+    required List<LatLng> traversedPoints,
+    required double currentDistanceM,
+  }) {
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: currentInterpPos,
+        initialZoom: 16.0,
+        minZoom: 4.0,
+        maxZoom: 19.0,
+        backgroundColor: AppColors.darkBackground,
+        onMapReady: () {
+          if (mounted) {
+            _isMapReady = true;
+          }
+        },
+      ),
+      children: [
+        // Tile OSM (Smooth Caching & Buffering, Bebas Kotak Hitam/Putih)
+        TileLayer(
+          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          userAgentPackageName: 'online.nurmancloud.velora',
+          panBuffer: 2,
+          keepBuffer: 6,
+          tileDisplay: const TileDisplay.fadeIn(
+            duration: Duration(milliseconds: 150),
+          ),
+          retinaMode: false,
+          maxNativeZoom: 19,
+          tileBuilder: _mapDarkTheme
+              ? (context, tileWidget, tile) {
+                  return ColorFiltered(
+                    colorFilter: const ColorFilter.matrix(_darkMatrix),
+                    child: tileWidget,
+                  );
+                }
+              : null,
+        ),
+
+        // Garis Rute Keseluruhan (Transparan / Muted)
+        PolylineLayer(
+          polylines: [
+            Polyline(
+              points: fullRoutePoints,
+              strokeWidth: 5.0,
+              color: Colors.white.withAlpha(45),
+              strokeCap: StrokeCap.round,
+              strokeJoin: StrokeJoin.round,
+            ),
+          ],
+        ),
+
+        // Garis Rute Aktif Tergambar Maju (Glow Neon Cyan)
+        if (traversedPoints.isNotEmpty)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: traversedPoints,
+                strokeWidth: 11.0,
+                color: AppColors.neonCyan.withAlpha(80),
+                strokeCap: StrokeCap.round,
+                strokeJoin: StrokeJoin.round,
+              ),
+              Polyline(
+                points: traversedPoints,
+                strokeWidth: 6.0,
+                color: AppColors.neonCyan,
+                strokeCap: StrokeCap.round,
+                strokeJoin: StrokeJoin.round,
+              ),
+            ],
+          ),
+
+        // Pin Milestone Lintasan
+        MarkerLayer(
+          markers: [
+            // Milestone yang sudah atau akan dilewati
+            ..._milestones.map((m) {
+              final isPassed = m.distanceMeters <= currentDistanceM;
+              return Marker(
+                point: LatLng(m.latitude, m.longitude),
+                width: m.isFastestKm ? 28 : 24,
+                height: m.isFastestKm ? 28 : 24,
+                child: Opacity(
+                  opacity: isPassed ? 1.0 : 0.5,
+                  child: TrackMilestonePin(
+                    milestone: m,
+                    sportsType: widget.session.sportsType,
+                  ),
+                ),
+              );
+            }),
+
+            // Penunjuk Avatar Atlet yang Sedang Bergerak Maju
+            Marker(
+              point: currentInterpPos,
+              width: 52,
+              height: 52,
+              child: _buildRiderMarker(_smoothedBearing),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildRiderMarker(double bearingDegrees) {
     return Center(
       child: Stack(
@@ -997,6 +1030,20 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 if (!_povMode) {
                   _mapController.rotate(0.0);
                 }
+              });
+            },
+          ),
+          // Tombol Sudut Pandang 3D Menyamping (Perspective Tilt vs 2D Datar)
+          IconButton(
+            icon: Icon(
+              _is3dTilted ? Icons.view_in_ar_rounded : Icons.layers_rounded,
+              color: _is3dTilted ? AppColors.electricAmber : Colors.white60,
+              size: 22,
+            ),
+            tooltip: _is3dTilted ? 'Perspektif 3D Menyamping Aktif' : 'Tampilan 2D Datar',
+            onPressed: () {
+              setState(() {
+                _is3dTilted = !_is3dTilted;
               });
             },
           ),

@@ -115,6 +115,18 @@ void main() {
       await tester.tap(find.byTooltip('Mode POV Berputar Aktif'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Mode Flyover Stabil (Utara)'), findsOneWidget);
+
+      // Uji Tombol Sudut Pandang 3D Menyamping (Perspective Tilt)
+      final tilt3dBtn = find.byTooltip('Perspektif 3D Menyamping Aktif');
+      expect(tilt3dBtn, findsOneWidget);
+      await tester.tap(tilt3dBtn);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Tampilan 2D Datar'), findsOneWidget);
+
+      // Beralih kembali ke Perspektif 3D Menyamping
+      await tester.tap(find.byTooltip('Tampilan 2D Datar'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Perspektif 3D Menyamping Aktif'), findsOneWidget);
     });
 
     testWidgets('Menampilkan pesan jika koordinat tidak cukup untuk animasi',
