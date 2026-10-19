@@ -14,6 +14,7 @@ import '../models/track_milestone.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/map_precache_service.dart';
+import '../services/region_geocoding_service.dart';
 import '../services/track_analysis_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/video_export_service.dart';
@@ -80,6 +81,12 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   int _preloadLoaded = 0;
   int _preloadTotal = 0;
   Timer? _precacheTimer;
+
+  // Penanda Batas Wilayah Kabupaten/Kota (Flag Pin & Alert Banner)
+  List<RegencyBorderEvent> _regencyBorders = [];
+  RegencyBorderEvent? _activeBorderEvent;
+  Timer? _borderEventTimer;
+  final Set<int> _triggeredBorderIndices = <int>{};
 
   // Matriks OpenStreetMap Mode Gelap Khas Velora
   static const List<double> _darkMatrix = <double>[
@@ -157,10 +164,39 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     });
 
     _loadAthleteName();
+    _detectRegencyBorders();
 
     // Memuat awal (pre-cache) tile peta di sepanjang rute untuk performa 60 FPS mulus di semua ponsel
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _startTilePrecache();
+    });
+  }
+
+  Future<void> _detectRegencyBorders() async {
+    try {
+      final borders = await RegionGeocodingService.detectRegencyBorders(
+        coordinates: widget.session.coordinates,
+        cumulativeDistances: _cumulativeDistances,
+      );
+      if (mounted) {
+        setState(() {
+          _regencyBorders = borders;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _triggerRegencyBorderAlert(RegencyBorderEvent border) {
+    _borderEventTimer?.cancel();
+    setState(() {
+      _activeBorderEvent = border;
+    });
+    _borderEventTimer = Timer(const Duration(milliseconds: 4500), () {
+      if (mounted) {
+        setState(() {
+          _activeBorderEvent = null;
+        });
+      }
     });
   }
 
@@ -287,6 +323,31 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       );
       _triggerMilestoneChime(matchedSplit);
     }
+
+    // Periksa apakah melintasi batas kabupaten/kota baru untuk memunculkan bendera / badge nama kabupaten
+    for (int bIdx = 0; bIdx < _regencyBorders.length; bIdx++) {
+      final border = _regencyBorders[bIdx];
+      final isInsideTriggerZone = _isRenderingVideo
+          ? (currentDistMeters >= border.distanceMeters &&
+              currentDistMeters <= border.distanceMeters + 450.0)
+          : (currentDistMeters >= border.distanceMeters);
+
+      if (isInsideTriggerZone) {
+        if (!_triggeredBorderIndices.contains(bIdx)) {
+          _triggeredBorderIndices.add(bIdx);
+          _triggerRegencyBorderAlert(border);
+        }
+      } else if (_isRenderingVideo && _activeBorderEvent == border) {
+        _activeBorderEvent = null;
+      }
+    }
+    // Bersihkan trigger jika posisi animasi di-scrub mundur
+    _triggeredBorderIndices.removeWhere((idx) {
+      if (idx < _regencyBorders.length) {
+        return currentDistMeters < _regencyBorders[idx].distanceMeters;
+      }
+      return false;
+    });
 
     // Hitung arah hadap kendaraan (bearing) ke titik rute berikutnya
     final rawBearing = Haversine.calculateBearing(
@@ -430,6 +491,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _lastCameraPos = null;
     _seekTo(0.0);
     _lastChimeKm = 0;
+    _triggeredBorderIndices.clear();
+    _activeBorderEvent = null;
+    _borderEventTimer?.cancel();
     if (!_isPlaying) {
       _togglePlayPause();
     } else {
@@ -441,6 +505,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   void dispose() {
     _precacheTimer?.cancel();
     _chimeTimer?.cancel();
+    _borderEventTimer?.cancel();
     _recordTooltipTimer?.cancel();
     _animController.removeListener(_onAnimationTick);
     _animController.dispose();
@@ -659,6 +724,15 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               left: 20,
               right: 20,
               child: _buildMilestoneChimeCard(_latestChimeMilestone!),
+            ),
+
+          // 3b. Pop-up Badge Bendera Saat Melintasi Batas Wilayah Kabupaten Baru (Tampil di Replay & Video MP4)
+          if (_activeBorderEvent != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + (_cleanRecordMode ? 52 : 74),
+              left: 20,
+              right: 20,
+              child: _buildRegencyBorderBanner(_activeBorderEvent!),
             ),
 
           // 4. Panel HUD Statistik Berjalan & Pengontrol Pemutaran Bawah
@@ -940,6 +1014,18 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               );
             }),
 
+            // Pin Bendera Batas Wilayah Kabupaten/Kota (Flag Pin di Peta)
+            ..._regencyBorders.map((b) {
+              final isPassed = b.distanceMeters <= currentDistanceM;
+              return Marker(
+                point: LatLng(b.latitude, b.longitude),
+                width: 140,
+                height: 44,
+                alignment: Alignment.topCenter,
+                child: _buildRegencyFlagPin(b, isPassed),
+              );
+            }),
+
             // Penunjuk Avatar Atlet yang Sedang Bergerak Maju
             Marker(
               point: currentInterpPos,
@@ -1051,6 +1137,120 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildRegencyFlagPin(RegencyBorderEvent border, bool isPassed) {
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: isPassed ? 1.0 : 0.75,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A).withAlpha(240),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isPassed ? const Color(0xFFFF5722) : Colors.white38,
+                width: 1.4,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isPassed
+                      ? const Color(0xFFFF5722).withAlpha(120)
+                      : Colors.black38,
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🚩', style: TextStyle(fontSize: 11)),
+                const SizedBox(width: 4),
+                Text(
+                  border.regencyName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Icon(
+            Icons.arrow_drop_down_rounded,
+            color: Color(0xFFFF5722),
+            size: 16,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRegencyBorderBanner(RegencyBorderEvent border) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A).withAlpha(245),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFFF5722), width: 1.8),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF5722).withAlpha(110),
+              blurRadius: 18,
+              spreadRadius: 2,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF5722).withAlpha(45),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFFF5722).withAlpha(180)),
+              ),
+              child: const Text('🚩', style: TextStyle(fontSize: 18)),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'BATAS WILAYAH DAERAH',
+                    style: TextStyle(
+                      color: Color(0xFFFF8A65),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Memasuki ${border.regencyName}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

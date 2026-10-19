@@ -2,6 +2,22 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.1] - 2026-10-19
+
+### 🚩 Penanda Batas Wilayah Kabupaten/Kota Baru (Flag Pin Peta & Pop-up Badge Real-Time)
+- **Deteksi Batas Wilayah Kabupaten/Kota Otomatis (`RegionGeocodingService`):**
+  - Mengintegrasikan engine geolokasi wilayah cerdas offline yang mengenali batas wilayah kabupaten/kota di seluruh Indonesia (Kalimantan Barat seperti Kota Pontianak, Kab. Kubu Raya, Kab. Mempawah, dll., serta kota/kabupaten besar lainnya di Indonesia).
+  - Dilengkapi mekanisme reverse geocoding online OpenStreetMap Nominatim dengan in-memory cache untuk mengenali batas administratif daerah mana pun di dunia.
+- **Pin Bendera Batas Daerah di Atas Peta (`MarkerLayer`):**
+  - Menampilkan penanda pin bendera 3D (`🚩 [Nama Kabupaten]`) langsung di atas titik permukaan jalan saat rute memasuki kabupaten/kota baru.
+  - Pin dilengkapi styling glow neon berlatar gelap elegan yang terlihat jelas di atas foto citra satelit.
+- **Banner Pop-up Badge Wilayah Real-Time:**
+  - Saat posisi penunjuk atlet melintasi perbatasan, muncul banner mengambang: *"🚩 BATAS WILAYAH DAERAH • Memasuki [Nama Kabupaten/Kota]"*.
+  - Banner tertangkap dan tampil secara sinematik baik dalam mode pemutaran langsung, mode rekam layar bersih, maupun dalam berkas ekspor video MP4 Full HD 1080p.
+- **Kualitas Maksimum Tanpa Kompromi:**
+  - Mempertahankan rendering MP4 Full HD 1080p, bitrate tinggi 18 Mbps, 30 FPS, dan pre-caching ubin citra satelit penuh tanpa pengurangan kualitas resolusi sedikit pun.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.1` (`versionCode = 24`).
+
 ## [v1.0.5.0] - 2026-10-19
 
 ### 🎬 Eliminasi Kotak Hitam Render, Kemiringan 3D Sinematik (~47°) & Perbaikan Dialog Simpan Galeri
