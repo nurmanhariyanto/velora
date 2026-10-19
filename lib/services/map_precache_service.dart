@@ -89,6 +89,7 @@ class MapPrecacheService {
     BuildContext? context,
     int zoom = 16,
     int maxTiles = 60,
+    String urlTemplate = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     void Function(double progress, int loaded, int total)? onProgress,
     Duration timeout = const Duration(milliseconds: 3500),
   }) async {
@@ -123,7 +124,10 @@ class MapPrecacheService {
         : ImageConfiguration.empty;
 
     for (final tile in tiles) {
-      final url = 'https://tile.openstreetmap.org/${tile.z}/${tile.x}/${tile.y}.png';
+      final url = urlTemplate
+          .replaceAll('{z}', '${tile.z}')
+          .replaceAll('{x}', '${tile.x}')
+          .replaceAll('{y}', '${tile.y}');
       final imageProvider = NetworkImage(url, headers: headers);
 
       final tileCompleter = Completer<void>();

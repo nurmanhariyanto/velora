@@ -127,6 +127,18 @@ void main() {
       await tester.tap(find.byTooltip('Tampilan 2D Datar'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Perspektif 3D Menyamping Aktif'), findsOneWidget);
+
+      // Uji Tombol Mode Satelit HD vs Peta Jalan OSM
+      final satBtn = find.byTooltip('Mode Satelit HD Aktif');
+      expect(satBtn, findsOneWidget);
+      await tester.tap(satBtn);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Mode Peta Jalan'), findsOneWidget);
+
+      // Beralih kembali ke Satelit HD
+      await tester.tap(find.byTooltip('Mode Peta Jalan'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Mode Satelit HD Aktif'), findsOneWidget);
     });
 
     testWidgets('Menampilkan pesan jika koordinat tidak cukup untuk animasi',

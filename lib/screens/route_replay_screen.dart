@@ -49,7 +49,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   bool _isPlaying = true;
   double _playbackSpeed = 2.0; // 1x, 2x, 4x, 8x
   bool _autoFollow = true;
-  bool _mapDarkTheme = true;
+  bool _mapDarkTheme = false;
+  bool _isSatelliteMode = true; // Default: Citra Satelit HD Asli (seperti video referensi)
   bool _isMapReady = false;
   bool _povMode = false; // Default: Mode Flyover Stabil & Mulus (Peta Menghadap Utara, Bebas Pusing)
   bool _is3dTilted = true; // Default: Sudut Pandang 3D Menyamping (Perspective Tilt Oblique Bird's Eye View)
@@ -145,7 +146,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         coordinates: widget.session.coordinates,
         context: context,
         zoom: 16,
-        maxTiles: 50,
+        maxTiles: 60,
+        urlTemplate: _isSatelliteMode
+            ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         onProgress: (progress, loaded, total) {
           if (mounted) {
             setState(() {
@@ -470,16 +474,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-          // 1. Lapisan Peta OpenStreetMap Interaktif (Mendukung Perspektif 3D Menyamping)
+          // 1. Lapisan Peta Citra Satelit / OSM Interaktif (Mendukung Perspektif 3D Menyamping)
           _is3dTilted
               ? ClipRect(
                   child: Transform(
-                    alignment: const FractionalOffset(0.5, 0.72),
+                    alignment: const FractionalOffset(0.5, 0.70),
                     transform: Matrix4.identity()
-                      ..setEntry(3, 2, 0.0012)
-                      ..rotateX(0.62),
+                      ..setEntry(3, 2, 0.0004)
+                      ..rotateX(0.35),
                     child: Transform.scale(
-                      scale: 1.45,
+                      scale: 1.06,
                       child: _buildFlutterMap(
                         currentInterpPos: currentInterpPos,
                         fullRoutePoints: fullRoutePoints,
@@ -789,18 +793,22 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         },
       ),
       children: [
-        // Tile OSM (Smooth Caching & Buffering, Bebas Kotak Hitam/Putih)
+        // Tile Citra Satelit HD Asli (ESRI World Imagery) atau OpenStreetMap
         TileLayer(
-          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          urlTemplate: _isSatelliteMode
+              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'online.nurmancloud.velora',
           panBuffer: 2,
           keepBuffer: 6,
-          tileDisplay: const TileDisplay.fadeIn(
-            duration: Duration(milliseconds: 150),
-          ),
-          retinaMode: false,
+          tileDisplay: _isRenderingVideo
+              ? const TileDisplay.instantaneous()
+              : const TileDisplay.fadeIn(
+                  duration: Duration(milliseconds: 100),
+                ),
+          retinaMode: true,
           maxNativeZoom: 19,
-          tileBuilder: _mapDarkTheme
+          tileBuilder: (!_isSatelliteMode && _mapDarkTheme)
               ? (context, tileWidget, tile) {
                   return ColorFiltered(
                     colorFilter: const ColorFilter.matrix(_darkMatrix),
@@ -810,34 +818,42 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               : null,
         ),
 
-        // Garis Rute Keseluruhan (Transparan / Muted)
+        // Garis Rute Keseluruhan (Muted Transparan di atas foto satelit)
         PolylineLayer(
           polylines: [
             Polyline(
               points: fullRoutePoints,
-              strokeWidth: 5.0,
-              color: Colors.white.withAlpha(45),
+              strokeWidth: 4.5,
+              color: _isSatelliteMode
+                  ? Colors.white.withAlpha(70)
+                  : Colors.white.withAlpha(45),
               strokeCap: StrokeCap.round,
               strokeJoin: StrokeJoin.round,
             ),
           ],
         ),
 
-        // Garis Rute Aktif Tergambar Maju (Glow Neon Cyan)
+        // Garis Rute Aktif Tergambar Maju (Glow Kuning Emas Menyala Sinematik)
         if (traversedPoints.isNotEmpty)
           PolylineLayer(
             polylines: [
+              // Lapisan Pendaran Cahaya (Outer Glow)
               Polyline(
                 points: traversedPoints,
-                strokeWidth: 11.0,
-                color: AppColors.neonCyan.withAlpha(80),
+                strokeWidth: 12.0,
+                color: _isSatelliteMode
+                    ? const Color(0xFFFFD600).withAlpha(120)
+                    : AppColors.neonCyan.withAlpha(80),
                 strokeCap: StrokeCap.round,
                 strokeJoin: StrokeJoin.round,
               ),
+              // Garis Inti Terang
               Polyline(
                 points: traversedPoints,
-                strokeWidth: 6.0,
-                color: AppColors.neonCyan,
+                strokeWidth: 5.5,
+                color: _isSatelliteMode
+                    ? const Color(0xFFFFEA00)
+                    : AppColors.neonCyan,
                 strokeCap: StrokeCap.round,
                 strokeJoin: StrokeJoin.round,
               ),
@@ -878,6 +894,58 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   }
 
   Widget _buildRiderMarker(double bearingDegrees) {
+    if (_isSatelliteMode) {
+      return Center(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // 1. Pendaran Aura Luar Emas Lembut
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFD600).withAlpha(50),
+                shape: BoxShape.circle,
+              ),
+            ),
+            // 2. Lingkar Dalam Emas Bersinar
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFEA00).withAlpha(190),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFFD600).withAlpha(220),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+            ),
+            // 3. Bola Cahaya Inti Putih Terang (Glowing White Beacon seperti di video referensi)
+            Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFFFEA00), width: 1.5),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.white,
+                    blurRadius: 6,
+                    spreadRadius: 1,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Center(
       child: Stack(
         alignment: Alignment.center,
@@ -1061,22 +1129,39 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               });
             },
           ),
-          // Tombol Mode Gelap/Terang
+          // Tombol Mode Satelit HD vs Peta Jalan OSM
           IconButton(
             icon: Icon(
-              _mapDarkTheme
-                  ? Icons.brightness_medium_rounded
-                  : Icons.wb_sunny_rounded,
-              color: _mapDarkTheme ? AppColors.electricAmber : Colors.white70,
+              _isSatelliteMode
+                  ? Icons.satellite_alt_rounded
+                  : Icons.map_rounded,
+              color: _isSatelliteMode ? AppColors.electricAmber : Colors.white70,
               size: 22,
             ),
-            tooltip: 'Ubah Tema Peta',
+            tooltip: _isSatelliteMode ? 'Mode Satelit HD Aktif' : 'Mode Peta Jalan',
             onPressed: () {
               setState(() {
-                _mapDarkTheme = !_mapDarkTheme;
+                _isSatelliteMode = !_isSatelliteMode;
               });
             },
           ),
+          // Tombol Mode Gelap/Terang (aktif saat mode peta jalan)
+          if (!_isSatelliteMode)
+            IconButton(
+              icon: Icon(
+                _mapDarkTheme
+                    ? Icons.brightness_medium_rounded
+                    : Icons.wb_sunny_rounded,
+                color: _mapDarkTheme ? AppColors.electricAmber : Colors.white70,
+                size: 22,
+              ),
+              tooltip: 'Ubah Tema Peta',
+              onPressed: () {
+                setState(() {
+                  _mapDarkTheme = !_mapDarkTheme;
+                });
+              },
+            ),
           // Tombol Rekam & Bagikan Video
           IconButton(
             icon: const Icon(
@@ -1414,7 +1499,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     bool isCancelled = false;
     double exportProgress = 0.0;
     int currentFrameNum = 0;
-    const totalFrames = 150; // ~6.25 detik video flyover pada 24 FPS
+    const totalFrames = 240; // ~8 detik video flyover super mulus pada 30 FPS
     StateSetter? dialogSetState;
 
     // 2. Aktifkan clean record mode & rendering flag
@@ -1539,14 +1624,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       exportedVideoPath = await VideoExportService.renderWidgetToVideo(
         boundaryKey: _recordBoundaryKey,
         totalFrames: totalFrames,
-        fps: 24,
+        fps: 30,
+        targetWidth: 1080,
+        bitrate: 18000000,
         isCancelled: () => isCancelled,
         onStepFrame: (frameIndex, progress) async {
           _animController.value = progress;
           _lastCameraMoveTime = null; // paksa kamera bergerak mengikuti titik rute
           _onAnimationTick();
           if (mounted) setState(() {});
-          await Future.delayed(const Duration(milliseconds: 20));
+          await WidgetsBinding.instance.endOfFrame;
+          await Future.delayed(const Duration(milliseconds: 10));
         },
         onProgress: (progress, currentFrame, total) {
           exportProgress = progress;

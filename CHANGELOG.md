@@ -2,6 +2,24 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.4.9] - 2026-10-19
+
+### 🛰️ Citra Satelit Nyata HD, Garis Emas Menyala & Resolusi Video Full HD 18 Mbps (Bebas Blur)
+- **Peta Citra Satelit Asli Resolusi Tinggi (ESRI World Imagery):**
+  - Menghadirkan citra satelit fotografi udara nyata beresolusi tinggi (ESRI World Imagery) yang menampilkan atap rumah, pepohonan hijau, jalan aspal, persawahan, dan sungai asli dari angkasa.
+  - Menghapus filter hitam-gelap default agar warna alami foto satelit tampil jernih, tajam, dan realistis.
+  - Menambahkan tombol sakelar di bar header atas (`Icons.satellite_alt_rounded`) untuk beralih antara Citra Satelit HD dan Peta Jalan.
+- **Garis Rute Kuning Emas Menyala (Signature Glowing Gold Route):**
+  - Mengubah garis rute aktif menjadi kuning emas neon berkilau (`#FFD600` / `#FFE500`) dengan lapisan pendaran aura cahaya (*outer glow*) di atas foto satelit.
+- **Penunjuk Ujung Rute Bola Putih Bersinar (Glowing White Beacon Orb):**
+  - Penunjuk posisi atlet diubah menjadi bola cahaya putih bersinar terang dengan denyut aura emas di ujung garis rute, persis seperti gaya flyover sinematik.
+- **Peningkatan Resolusi Video Ekspor (Full HD 1080p, Bitrate 18.0 Mbps, Bebas Blur):**
+  - Menaikkan bitrate encoder video MediaCodec hardware menjadi **18.0 Mbps** (lebih dari 2x lipat) untuk menghilangkan kompresi blur.
+  - Mengeliminasi pembesaran berlebih 1.45x dan menggantinya dengan kemiringan 3D natural (~20°) agar piksel tekstur ubin peta tetap 100% tajam pada resolusi aslinya.
+  - Menjamin ubin peta ter-render penuh seketika (`instantaneous`) saat ekspor video tanpa efek transparansi/fade-in.
+  - Sinkronisasi pipeline rasterizer GPU (`endOfFrame`) pada tiap frame sebelum penangkapan gambar.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.4.9` (`versionCode = 22`).
+
 ## [v1.0.4.8] - 2026-10-19
 
 ### 🌄 Sudut Pandang Kamera 3D Perspektif Menyamping (2.5D Oblique Tilt)

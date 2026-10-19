@@ -42,6 +42,8 @@ class VideoExportService {
     required Future<void> Function(int frameIndex, double progress) onStepFrame,
     required void Function(double progress, int currentFrame, int totalFrames) onProgress,
     bool Function()? isCancelled,
+    int targetWidth = 1080,
+    int bitrate = 18000000,
   }) async {
     try {
       final boundary = boundaryKey.currentContext?.findRenderObject()
@@ -60,11 +62,11 @@ class VideoExportService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final outputPath = '${videosDir.path}/velora_flyover_$timestamp.mp4';
 
-      // 2. Tentukan rasio piksel adaptif untuk menghasilkan video Full HD 1080p yang jernih dan bebas blur
+      // 2. Tentukan rasio piksel adaptif untuk menghasilkan video Full HD 1080p / Ultra HD yang jernih dan tajam
       final boundaryWidth = boundary.size.width;
       final double effectivePixelRatio = (boundaryWidth > 0)
-          ? (1080.0 / boundaryWidth).clamp(2.0, 3.5)
-          : 2.5;
+          ? (targetWidth / boundaryWidth).clamp(2.5, 4.5)
+          : 3.0;
 
       // Ambil frame pertama untuk mengukur dimensi resolusi video (harus genap untuk MediaCodec)
       final initialImage = await boundary.toImage(pixelRatio: effectivePixelRatio);
@@ -75,15 +77,15 @@ class VideoExportService {
       initialImage.dispose();
 
       debugPrint(
-        'VideoExportService: Memulai encode MP4 Full HD ($videoWidth x $videoHeight, $fps FPS, $totalFrames frames, ratio $effectivePixelRatio)',
+        'VideoExportService: Memulai encode MP4 Full HD ($videoWidth x $videoHeight, $fps FPS, $totalFrames frames, ratio $effectivePixelRatio, bitrate $bitrate)',
       );
 
-      // 3. Konfigurasi encoder video hardware H.264
+      // 3. Konfigurasi encoder video hardware H.264 dengan bitrate tinggi untuk ketajaman kristal
       await FlutterQuickVideoEncoder.setup(
         width: videoWidth,
         height: videoHeight,
         fps: fps,
-        videoBitrate: 8000000, // 8.0 Mbps untuk kualitas Full HD super tajam tanpa artefak blur
+        videoBitrate: bitrate, // 18.0 Mbps untuk Full HD super tajam tanpa kompresi blur
         profileLevel: ProfileLevel.highAutoLevel,
         audioChannels: 0,
         audioBitrate: 0,
