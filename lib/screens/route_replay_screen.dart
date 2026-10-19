@@ -151,12 +151,12 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _animController.addListener(_onAnimationTick);
     _animController.addStatusListener((status) {
       if (status == AnimationStatus.completed) {
-        final wasCleanRecord = _cleanRecordMode;
+        final wasManualCleanRecord = _cleanRecordMode && !_isRenderingVideo;
         setState(() {
           _isPlaying = false;
           _cleanRecordMode = false;
         });
-        if (wasCleanRecord && mounted) {
+        if (wasManualCleanRecord && mounted) {
           _showCleanRecordCompletedDialog();
         }
       }
@@ -1015,14 +1015,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               );
             }),
 
-            // Pin Bendera Batas Wilayah Kabupaten/Kota (Flag Pin di Peta)
+            // Penanda Nama Kabupaten/Kota Tepat di Atas Garis Rute (Batas Wilayah)
             ..._regencyBorders.map((b) {
               final isPassed = b.distanceMeters <= currentDistanceM;
               return Marker(
                 point: LatLng(b.latitude, b.longitude),
-                width: 140,
-                height: 44,
-                alignment: Alignment.topCenter,
+                width: 180,
+                height: 48,
+                alignment: Alignment.center,
                 child: _buildRegencyFlagPin(b, isPassed),
               );
             }),
@@ -1093,53 +1093,77 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   }
 
   Widget _buildRegencyFlagPin(RegencyBorderEvent border, bool isPassed) {
-    return AnimatedOpacity(
-      duration: const Duration(milliseconds: 300),
-      opacity: isPassed ? 1.0 : 0.75,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F172A).withAlpha(240),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: isPassed ? const Color(0xFFFF5722) : Colors.white38,
-                width: 1.4,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isPassed
-                      ? const Color(0xFFFF5722).withAlpha(120)
-                      : Colors.black38,
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 350),
+      scale: isPassed ? 1.05 : 0.95,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 300),
+        opacity: isPassed ? 1.0 : 0.85,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Pita Cahaya Garis Batas Wilayah Lintas Aspal / Satelit
+            Container(
+              width: 140,
+              height: 2.5,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.transparent,
+                    isPassed ? const Color(0xFFFF5722) : const Color(0xFFFFD600),
+                    Colors.transparent,
+                  ],
                 ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('🚩', style: TextStyle(fontSize: 11)),
-                const SizedBox(width: 4),
-                Text(
-                  border.regencyName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+                boxShadow: [
+                  BoxShadow(
+                    color: isPassed ? const Color(0xFFFF5722) : const Color(0xFFFFD600),
+                    blurRadius: 6,
+                    spreadRadius: 1,
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Icon(
-            Icons.arrow_drop_down_rounded,
-            color: Color(0xFFFF5722),
-            size: 16,
-          ),
-        ],
+            const SizedBox(height: 2),
+            // Badge Nama Kabupaten Tepat di Atas Garis Rute
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0F172A).withAlpha(245),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: isPassed ? const Color(0xFFFF5722) : const Color(0xFFFFD600),
+                  width: 1.6,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: isPassed
+                        ? const Color(0xFFFF5722).withAlpha(140)
+                        : const Color(0xFFFFD600).withAlpha(100),
+                    blurRadius: 10,
+                    spreadRadius: 1,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('🚩', style: TextStyle(fontSize: 12)),
+                  const SizedBox(width: 5),
+                  Text(
+                    border.regencyName.toUpperCase(),
+                    style: TextStyle(
+                      color: isPassed ? Colors.white : const Color(0xFFFFEA00),
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1700,8 +1724,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   // FITUR REKAM & BAGIKAN VIDEO KE MEDIA SOSIAL
   // ==========================================
 
-  /// Merender animasi flyover rute menjadi berkas video MP4 secara otomatis
-  Future<void> _startInAppVideoRender() async {
+  /// Merender animasi flyover rute menjadi berkas video MP4 secara otomatis (Full HD 9:16 atau 4K Ultra HD)
+  Future<void> _startInAppVideoRender({bool is4K = false}) async {
     // 1. Jeda pemutaran animasi jika sedang aktif
     if (_isPlaying) {
       _togglePlayPause();
@@ -1752,7 +1776,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      isPrecache ? 'Menyiapkan Peta Satelit HD' : 'Merender Video Flyover 1080p',
+                      isPrecache
+                          ? 'Menyiapkan Peta Satelit HD'
+                          : (is4K ? 'Merender Video 4K Ultra HD' : 'Merender Video Full HD (9:16)'),
                       style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -1765,7 +1791,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   Text(
                     isPrecache
                         ? 'Memuat potongan citra satelit rute ke memori agar hasil video bebas kotak hitam...'
-                        : 'Mengenkode animasi flyover ke berkas MP4 Full HD (18 Mbps) beresolusi tinggi...',
+                        : (is4K
+                            ? 'Mengenkode animasi flyover ke berkas MP4 4K Ultra HD (2160x3840, 35 Mbps) rasio 9:16...'
+                            : 'Mengenkode animasi flyover ke berkas MP4 Full HD 9:16 (20 Mbps) dioptimalkan khusus Instagram Reels...'),
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
                   ),
                   const SizedBox(height: 18),
@@ -1812,14 +1840,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: AppColors.borderSubtle),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.bolt_rounded, color: AppColors.neonCyan, size: 14),
-                        SizedBox(width: 6),
+                        const Icon(Icons.bolt_rounded, color: AppColors.neonCyan, size: 14),
+                        const SizedBox(width: 6),
                         Text(
-                          'Hardware MediaCodec • 100% Offline',
-                          style: TextStyle(
+                          is4K ? '4K Ultra HD (2160x3840) • 100% Offline' : '9:16 Full HD (1080x1920) • 100% Offline',
+                          style: const TextStyle(
                             color: AppColors.neonCyan,
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
@@ -1894,8 +1922,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         boundaryKey: _recordBoundaryKey,
         totalFrames: totalFrames,
         fps: 30,
-        targetWidth: 1080,
-        bitrate: 18000000,
+        targetWidth: is4K ? 2160 : 1080,
+        bitrate: is4K ? 35000000 : 20000000,
         isCancelled: () => isCancelled,
         onStepFrame: (frameIndex, progress) async {
           _animController.value = progress;
@@ -1932,133 +1960,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     if (isCancelled) return;
 
-    // 6. Tampilkan dialog hasil video MP4 yang siap dibagikan ke sosmed dan tersimpan di galeri
+    // 6. Tampilkan satu-satunya menu hasil ekspor video yang lengkap
     if (exportedVideoPath != null && mounted) {
-      final fileName = exportedVideoPath.split('/').last;
-      showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          backgroundColor: AppColors.cardSurface,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: const BorderSide(color: AppColors.neonGreen, width: 1.5),
-          ),
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 28),
-              SizedBox(width: 10),
-              Text(
-                'Video Berhasil Dibuat!',
-                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Badge Tersimpan di Galeri Ponsel
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.neonGreen.withAlpha(25),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.neonGreen.withAlpha(120), width: 1.2),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.download_done_rounded, color: AppColors.neonGreen, size: 20),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Tersimpan Otomatis di Galeri Ponsel',
-                        style: TextStyle(
-                          color: AppColors.neonGreen,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Video flyover rute MP4 Full HD (1080p) telah selesai dibuat dan tersimpan permanen di memori ponsel. Anda dapat langsung membagikannya atau kembali ke menu opsi.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: AppColors.cardSurfaceElevated,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.borderSubtle),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.movie_rounded, color: AppColors.primaryOrange, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Download/Velora/$fileName',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('SELESAI', style: TextStyle(color: AppColors.textMuted)),
-            ),
-            OutlinedButton.icon(
-              onPressed: () {
-                Navigator.pop(ctx);
-                _showShareVideoSheet();
-              },
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.borderHighlight),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              icon: const Icon(Icons.menu_rounded, size: 17, color: Colors.white70),
-              label: const Text(
-                'MENU OPSI LAIN',
-                style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 12),
-              ),
-            ),
-            ElevatedButton.icon(
-              onPressed: () async {
-                Navigator.pop(ctx);
-                await VideoExportService.shareVideo(
-                  exportedVideoPath!,
-                  text: 'Flyover Rute Latihan • Velora',
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              icon: const Icon(Icons.share_rounded, size: 18, color: Colors.white),
-              label: const Text(
-                'BAGIKAN VIDEO',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12.5),
-              ),
-            ),
-          ],
-        ),
-      );
+      _showVideoExportSuccessSheet(exportedVideoPath, is4K: is4K);
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -2068,6 +1972,218 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         ),
       );
     }
+  }
+
+  /// Menampilkan menu tunggal hasil ekspor video dengan opsi lengkap & konfirmasi galeri
+  void _showVideoExportSuccessSheet(String videoPath, {bool is4K = false}) {
+    final fileName = videoPath.split('/').last;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppColors.cardSurface,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            border: Border(
+              top: BorderSide(color: AppColors.neonGreen, width: 2),
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            16,
+            20,
+            MediaQuery.of(context).padding.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Header Sukses & Badge Galeri
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.neonGreen.withAlpha(40),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.neonGreen, width: 1.5),
+                    ),
+                    child: const Icon(
+                      Icons.check_circle_rounded,
+                      color: AppColors.neonGreen,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Video Berhasil Dibuat!',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          is4K
+                              ? '4K Ultra HD (2160x3840) • 9:16 Kristal Jernih'
+                              : 'Full HD 1080p (1080x1920) • 9:16 Bebas Blur',
+                          style: const TextStyle(
+                            color: AppColors.neonGreen,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Banner Informasi Tersimpan di Galeri
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.neonGreen.withAlpha(20),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.neonGreen.withAlpha(100), width: 1.2),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.photo_library_rounded, color: AppColors.neonGreen, size: 22),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Tersimpan Otomatis di Galeri Ponsel',
+                            style: TextStyle(
+                              color: AppColors.neonGreen,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Album Movies > Velora ($fileName)',
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 11,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              // Pilihan Berbagi
+              _buildShareActionTile(
+                icon: Icons.camera_alt_rounded,
+                iconColor: const Color(0xFFE1306C),
+                title: 'Bagikan ke Instagram (Reels & Story)',
+                subtitle: 'Kirim langsung video flyover 9:16 rasio asli ke Instagram tanpa blur.',
+                badge: 'LANGSUNG KE INSTAGRAM',
+                badgeColor: const Color(0xFFE1306C),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await VideoExportService.shareToInstagram(videoPath);
+                },
+              ),
+              const SizedBox(height: 10),
+
+              _buildShareActionTile(
+                icon: Icons.chat_rounded,
+                iconColor: const Color(0xFF25D366),
+                title: 'Bagikan ke WhatsApp',
+                subtitle: 'Kirim video MP4 langsung ke Status atau chat WhatsApp.',
+                badge: 'WHATSAPP',
+                badgeColor: const Color(0xFF25D366),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await VideoExportService.shareToWhatsApp(videoPath);
+                },
+              ),
+              const SizedBox(height: 10),
+
+              _buildShareActionTile(
+                icon: Icons.share_rounded,
+                iconColor: AppColors.primaryOrange,
+                title: 'Bagikan ke Aplikasi Lainnya',
+                subtitle: 'Pilih aplikasi lain seperti TikTok, Telegram, Drive, dsb.',
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await VideoExportService.shareVideo(
+                    videoPath,
+                    text: 'Flyover Rute Latihan • Velora',
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+
+              _buildShareActionTile(
+                icon: Icons.photo_library_rounded,
+                iconColor: AppColors.electricAmber,
+                title: 'Bagikan Kartu Ringkasan (Foto & Peta HD)',
+                subtitle: 'Buat poster statistik Full HD untuk story atau status.',
+                onTap: () {
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SharePreviewScreen(session: widget.session),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 14),
+
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    'SELESAI',
+                    style: TextStyle(
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   void _showStartRecordConfirmDialog() {
@@ -2336,18 +2452,34 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ),
               const SizedBox(height: 20),
 
-              // Opsi 1: Ekspor Video Flyover (MP4) Otomatis
+              // Opsi 1: Ekspor Video Flyover MP4 Full HD (9:16 Instagram Reels & Story)
               _buildShareActionTile(
                 icon: Icons.movie_creation_rounded,
                 iconColor: AppColors.primaryOrange,
-                title: 'Ekspor Video MP4 (Simpan ke Galeri & Bagikan)',
+                title: 'Ekspor Video Full HD (9:16 Reels & Story)',
                 subtitle:
-                    'Video flyover rute MP4 Full HD otomatis dirender, disimpan langsung ke Galeri HP (Download/Velora), dan siap dibagikan ke WhatsApp, Reels, atau TikTok.',
-                badge: 'OTOMATIS TERSIMPAN KE GALERI',
+                    'Resolusi standar 1080x1920 (9:16) tajam bebas blur, otomatis disimpan ke Galeri HP (Movies/Velora) dan siap dibagikan.',
+                badge: 'REKOMENDASI INSTAGRAM REELS',
                 badgeColor: AppColors.neonGreen,
                 onTap: () {
                   Navigator.pop(ctx);
-                  _startInAppVideoRender();
+                  _startInAppVideoRender(is4K: false);
+                },
+              ),
+              const SizedBox(height: 10),
+
+              // Opsi 2: Ekspor Video Flyover 4K Ultra HD (2160x3840)
+              _buildShareActionTile(
+                icon: Icons.hd_rounded,
+                iconColor: AppColors.electricAmber,
+                title: 'Ekspor Video 4K Ultra HD (2160p)',
+                subtitle:
+                    'Resolusi ultra tajam 2160x3840 (35 Mbps) rasio 9:16 untuk kualitas visual maksimal di media sosial, otomatis tersimpan ke Galeri.',
+                badge: '4K ULTRA HD',
+                badgeColor: AppColors.electricAmber,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _startInAppVideoRender(is4K: true);
                 },
               ),
               const SizedBox(height: 10),

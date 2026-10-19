@@ -2,6 +2,27 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.3] - 2026-10-19
+
+### 🎬 Opsi Video 4K & Full HD 9:16 Anti-Blur Instagram, MediaStore Galeri Otomatis, Pita Batas Wilayah di Garis Rute & Perbaikan Menu Ganda
+- **Opsi Ekspor Video 4K Ultra HD & Format 9:16 Anti-Blur Instagram:**
+  - Menyediakan 2 pilihan resolusi ekspor video MP4 pada dialog berbagi:
+    1. *Full HD 1080p (1080x1920) 9:16 (Rekomendasi Instagram Reels & Stories):* Format standar rasio 9:16 native dengan bitrate 20 Mbps yang dipotong secara presisi sehingga server Instagram tidak melakukan downscaling atau peregangan yang menyebabkan video buram/blur.
+    2. *4K Ultra HD (2160x3840) 9:16 (Bitrate 35 Mbps):* Resolusi ultra tinggi untuk kejernihan kristal maksimal di layar beresolusi tinggi.
+  - Memperbaiki MIME type pada intent berbagi langsung ke Instagram Story dan WhatsApp (`video/mp4` untuk video, bukan `image/png`), sehingga video diterima sebagai konten video bergerak utuh tanpa distorsi.
+- **Integrasi Native Android MediaStore (Video Pasti Muncul di Galeri HP):**
+  - Mengintegrasikan penyimpanan langsung melalui Android `MediaStore.Video.Media` di folder `Movies/Velora`.
+  - Memanggil `MediaScannerConnection.scanFile()` secara otomatis segera setelah render selesai, menjamin video langsung terindeks dan muncul seketika di aplikasi Galeri bawaan ponsel (Google Photos, Galeri Samsung, Xiaomi, dsb).
+- **Penanda Batas Wilayah Kabupaten Langsung di Atas Garis Rute:**
+  - Mengubah penanda batas kabupaten/kota menjadi gerbang perbatasan (*boundary ribbon gate*) yang terpasang tepat di atas garis rute:
+    - Pita garis bercahaya melintang di atas aspal/satelit.
+    - Badge nama kabupaten/kota tebal berlatar gelap elegan (`🚩 KABUPATEN [NAMA]`) di tengah garis lintasan.
+    - Ketika penunjuk atlet melintasi titik tersebut, penanda menyala terang dengan efek pendaran oranye neon.
+- **Eliminasi Menu Ganda & Desain Ulang Lembar Berbagi Pasca-Render:**
+  - Memperbaiki bug status listener animasi yang sebelumnya memicu dialog penyelesaian rekam layar bersih saat render video otomatis selesai, sehingga pengguna tidak lagi melihat dua kotak dialog yang saling menumpuk.
+  - Menghadirkan satu *Bottom Sheet* berbagi yang elegan dan lengkap setelah render selesai dengan konfirmasi tersimpan di galeri, tombol langsung bagikan ke Instagram Story/Reels, WhatsApp, bagikan video umum, dan bagikan kartu ringkasan HD.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.3` (`versionCode = 26`).
+
 ## [v1.0.5.2] - 2026-10-19
 
 ### 🌄 Koreksi Sudut Perspektif 3D Maju ke Depan & Restorasi Rute Emas Menyala Multi-Layer Laser
