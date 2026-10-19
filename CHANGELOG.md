@@ -2,6 +2,23 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.2] - 2026-10-19
+
+### 🌄 Koreksi Sudut Perspektif 3D Maju ke Depan & Restorasi Rute Emas Menyala Multi-Layer Laser
+- **Koreksi Arah Sudut Perspektif 3D Kamera (Forward Aerial Perspective):**
+  - Mengoreksi arah transformasi kemiringan 3D kamera (`rotateX(-0.70)`) sehingga proyeksi perspektif bekerja sesuai penglihatan manusia dan simulator penerbangan: cakrawala di bagian atas layar menyempit secara natural menuju titik lenyap (*vanishing point*), sementara area dekat di bagian bawah layar melebar luas (*foreground perspective*).
+  - Mengeliminasi distorsi perspektif terbalik yang sebelumnya membuat peta terlihat seolah-olah dipandang dari belakang atau terbalik.
+  - Memperluas area kanvas dinamis (lebar 190%, tinggi 205%) dan menyesuaikan titik tumpu (*pivot alignment*) ke `FractionalOffset(0.5, 0.71)` sehingga seluruh layar tertutup sempurna oleh citra satelit tanpa celah hitam di sudut maupun sisi samping.
+  - Menempatkan posisi marker atlet secara optimal di sepertiga bawah layar menghadap lintasan maju ke depan.
+- **Restorasi & Peningkatan Garis Rute Emas Menyala Multi-Layer Laser:**
+  - Mengembalikan tampilan rute aktif kuning emas khas Velora yang sangat disukai dengan arsitektur multi-layer:
+    1. *Lapisan 1 (Outer Glow):* Pendaran aura neon amber lebar 14.0px (`#FFD600` alpha 130).
+    2. *Lapisan 2 (Vibrant Gold Beam):* Berkas garis emas pekat 6.5px (`#FFE500`).
+    3. *Lapisan 3 (White Hot Laser Core):* Inti sinar laser putih terang 2.2px (`Colors.white` alpha 230).
+  - Garis rute kuning emas menyala ini kini aktif konsisten dan tajam di segala mode peta.
+  - Menstandarkan penunjuk marker atlet dengan bola suar cahaya emas bersinar (*glowing gold beacon*) dan inti putih terang.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.2` (`versionCode = 25`).
+
 ## [v1.0.5.1] - 2026-10-19
 
 ### 🚩 Penanda Batas Wilayah Kabupaten/Kota Baru (Flag Pin Peta & Pop-up Badge Real-Time)

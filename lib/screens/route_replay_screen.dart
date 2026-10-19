@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
@@ -588,17 +587,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                           // 1. Latar Belakang Luar Angkasa / Horizon Biru Gelap
                           const ColoredBox(color: Color(0xFF0F172A)),
 
-                          // 2. Map Satelit 3D Diperluas & Dimiringkan Sinematik (~47° Tilt Oblique Perspektif)
+                          // 2. Map Satelit 3D Diperluas & Dimiringkan Sinematik (Perspektif Menghadap ke Depan / Forward Aerial View)
                           Positioned(
-                            top: -screenH * 0.18,
-                            bottom: -screenH * 0.40,
-                            left: -screenW * 0.30,
-                            right: -screenW * 0.30,
+                            top: -screenH * 0.85,
+                            bottom: -screenH * 0.20,
+                            left: -screenW * 0.45,
+                            right: -screenW * 0.45,
                             child: Transform(
-                              alignment: const FractionalOffset(0.5, 0.5),
+                              alignment: const FractionalOffset(0.5, 0.71),
                               transform: Matrix4.identity()
                                 ..setEntry(3, 2, 0.001)
-                                ..rotateX(0.82), // ~47° kemiringan perspektif 3D menyamping sinematik
+                                ..rotateX(-0.70), // Kemiringan perspektif 3D maju ke depan (horizon menyempit di atas)
                               child: _buildFlutterMap(
                                 currentInterpPos: currentInterpPos,
                                 fullRoutePoints: fullRoutePoints,
@@ -613,7 +612,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                             top: 0,
                             left: 0,
                             right: 0,
-                            height: screenH * 0.26,
+                            height: screenH * 0.24,
                             child: IgnorePointer(
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
@@ -958,36 +957,38 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             Polyline(
               points: fullRoutePoints,
               strokeWidth: 4.5,
-              color: _isSatelliteMode
-                  ? Colors.white.withAlpha(70)
-                  : Colors.white.withAlpha(45),
+              color: Colors.white.withAlpha(65),
               strokeCap: StrokeCap.round,
               strokeJoin: StrokeJoin.round,
             ),
           ],
         ),
 
-        // Garis Rute Aktif Tergambar Maju (Glow Kuning Emas Menyala Sinematik)
+        // Garis Rute Aktif Tergambar Maju (Glow Kuning Emas Menyala Sinematik Multi-Layer)
         if (traversedPoints.isNotEmpty)
           PolylineLayer(
             polylines: [
-              // Lapisan Pendaran Cahaya (Outer Glow)
+              // Lapisan 1: Pendaran Cahaya Luar (Outer Glow Neon Amber)
               Polyline(
                 points: traversedPoints,
-                strokeWidth: 12.0,
-                color: _isSatelliteMode
-                    ? const Color(0xFFFFD600).withAlpha(120)
-                    : AppColors.neonCyan.withAlpha(80),
+                strokeWidth: 14.0,
+                color: const Color(0xFFFFD600).withAlpha(130),
                 strokeCap: StrokeCap.round,
                 strokeJoin: StrokeJoin.round,
               ),
-              // Garis Inti Terang
+              // Lapisan 2: Berkas Emas Terang (Vibrant Electric Sun Gold)
               Polyline(
                 points: traversedPoints,
-                strokeWidth: 5.5,
-                color: _isSatelliteMode
-                    ? const Color(0xFFFFEA00)
-                    : AppColors.neonCyan,
+                strokeWidth: 6.5,
+                color: const Color(0xFFFFEA00),
+                strokeCap: StrokeCap.round,
+                strokeJoin: StrokeJoin.round,
+              ),
+              // Lapisan 3: Inti Sinar Laser Putih Terang (White Hot Core)
+              Polyline(
+                points: traversedPoints,
+                strokeWidth: 2.2,
+                color: Colors.white.withAlpha(230),
                 strokeCap: StrokeCap.round,
                 strokeJoin: StrokeJoin.round,
               ),
@@ -1040,100 +1041,50 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   }
 
   Widget _buildRiderMarker(double bearingDegrees) {
-    if (_isSatelliteMode) {
-      return Center(
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // 1. Pendaran Aura Luar Emas Lembut
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFD600).withAlpha(50),
-                shape: BoxShape.circle,
-              ),
-            ),
-            // 2. Lingkar Dalam Emas Bersinar
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFEA00).withAlpha(190),
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFFFFD600).withAlpha(220),
-                    blurRadius: 10,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-            ),
-            // 3. Bola Cahaya Inti Putih Terang (Glowing White Beacon seperti di video referensi)
-            Container(
-              width: 16,
-              height: 16,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFFFEA00), width: 1.5),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.white,
-                    blurRadius: 6,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Center(
       child: Stack(
         alignment: Alignment.center,
         children: [
-          // Efek Denyut Halo Bersinar
+          // 1. Pendaran Aura Luar Emas Lembut
           Container(
-            width: 44,
-            height: 44,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
-              color: AppColors.primaryOrange.withAlpha(60),
+              color: const Color(0xFFFFD600).withAlpha(60),
               shape: BoxShape.circle,
             ),
           ),
-          // Lingkaran Inti Atlet
+          // 2. Lingkar Dalam Emas Bersinar
           Container(
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppColors.electricAmber, AppColors.primaryOrange],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
+              color: const Color(0xFFFFEA00).withAlpha(200),
               shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
-              boxShadow: const [
+              boxShadow: [
                 BoxShadow(
-                  color: Colors.black54,
-                  blurRadius: 8,
-                  offset: Offset(0, 3),
+                  color: const Color(0xFFFFD600).withAlpha(240),
+                  blurRadius: 12,
+                  spreadRadius: 3,
                 ),
               ],
             ),
-            child: Transform.rotate(
-              angle: (_povMode ? 0.0 : bearingDegrees) *
-                  math.pi /
-                  180.0,
-              child: const Icon(
-                Icons.navigation_rounded,
-                size: 18,
-                color: Colors.white,
-              ),
+          ),
+          // 3. Bola Cahaya Inti Putih Terang (Glowing White Beacon seperti di video referensi)
+          Container(
+            width: 16,
+            height: 16,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFFFFEA00), width: 1.5),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.white,
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
             ),
           ),
         ],
