@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
+import 'package:flutter_map/flutter_map.dart';
 import '../models/coordinate_point.dart';
 
 /// Representasi koordinat tile (x, y) pada level zoom z
@@ -27,9 +28,9 @@ class TileCoord {
   String toString() => 'TileCoord(z: $z, x: $x, y: $y)';
 }
 
-/// Layanan pre-caching dan pre-buffering potongan gambar peta (OSM Tiles)
-/// untuk menjamin pemutaran animasi flyover rute berjalan mulus 60 FPS
-/// bahkan di perangkat berspesifikasi rendah / HP lemot.
+/// Layanan pre-caching dan pre-buffering potongan gambar peta (OSM & Citra Satelit Tiles)
+/// untuk menjamin pemutaran animasi flyover rute berjalan mulus 60 FPS dan hasil render
+/// video bebas kotak hitam (black tiles).
 class MapPrecacheService {
   static const String userAgent = 'online.nurmancloud.velora';
 
@@ -49,7 +50,7 @@ class MapPrecacheService {
     List<CoordinatePoint> coordinates, {
     int zoom = 16,
     bool includeNeighbors = true,
-    int maxTiles = 60,
+    int maxTiles = 150,
   }) {
     if (coordinates.isEmpty) return {};
 
@@ -83,16 +84,24 @@ class MapPrecacheService {
   }
 
   /// Memanaskan (pre-cache & decode) seluruh tile ke dalam in-memory cache Flutter
-  /// sehingga saat animasi rute diputar, gambar tile langsung tersedia tanpa latensi.
+  /// sehingga saat animasi rute diputar atau dirender menjadi video MP4, seluruh tile
+  /// langsung tersedia di RAM tanpa delay network.
   static Future<void> precacheRouteTiles({
     required List<CoordinatePoint> coordinates,
     BuildContext? context,
+    TileProvider? tileProvider,
+    TileLayer? tileLayer,
     int zoom = 16,
-    int maxTiles = 60,
-    String urlTemplate = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    int maxTiles = 150,
+    String urlTemplate = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     void Function(double progress, int loaded, int total)? onProgress,
-    Duration timeout = const Duration(milliseconds: 3500),
+    Duration timeout = const Duration(milliseconds: 6000),
+    void Function(Timer timer)? onTimerCreated,
   }) async {
+    // Perbesar kapasitas ImageCache Flutter agar tile tidak dibuang selama rendering
+    PaintingBinding.instance.imageCache.maximumSize = 2500;
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 250 << 20; // 250 MB
+
     final tiles = calculateRouteTiles(
       coordinates,
       zoom: zoom,
@@ -115,6 +124,7 @@ class MapPrecacheService {
         completer.complete();
       }
     });
+    onTimerCreated?.call(timer);
 
     final futures = <Future<void>>[];
     const headers = {'User-Agent': userAgent};
@@ -128,7 +138,11 @@ class MapPrecacheService {
           .replaceAll('{z}', '${tile.z}')
           .replaceAll('{x}', '${tile.x}')
           .replaceAll('{y}', '${tile.y}');
-      final imageProvider = NetworkImage(url, headers: headers);
+
+      // Gunakan ImageProvider yang persis sama dengan TileLayer flutter_map
+      final ImageProvider imageProvider = (tileProvider != null && tileLayer != null)
+          ? tileProvider.getImage(TileCoordinates(tile.x, tile.y, tile.z), tileLayer)
+          : NetworkImage(url, headers: headers);
 
       final tileCompleter = Completer<void>();
       final stream = imageProvider.resolve(config);

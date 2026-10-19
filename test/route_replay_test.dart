@@ -239,6 +239,7 @@ void main() {
       );
 
       // Preloading berjalan dan otomatis selesai di environment test
+      await tester.pump(const Duration(milliseconds: 5000));
       await tester.pumpAndSettle();
 
       // Kontrol pemutaran rute siap digunakan

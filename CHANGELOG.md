@@ -2,6 +2,24 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.0] - 2026-10-19
+
+### 🎬 Eliminasi Kotak Hitam Render, Kemiringan 3D Sinematik (~47°) & Perbaikan Dialog Simpan Galeri
+- **Eliminasi Total Kotak Hitam (Black Tiles) pada Render Video:**
+  - Menghubungkan engine `MapPrecacheService` secara langsung ke `TileProvider` native `flutter_map` sehingga seluruh potongan ubin citra satelit di sepanjang koridor rute diunduh dan didekode 100% ke RAM sebelum perekaman frame dimulai.
+  - Memperbesar kapasitas memori `ImageCache` Flutter menjadi 250 MB (2500 entri) untuk mencegah eviksi ubin peta selama rendering 240 frame.
+  - Menambahkan jeda rasterizer GPU `WidgetsBinding.instance.endOfFrame` dan sinkronisasi frame 30ms pada setiap langkah frame untuk memastikan rendering sempurna tanpa ubin kosong.
+- **Penyempurnaan Kemiringan Peta Perspektif 3D Aerial (~47° Tilt):**
+  - Mengatur sudut pandang kemiringan kamera menjadi **~47° (`rotateX(0.82)`)** dengan proyeksi perspektif `setEntry(3, 2, 0.001)`.
+  - Menggunakan `LayoutBuilder` responsif yang memperluas kanvas peta (160% lebar, 158% tinggi) sehingga ubin satelit menutupi seluruh layar tanpa sudut/tepi hitam yang terpotong.
+  - Menempatkan titik marker atlet secara stabil di posisi sepertiga bawah layar (Y = 61%), menghadap rute bentang alam luas ke depan menuju cakrawala.
+  - Menghadirkan gradien atmosfer horison langit biru gelap (`Color(0xFF0F172A)`) di bagian atas kanvas untuk menciptakan efek cakrawala bumi fotorealistis.
+- **Penyempurnaan Menu Berbagi & Dialog Konfirmasi Galeri:**
+  - Memperjelas opsi ekspor video di bottom sheet: *"Ekspor Video MP4 (Simpan ke Galeri & Bagikan)"* dengan badge hijau *"OTOMATIS TERSIMPAN KE GALERI"*.
+  - Menyematkan badge hijau konfirmasi *"Tersimpan Otomatis di Galeri Ponsel (Download/Velora/)"* pada dialog penyelesaian render.
+  - Menambahkan tombol *"MENU OPSI LAIN"* pada dialog akhir agar atlet dapat kembali ke menu opsi berbagi (seperti Rekam Layar Bersih atau Kartu Statistik) tanpa kehilangan menu.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.0` (`versionCode = 23`).
+
 ## [v1.0.4.9] - 2026-10-19
 
 ### 🛰️ Citra Satelit Nyata HD, Garis Emas Menyala & Resolusi Video Full HD 18 Mbps (Bebas Blur)

@@ -79,6 +79,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   double _preloadProgress = 0.0;
   int _preloadLoaded = 0;
   int _preloadTotal = 0;
+  Timer? _precacheTimer;
 
   // Matriks OpenStreetMap Mode Gelap Khas Velora
   static const List<double> _darkMatrix = <double>[
@@ -88,10 +89,40 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     0.00, 0.00, 0.00, 1,   0,
   ];
 
+  late final TileProvider _tileProvider;
+
+  TileLayer _buildTileLayer() {
+    return TileLayer(
+      urlTemplate: _isSatelliteMode
+          ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+          : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      userAgentPackageName: 'online.nurmancloud.velora',
+      tileProvider: _tileProvider,
+      panBuffer: 4,
+      keepBuffer: 16,
+      tileDisplay: _isRenderingVideo
+          ? const TileDisplay.instantaneous()
+          : const TileDisplay.fadeIn(
+              duration: Duration(milliseconds: 100),
+            ),
+      retinaMode: false,
+      maxNativeZoom: 19,
+      tileBuilder: (!_isSatelliteMode && _mapDarkTheme)
+          ? (context, tileWidget, tile) {
+              return ColorFiltered(
+                colorFilter: const ColorFilter.matrix(_darkMatrix),
+                child: tileWidget,
+              );
+            }
+          : null,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
+    _tileProvider = NetworkTileProvider();
 
     // 1. Hitung akumulasi jarak per titik koordinat
     _cumulativeDistances = _precomputeCumulativeDistances(widget.session.coordinates);
@@ -145,8 +176,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       await MapPrecacheService.precacheRouteTiles(
         coordinates: widget.session.coordinates,
         context: context,
+        tileProvider: _tileProvider,
+        tileLayer: _buildTileLayer(),
         zoom: 16,
-        maxTiles: 60,
+        maxTiles: 120,
         urlTemplate: _isSatelliteMode
             ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
             : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -159,7 +192,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             });
           }
         },
-        timeout: const Duration(milliseconds: 3500),
+        timeout: const Duration(milliseconds: 4500),
+        onTimerCreated: (t) => _precacheTimer = t,
       );
     } catch (_) {}
 
@@ -405,11 +439,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
   @override
   void dispose() {
+    _precacheTimer?.cancel();
     _chimeTimer?.cancel();
     _recordTooltipTimer?.cancel();
     _animController.removeListener(_onAnimationTick);
     _animController.dispose();
     _mapController.dispose();
+    _tileProvider.dispose();
     super.dispose();
   }
 
@@ -474,24 +510,67 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-          // 1. Lapisan Peta Citra Satelit / OSM Interaktif (Mendukung Perspektif 3D Menyamping)
+          // 1. Lapisan Peta Citra Satelit / OSM Interaktif (Mendukung Perspektif 3D Menyamping Sinematik)
           _is3dTilted
-              ? ClipRect(
-                  child: Transform(
-                    alignment: const FractionalOffset(0.5, 0.70),
-                    transform: Matrix4.identity()
-                      ..setEntry(3, 2, 0.0004)
-                      ..rotateX(0.35),
-                    child: Transform.scale(
-                      scale: 1.06,
-                      child: _buildFlutterMap(
-                        currentInterpPos: currentInterpPos,
-                        fullRoutePoints: fullRoutePoints,
-                        traversedPoints: traversedPoints,
-                        currentDistanceM: currentDistanceM,
+              ? LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenW = constraints.maxWidth;
+                    final screenH = constraints.maxHeight;
+                    return ClipRect(
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          // 1. Latar Belakang Luar Angkasa / Horizon Biru Gelap
+                          const ColoredBox(color: Color(0xFF0F172A)),
+
+                          // 2. Map Satelit 3D Diperluas & Dimiringkan Sinematik (~47° Tilt Oblique Perspektif)
+                          Positioned(
+                            top: -screenH * 0.18,
+                            bottom: -screenH * 0.40,
+                            left: -screenW * 0.30,
+                            right: -screenW * 0.30,
+                            child: Transform(
+                              alignment: const FractionalOffset(0.5, 0.5),
+                              transform: Matrix4.identity()
+                                ..setEntry(3, 2, 0.001)
+                                ..rotateX(0.82), // ~47° kemiringan perspektif 3D menyamping sinematik
+                              child: _buildFlutterMap(
+                                currentInterpPos: currentInterpPos,
+                                fullRoutePoints: fullRoutePoints,
+                                traversedPoints: traversedPoints,
+                                currentDistanceM: currentDistanceM,
+                              ),
+                            ),
+                          ),
+
+                          // 3. Efek Gradien Horison / Atmosfer Langit di Bagian Atas
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: screenH * 0.26,
+                            child: IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      const Color(0xFF0B1120),
+                                      const Color(0xFF0F172A).withAlpha(220),
+                                      const Color(0xFF1E293B).withAlpha(120),
+                                      Colors.transparent,
+                                    ],
+                                    stops: const [0.0, 0.35, 0.70, 1.0],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                  ),
+                    );
+                  },
                 )
               : _buildFlutterMap(
                   currentInterpPos: currentInterpPos,
@@ -748,6 +827,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             const SizedBox(height: 16),
             TextButton.icon(
               onPressed: () {
+                _precacheTimer?.cancel();
                 setState(() {
                   _isPreloadingTiles = false;
                 });
@@ -785,7 +865,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         initialZoom: 16.0,
         minZoom: 4.0,
         maxZoom: 19.0,
-        backgroundColor: AppColors.darkBackground,
+        backgroundColor: _isSatelliteMode
+            ? const Color(0xFF1E293B)
+            : AppColors.darkBackground,
         onMapReady: () {
           if (mounted) {
             _isMapReady = true;
@@ -794,29 +876,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       ),
       children: [
         // Tile Citra Satelit HD Asli (ESRI World Imagery) atau OpenStreetMap
-        TileLayer(
-          urlTemplate: _isSatelliteMode
-              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
-              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-          userAgentPackageName: 'online.nurmancloud.velora',
-          panBuffer: 2,
-          keepBuffer: 6,
-          tileDisplay: _isRenderingVideo
-              ? const TileDisplay.instantaneous()
-              : const TileDisplay.fadeIn(
-                  duration: Duration(milliseconds: 100),
-                ),
-          retinaMode: true,
-          maxNativeZoom: 19,
-          tileBuilder: (!_isSatelliteMode && _mapDarkTheme)
-              ? (context, tileWidget, tile) {
-                  return ColorFiltered(
-                    colorFilter: const ColorFilter.matrix(_darkMatrix),
-                    child: tileWidget,
-                  );
-                }
-              : null,
-        ),
+        _buildTileLayer(),
 
         // Garis Rute Keseluruhan (Muted Transparan di atas foto satelit)
         PolylineLayer(
@@ -1500,6 +1560,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     double exportProgress = 0.0;
     int currentFrameNum = 0;
     const totalFrames = 240; // ~8 detik video flyover super mulus pada 30 FPS
+    String renderPhase = 'precache'; // 'precache' atau 'encode'
+    int precacheLoaded = 0;
+    int precacheTotal = 0;
     StateSetter? dialogSetState;
 
     // 2. Aktifkan clean record mode & rendering flag
@@ -1517,20 +1580,30 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         return StatefulBuilder(
           builder: (context, setDialogState) {
             dialogSetState = setDialogState;
-            final percent = (exportProgress * 100).clamp(0, 100).toInt();
+            final isPrecache = renderPhase == 'precache';
+            final percent = isPrecache
+                ? (precacheTotal > 0 ? ((precacheLoaded / precacheTotal) * 100).toInt() : 0)
+                : (exportProgress * 100).clamp(0, 100).toInt();
+
             return AlertDialog(
               backgroundColor: AppColors.cardSurface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(24),
                 side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
               ),
-              title: const Row(
+              title: Row(
                 children: [
-                  Icon(Icons.movie_creation_rounded, color: AppColors.primaryOrange, size: 26),
-                  SizedBox(width: 10),
-                  Text(
-                    'Merender Video Flyover',
-                    style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                  Icon(
+                    isPrecache ? Icons.cloud_download_rounded : Icons.movie_creation_rounded,
+                    color: AppColors.primaryOrange,
+                    size: 26,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      isPrecache ? 'Menyiapkan Peta Satelit HD' : 'Merender Video Flyover 1080p',
+                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -1538,15 +1611,19 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Mengenkode animasi rute flyover ke berkas MP4 beresolusi tinggi...',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+                  Text(
+                    isPrecache
+                        ? 'Memuat potongan citra satelit rute ke memori agar hasil video bebas kotak hitam...'
+                        : 'Mengenkode animasi flyover ke berkas MP4 Full HD (18 Mbps) beresolusi tinggi...',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
                   ),
                   const SizedBox(height: 18),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
                     child: LinearProgressIndicator(
-                      value: exportProgress,
+                      value: isPrecache
+                          ? (precacheTotal > 0 ? (precacheLoaded / precacheTotal).clamp(0.0, 1.0) : null)
+                          : exportProgress,
                       backgroundColor: Colors.white12,
                       valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
                       minHeight: 8,
@@ -1557,7 +1634,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Frame $currentFrameNum / $totalFrames',
+                        isPrecache
+                            ? 'Tile $precacheLoaded / $precacheTotal'
+                            : 'Frame $currentFrameNum / $totalFrames',
                         style: const TextStyle(
                           color: AppColors.textMuted,
                           fontSize: 11,
@@ -1618,7 +1697,46 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       },
     );
 
-    // 3. Jalankan loop render frame-by-frame
+    // 3. Pre-cache 100% tile rute ke RAM sebelum mulai render agar video bebas kotak hitam
+    try {
+      await MapPrecacheService.precacheRouteTiles(
+        coordinates: widget.session.coordinates,
+        context: context,
+        tileProvider: _tileProvider,
+        tileLayer: _buildTileLayer(),
+        zoom: 16,
+        maxTiles: 200,
+        urlTemplate: _isSatelliteMode
+            ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        onProgress: (progress, loaded, total) {
+          precacheLoaded = loaded;
+          precacheTotal = total;
+          if (dialogSetState != null) {
+            dialogSetState!(() {});
+          }
+        },
+        timeout: const Duration(seconds: 12),
+      );
+    } catch (_) {}
+
+    if (isCancelled) {
+      if (mounted) {
+        setState(() {
+          _cleanRecordMode = false;
+          _isRenderingVideo = false;
+        });
+      }
+      return;
+    }
+
+    // Ubah fase ke 'encode'
+    renderPhase = 'encode';
+    if (dialogSetState != null) {
+      dialogSetState!(() {});
+    }
+
+    // 4. Jalankan loop render frame-by-frame
     String? exportedVideoPath;
     try {
       exportedVideoPath = await VideoExportService.renderWidgetToVideo(
@@ -1634,7 +1752,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           _onAnimationTick();
           if (mounted) setState(() {});
           await WidgetsBinding.instance.endOfFrame;
-          await Future.delayed(const Duration(milliseconds: 10));
+          await Future.delayed(const Duration(milliseconds: 30));
         },
         onProgress: (progress, currentFrame, total) {
           exportProgress = progress;
@@ -1648,7 +1766,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       debugPrint('Error during video render: $e');
     }
 
-    // 4. Tutup dialog progress jika masih terbuka
+    // 5. Tutup dialog progress jika masih terbuka
     if (mounted && Navigator.canPop(context)) {
       Navigator.pop(context);
     }
@@ -1663,7 +1781,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     if (isCancelled) return;
 
-    // 5. Tampilkan dialog hasil video MP4 yang siap dibagikan ke sosmed
+    // 6. Tampilkan dialog hasil video MP4 yang siap dibagikan ke sosmed dan tersimpan di galeri
     if (exportedVideoPath != null && mounted) {
       final fileName = exportedVideoPath.split('/').last;
       showDialog<void>(
@@ -1688,9 +1806,36 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Badge Tersimpan di Galeri Ponsel
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.neonGreen.withAlpha(25),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.neonGreen.withAlpha(120), width: 1.2),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.download_done_rounded, color: AppColors.neonGreen, size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Tersimpan Otomatis di Galeri Ponsel',
+                        style: TextStyle(
+                          color: AppColors.neonGreen,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               const Text(
-                'Video flyover rute MP4 Full HD (1080p) telah selesai dibuat dan tersimpan otomatis di Galeri ponsel (folder Download/Velora).',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+                'Video flyover rute MP4 Full HD (1080p) telah selesai dibuat dan tersimpan permanen di memori ponsel. Anda dapat langsung membagikannya atau kembali ke menu opsi.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
               ),
               const SizedBox(height: 12),
               Container(
@@ -1725,7 +1870,22 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('TUTUP', style: TextStyle(color: AppColors.textMuted)),
+              child: const Text('SELESAI', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showShareVideoSheet();
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.borderHighlight),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: const Icon(Icons.menu_rounded, size: 17, color: Colors.white70),
+              label: const Text(
+                'MENU OPSI LAIN',
+                style: TextStyle(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
             ),
             ElevatedButton.icon(
               onPressed: () async {
@@ -1741,7 +1901,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ),
               icon: const Icon(Icons.share_rounded, size: 18, color: Colors.white),
               label: const Text(
-                'BAGIKAN VIDEO SEKARANG',
+                'BAGIKAN VIDEO',
                 style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12.5),
               ),
             ),
@@ -2029,10 +2189,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               _buildShareActionTile(
                 icon: Icons.movie_creation_rounded,
                 iconColor: AppColors.primaryOrange,
-                title: 'Ekspor Video Flyover (MP4)',
+                title: 'Ekspor Video MP4 (Simpan ke Galeri & Bagikan)',
                 subtitle:
-                    'Render rute animasi menjadi berkas video MP4 siap bagikan ke WhatsApp, Reels, TikTok, atau simpan ke memori HP.',
-                badge: 'OTOMATIS & PRAKTIS',
+                    'Video flyover rute MP4 Full HD otomatis dirender, disimpan langsung ke Galeri HP (Download/Velora), dan siap dibagikan ke WhatsApp, Reels, atau TikTok.',
+                badge: 'OTOMATIS TERSIMPAN KE GALERI',
                 badgeColor: AppColors.neonGreen,
                 onTap: () {
                   Navigator.pop(ctx);
