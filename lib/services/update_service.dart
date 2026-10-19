@@ -53,11 +53,16 @@ class UpdateService {
 
       final currentVersion = packageInfo.version;
 
+      final checkUri = Uri.parse(
+        '$latestReleaseApiUrl?t=${DateTime.now().millisecondsSinceEpoch}',
+      );
       final response = await http.get(
-        Uri.parse(latestReleaseApiUrl),
+        checkUri,
         headers: {
           'Accept': 'application/vnd.github+json',
           'User-Agent': 'Velora-App',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
         },
       ).timeout(const Duration(seconds: 10));
 
