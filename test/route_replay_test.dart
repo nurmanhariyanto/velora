@@ -103,6 +103,18 @@ void main() {
       await tester.tap(followBtn);
       await tester.pumpAndSettle();
       expect(find.byTooltip('Kamera Bebas'), findsOneWidget);
+
+      // Uji Tombol Kamera Mode Flyover Stabil (Utara) Default & Beralih ke POV
+      final stableFlyoverBtn = find.byTooltip('Mode Flyover Stabil (Utara)');
+      expect(stableFlyoverBtn, findsOneWidget);
+      await tester.tap(stableFlyoverBtn);
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Mode POV Berputar Aktif'), findsOneWidget);
+
+      // Beralih kembali ke Mode Flyover Stabil
+      await tester.tap(find.byTooltip('Mode POV Berputar Aktif'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Mode Flyover Stabil (Utara)'), findsOneWidget);
     });
 
     testWidgets('Menampilkan pesan jika koordinat tidak cukup untuk animasi',

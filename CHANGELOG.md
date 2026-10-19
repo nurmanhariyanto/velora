@@ -2,6 +2,20 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.4.7] - 2026-10-19
+
+### 🕊️ Flyover Rute Super Halus & Peta Stabil Bebas Pusing (Relive / Strava Style)
+- **Peta Stabil Menghadap Utara (Anti-Pusing):**
+  - Mengeliminasi putaran peta yang terlalu drastis saat atlet berbelok di persimpangan jalan, yang sebelumnya dapat menimbulkan rasa pusing bagi penonton.
+  - Orientasi peta kini dijadikan default **Peta Stabil (Utara Tetap, rotasi 0.0)** sehingga daratan, nama jalan, dan kontur lingkungan tetap tegak dan tenang.
+  - Mode POV kamera berputar tetap tersedia sebagai opsi manual via tombol AppBar bagi atlet yang menginginkannya.
+- **Ikon Penunjuk Arah Atlet Dinamis di Peta Tenang:**
+  - Ikon penunjuk arah atlet (`Icons.navigation_rounded`) berputar halus mengikuti sudut laju kendaraan (*smoothed bearing*), sementara peta di bawahnya tetap stabil.
+- **Interpolasi Sub-Frame (Ultra Smooth Movement):**
+  - Mengimplementasikan interpolasi posisi sub-frame antara dua titik GPS terdekat sehingga pergerakan kamera, ujung garis polyline, dan penunjuk avatar mengalir lembut (*silky smooth*) tanpa hentakan atau patah-patah.
+  - Angka metrik telemetri (kecepatan, jarak, elevasi) juga terinterpolasi secara mulus di setiap frame.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.4.7` (`versionCode = 20`).
+
 ## [v1.0.4.6] - 2026-10-19
 
 ### 🎥 Sudut Pandang Kamera POV Flyover Dinamis & Video Full HD 1080p (Bebas Blur)

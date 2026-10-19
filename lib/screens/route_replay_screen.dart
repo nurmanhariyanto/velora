@@ -51,7 +51,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   bool _autoFollow = true;
   bool _mapDarkTheme = true;
   bool _isMapReady = false;
-  bool _povMode = true; // Mode POV Flyover kamera berputar mengikuti arah hadap atlet
+  bool _povMode = false; // Default: Mode Flyover Stabil & Mulus (Peta Menghadap Utara, Bebas Pusing)
   double _smoothedBearing = 0.0;
 
   // Titik aktif & notifikasi milestone
@@ -211,10 +211,21 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     final totalPoints = widget.session.coordinates.length;
     final rawIndex = progress * (totalPoints - 1);
     final index = rawIndex.floor().clamp(0, totalPoints - 1);
+    final nextIdx = (index + 1).clamp(0, totalPoints - 1);
+    final fraction = rawIndex - index;
 
     final currentPoint = widget.session.coordinates[index];
+    final nextPoint = widget.session.coordinates[nextIdx];
+
+    // Posisi terinterpolasi sub-frame yang sangat halus (menghilangkan lonjakan patah-patah)
+    final interpLat = currentPoint.latitude + (nextPoint.latitude - currentPoint.latitude) * fraction;
+    final interpLng = currentPoint.longitude + (nextPoint.longitude - currentPoint.longitude) * fraction;
+    final targetPos = LatLng(interpLat, interpLng);
+
+    // Hitung jarak kumulatif terinterpolasi
     final currentDistMeters = _cumulativeDistances.isNotEmpty
-        ? _cumulativeDistances[index]
+        ? (_cumulativeDistances[index] +
+            (_cumulativeDistances[nextIdx] - _cumulativeDistances[index]) * fraction)
         : 0.0;
 
     // Periksa apakah melintasi kilometer baru untuk menampilkan pop-up chime
@@ -226,11 +237,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         orElse: () => TrackMilestone(
           type: TrackMilestoneType.kmSplit,
           kmNumber: currentKm,
-          latitude: currentPoint.latitude,
-          longitude: currentPoint.longitude,
+          latitude: targetPos.latitude,
+          longitude: targetPos.longitude,
           distanceMeters: currentDistMeters,
-          elevation: currentPoint.elevation,
-          speedKmh: currentPoint.speedKmh,
+          elevation: currentPoint.elevation + (nextPoint.elevation - currentPoint.elevation) * fraction,
+          speedKmh: currentPoint.speedKmh + (nextPoint.speedKmh - currentPoint.speedKmh) * fraction,
           title: 'Kilometer $currentKm Tercapai',
           description: 'Split rute aktif',
         ),
@@ -238,59 +249,57 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       _triggerMilestoneChime(matchedSplit);
     }
 
+    // Hitung arah hadap kendaraan (bearing) ke titik rute berikutnya
+    final rawBearing = Haversine.calculateBearing(
+      currentPoint.latitude,
+      currentPoint.longitude,
+      nextPoint.latitude,
+      nextPoint.longitude,
+    );
+
+    // Interpolasi sudut rotasi halus untuk ikon penunjuk arah atlet
+    if (_smoothedBearing == 0.0) {
+      _smoothedBearing = rawBearing;
+    } else {
+      double diff = (rawBearing - _smoothedBearing) % 360;
+      if (diff > 180) diff -= 360;
+      if (diff < -180) diff += 360;
+      _smoothedBearing = (_smoothedBearing + diff * 0.25) % 360;
+    }
+
     // Kamera mengikuti posisi titik penunjuk atlet jika auto-follow aktif
-    // Throttled (min 250ms atau delta jarak >= 25 meter) agar request tile OSM stabil
-    // dan tidak mengalami rate-limiting yang memicu kotak hitam/putih.
     if (_autoFollow && _isMapReady) {
       final now = DateTime.now();
-      final targetPos = LatLng(currentPoint.latitude, currentPoint.longitude);
       final shouldMoveCamera = _isRenderingVideo ||
           _lastCameraMoveTime == null ||
-          now.difference(_lastCameraMoveTime!).inMilliseconds >= 200 ||
+          now.difference(_lastCameraMoveTime!).inMilliseconds >= 80 ||
           (_lastCameraPos != null &&
               Haversine.calculateDistance(
                     _lastCameraPos!.latitude,
                     _lastCameraPos!.longitude,
                     targetPos.latitude,
                     targetPos.longitude,
-                  ) >= 20.0);
+                  ) >= 8.0);
 
       if (shouldMoveCamera) {
         _lastCameraMoveTime = now;
         _lastCameraPos = targetPos;
         try {
-          if (_povMode || _cleanRecordMode || _isRenderingVideo) {
-            // Hitung arah hadap kendaraan (bearing) ke titik rute berikutnya
-            final nextIdx = (index + 1).clamp(0, totalPoints - 1);
-            final nextPt = widget.session.coordinates[nextIdx];
-            final rawBearing = Haversine.calculateBearing(
-              currentPoint.latitude,
-              currentPoint.longitude,
-              nextPt.latitude,
-              nextPt.longitude,
-            );
-
-            // Interpolasi rotasi sudut agar pergerakan kamera halus seperti kamera drone POV
-            if (_smoothedBearing == 0.0) {
-              _smoothedBearing = rawBearing;
-            } else {
-              double diff = (rawBearing - _smoothedBearing) % 360;
-              if (diff > 180) diff -= 360;
-              if (diff < -180) diff += 360;
-              _smoothedBearing = (_smoothedBearing + diff * 0.35) % 360;
-            }
-
-            // Putar kamera ke -_smoothedBearing agar arah laju kendaraan selalu menghadap ke atas layar (POV)
-            final targetZoom = _isRenderingVideo ? 16.5 : _mapController.camera.zoom;
+          final targetZoom = _isRenderingVideo ? 16.0 : _mapController.camera.zoom;
+          if (_povMode) {
+            // Mode POV Berputar (opsional manual jika diaktifkan atlet)
             _mapController.moveAndRotate(
               targetPos,
               targetZoom,
               -_smoothedBearing,
             );
           } else {
+            // Mode Flyover Mulus & Stabil (Relive/Strava style):
+            // Peta tenang menghadap Utara tetap (rotasi 0.0), kamera meluncur mulus
+            // tanpa berputar-putar yang membuat pusing.
             _mapController.moveAndRotate(
               targetPos,
-              _mapController.camera.zoom,
+              targetZoom,
               0.0,
             );
           }
@@ -417,38 +426,38 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     final totalPoints = coords.length;
     final progress = _animController.value;
-    final currentIndex = (progress * (totalPoints - 1)).floor().clamp(0, totalPoints - 1);
+    final rawIndex = progress * (totalPoints - 1);
+    final currentIndex = rawIndex.floor().clamp(0, totalPoints - 1);
     final nextIndex = (currentIndex + 1).clamp(0, totalPoints - 1);
+    final fraction = rawIndex - currentIndex;
 
     final currentPt = coords[currentIndex];
     final nextPt = coords[nextIndex];
 
-    // Hitung sudut bearing/rotasi arah kendaraan
-    final bearing = Haversine.calculateBearing(
-      currentPt.latitude,
-      currentPt.longitude,
-      nextPt.latitude,
-      nextPt.longitude,
-    );
+    // Posisi sub-frame terinterpolasi untuk penunjuk atlet & ujung polyline
+    final interpLat = currentPt.latitude + (nextPt.latitude - currentPt.latitude) * fraction;
+    final interpLng = currentPt.longitude + (nextPt.longitude - currentPt.longitude) * fraction;
+    final currentInterpPos = LatLng(interpLat, interpLng);
 
-    // Titik yang sudah dilalui hingga saat ini
-    final traversedPoints = coords
-        .sublist(0, currentIndex + 1)
-        .map((p) => LatLng(p.latitude, p.longitude))
-        .toList();
+    // Titik yang sudah dilalui hingga saat ini, ditambah posisi terinterpolasi di ujungnya
+    final traversedPoints = <LatLng>[
+      ...coords.sublist(0, currentIndex + 1).map((p) => LatLng(p.latitude, p.longitude)),
+      currentInterpPos,
+    ];
 
     // Seluruh rute penuh sebagai latar belakang
     final fullRoutePoints = coords
         .map((p) => LatLng(p.latitude, p.longitude))
         .toList();
 
-    // Metrik dinamis berjalan
+    // Metrik dinamis berjalan terinterpolasi
     final currentDistanceM = _cumulativeDistances.isNotEmpty
-        ? _cumulativeDistances[currentIndex]
+        ? (_cumulativeDistances[currentIndex] +
+            (_cumulativeDistances[nextIndex] - _cumulativeDistances[currentIndex]) * fraction)
         : 0.0;
     final currentDistKm = currentDistanceM / 1000.0;
-    final currentSpeed = currentPt.speedKmh;
-    final currentElevation = currentPt.elevation;
+    final currentSpeed = currentPt.speedKmh + (nextPt.speedKmh - currentPt.speedKmh) * fraction;
+    final currentElevation = currentPt.elevation + (nextPt.elevation - currentPt.elevation) * fraction;
     final elapsedSec = ((currentPt.timestamp - coords.first.timestamp) / 1000)
         .round()
         .clamp(0, widget.session.durationSeconds);
@@ -553,10 +562,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
                   // Penunjuk Avatar Atlet yang Sedang Bergerak Maju
                   Marker(
-                    point: LatLng(currentPt.latitude, currentPt.longitude),
+                    point: currentInterpPos,
                     width: 52,
                     height: 52,
-                    child: _buildRiderMarker(bearing),
+                    child: _buildRiderMarker(_smoothedBearing),
                   ),
                 ],
               ),
@@ -836,8 +845,6 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   }
 
   Widget _buildRiderMarker(double bearingDegrees) {
-    final isRide = widget.session.sportsType == SportsType.ride;
-
     return Center(
       child: Stack(
         alignment: Alignment.center,
@@ -872,13 +879,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ],
             ),
             child: Transform.rotate(
-              angle: ((_povMode || _cleanRecordMode || _isRenderingVideo)
-                      ? 0.0
-                      : bearingDegrees) *
+              angle: (_povMode ? 0.0 : bearingDegrees) *
                   math.pi /
                   180.0,
-              child: Icon(
-                isRide ? Icons.navigation_rounded : Icons.directions_run_rounded,
+              child: const Icon(
+                Icons.navigation_rounded,
                 size: 18,
                 color: Colors.white,
               ),
@@ -978,14 +983,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ],
             ),
           ),
-          // Tombol Mode POV Flyover (Chase Cam vs 2D Datar)
+          // Tombol Mode POV Flyover (Chase Cam vs Flyover Stabil Utara)
           IconButton(
             icon: Icon(
               _povMode ? Icons.explore_rounded : Icons.explore_off_rounded,
               color: _povMode ? AppColors.electricAmber : Colors.white60,
               size: 22,
             ),
-            tooltip: _povMode ? 'Mode POV Kamera Aktif' : 'Mode Kamera Datar (Utara)',
+            tooltip: _povMode ? 'Mode POV Berputar Aktif' : 'Mode Flyover Stabil (Utara)',
             onPressed: () {
               setState(() {
                 _povMode = !_povMode;
