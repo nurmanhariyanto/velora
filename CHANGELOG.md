@@ -2,6 +2,21 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.7] - 2026-10-20
+
+### 📲 Perbaikan Tuntas Berbagi Video Flyover ke WhatsApp & Instagram (Bebas Force Close & Feedback Visual Instan)
+- **Konfigurasi FileProvider Android Terintegrasi (`<root-path>`):**
+  - Menambahkan konfigurasi `<root-path name="root" path="." />` pada `file_paths.xml` sehingga `FileProvider.getUriForFile` dapat memetakan berkas video MP4 yang tersimpan di direktori aplikasi internal (`app_flutter/velora_videos/`) ke `content://` URI resmi Android tanpa menimbulkan `IllegalArgumentException`.
+- **Deklarasi Visibilitas Paket Android 11+ (`<queries>`):**
+  - Mendaftarkan paket WhatsApp (`com.whatsapp`), WhatsApp Business (`com.whatsapp.w4b`), dan filter MIME type video (`video/*`) pada `<queries>` di `AndroidManifest.xml` agar `resolveActivity` dapat mendeteksi keberadaan aplikasi perpesanan dan media sosial secara akurat di Android 11 ke atas.
+- **Izin Berkas Native ClipData & Dukungan WhatsApp Business:**
+  - Melampirkan `ClipData.newRawUri("", uri)` serta pemanggilan eksplisit `context.grantUriPermission()` pada `MainActivity.kt` untuk memastikan aplikasi penerima (WhatsApp/Instagram) memperoleh hak baca berkas video secara aman dan legal tanpa kendala `SecurityException`.
+  - Menambahkan deteksi otomatis untuk WhatsApp Business (`com.whatsapp.w4b`) jika WhatsApp standar tidak terpasang.
+- **Indikator Visual & Fallback Pemilih Berbagi Sistem:**
+  - Menampilkan notifikasi visual interaktif (SnackBar dengan animasi loading) saat tombol "Bagikan ke WhatsApp", "Bagikan ke Instagram", atau "Bagikan ke Aplikasi Lainnya" ditekan, memberikan kepastian langsung kepada pengguna bahwa proses berbagi sedang berjalan.
+  - Menyediakan *graceful fallback* ke dialog pemilih berbagi sistem bawaan Android jika aplikasi tujuan tidak terpasang di perangkat.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.7` (`versionCode = 30`).
+
 ## [v1.0.5.6] - 2026-10-20
 
 ### 📺 Peningkatan Ketajaman Video HD (Retina Mode Zoom 17) & Fitur Render di Latar Belakang (Non-Blocking)

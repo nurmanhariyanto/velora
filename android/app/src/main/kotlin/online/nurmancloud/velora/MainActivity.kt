@@ -168,27 +168,42 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "shareToWhatsApp" -> {
                     try {
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = mimeType
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            putExtra(Intent.EXTRA_TEXT, text)
-                            setPackage("com.whatsapp")
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        val pm = context.packageManager
+                        val waPackages = listOf("com.whatsapp", "com.whatsapp.w4b")
+                        var targetPackage: String? = null
+                        for (pkg in waPackages) {
+                            try {
+                                pm.getPackageInfo(pkg, 0)
+                                targetPackage = pkg
+                                break
+                            } catch (_: Exception) {}
                         }
-                        if (intent.resolveActivity(context.packageManager) != null) {
+
+                        if (targetPackage != null) {
+                            context.grantUriPermission(targetPackage, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = mimeType
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                putExtra(Intent.EXTRA_TEXT, text)
+                                clipData = android.content.ClipData.newRawUri("", uri)
+                                setPackage(targetPackage)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
                             context.startActivity(intent)
                             result.success(true)
                         } else {
-                            val chooser = Intent.createChooser(
-                                Intent(Intent.ACTION_SEND).apply {
-                                    type = mimeType
-                                    putExtra(Intent.EXTRA_STREAM, uri)
-                                    putExtra(Intent.EXTRA_TEXT, text)
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                },
-                                "Bagikan via WhatsApp"
-                            ).apply {
+                            // Fallback jika WhatsApp tidak terpasang: buka dialog pemilihan aplikasi sistem
+                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = mimeType
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                putExtra(Intent.EXTRA_TEXT, text)
+                                clipData = android.content.ClipData.newRawUri("", uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            val chooser = Intent.createChooser(sendIntent, "Bagikan via WhatsApp").apply {
+                                clipData = android.content.ClipData.newRawUri("", uri)
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
                             context.startActivity(chooser)
@@ -200,42 +215,61 @@ class MainActivity : FlutterActivity() {
                 }
                 "shareToInstagramStory" -> {
                     try {
-                        // Standard Intent Resmi Meta untuk Instagram Stories
-                        val storyIntent = Intent("com.instagram.share.ADD_TO_STORY").apply {
-                            setDataAndType(uri, mimeType)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
-                        if (storyIntent.resolveActivity(context.packageManager) != null) {
-                            context.startActivity(storyIntent)
-                            result.success(true)
-                        } else {
-                            // Fallback ke paket utama Instagram Android
-                            val igIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = mimeType
-                                putExtra(Intent.EXTRA_STREAM, uri)
+                        val pm = context.packageManager
+                        var isIgInstalled = false
+                        try {
+                            pm.getPackageInfo("com.instagram.android", 0)
+                            isIgInstalled = true
+                        } catch (_: Exception) {}
+
+                        if (isIgInstalled) {
+                            context.grantUriPermission("com.instagram.android", uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            
+                            // 1. Coba Intent Resmi Meta untuk Instagram Stories
+                            val storyIntent = Intent("com.instagram.share.ADD_TO_STORY").apply {
+                                setDataAndType(uri, mimeType)
+                                putExtra("source_application", context.packageName)
+                                clipData = android.content.ClipData.newRawUri("", uri)
                                 setPackage("com.instagram.android")
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             }
-                            if (igIntent.resolveActivity(context.packageManager) != null) {
+                            if (storyIntent.resolveActivity(pm) != null) {
+                                context.startActivity(storyIntent)
+                                result.success(true)
+                                return@setMethodCallHandler
+                            }
+
+                            // 2. Fallback: kirim langsung via Intent.ACTION_SEND ke paket Instagram
+                            val igIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = mimeType
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                clipData = android.content.ClipData.newRawUri("", uri)
+                                setPackage("com.instagram.android")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            if (igIntent.resolveActivity(pm) != null) {
                                 context.startActivity(igIntent)
                                 result.success(true)
-                            } else {
-                                val chooser = Intent.createChooser(
-                                    Intent(Intent.ACTION_SEND).apply {
-                                        type = mimeType
-                                        putExtra(Intent.EXTRA_STREAM, uri)
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    },
-                                    "Bagikan ke Instagram Story"
-                                ).apply {
-                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                }
-                                context.startActivity(chooser)
-                                result.success(true)
+                                return@setMethodCallHandler
                             }
                         }
+
+                        // 3. Fallback umum: pemilih aplikasi sistem
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = mimeType
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            clipData = android.content.ClipData.newRawUri("", uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        val chooser = Intent.createChooser(sendIntent, "Bagikan ke Instagram").apply {
+                            clipData = android.content.ClipData.newRawUri("", uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(chooser)
+                        result.success(true)
                     } catch (e: Exception) {
                         result.error("SHARE_ERROR", e.message, null)
                     }

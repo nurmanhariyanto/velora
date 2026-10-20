@@ -2420,6 +2420,27 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 badgeColor: const Color(0xFFE1306C),
                 onTap: () async {
                   Navigator.pop(ctx);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFFE1306C),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Membuka Instagram...'),
+                        ],
+                      ),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                   await VideoExportService.shareToInstagram(videoPath);
                 },
               ),
@@ -2434,6 +2455,27 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 badgeColor: const Color(0xFF25D366),
                 onTap: () async {
                   Navigator.pop(ctx);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF25D366),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Membuka WhatsApp...'),
+                        ],
+                      ),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                   await VideoExportService.shareToWhatsApp(videoPath);
                 },
               ),
@@ -2446,6 +2488,27 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 subtitle: 'Pilih aplikasi lain seperti TikTok, Telegram, Drive, dsb.',
                 onTap: () async {
                   Navigator.pop(ctx);
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.primaryOrange,
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Membuka menu berbagi...'),
+                        ],
+                      ),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                   await VideoExportService.shareVideo(
                     videoPath,
                     text: 'Flyover Rute Latihan • Velora',

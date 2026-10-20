@@ -211,11 +211,17 @@ class VideoExportService {
           'shareToInstagramStory',
           {'filePath': filePath},
         );
-        return result ?? false;
+        if (result == true) return true;
       }
-      return false;
     } catch (e) {
       debugPrint('VideoExportService: Gagal share ke Instagram: $e');
+    }
+    // Fallback otomatis membuka pemilih berbagi sistem
+    try {
+      await shareVideo(filePath);
+      return true;
+    } catch (e) {
+      debugPrint('VideoExportService: Fallback shareVideo gagal: $e');
       return false;
     }
   }
@@ -228,11 +234,17 @@ class VideoExportService {
           'shareToWhatsApp',
           {'filePath': filePath, 'text': text ?? 'Flyover Rute Latihan • Velora'},
         );
-        return result ?? false;
+        if (result == true) return true;
       }
-      return false;
     } catch (e) {
       debugPrint('VideoExportService: Gagal share ke WhatsApp: $e');
+    }
+    // Fallback otomatis membuka pemilih berbagi sistem
+    try {
+      await shareVideo(filePath, text: text);
+      return true;
+    } catch (e) {
+      debugPrint('VideoExportService: Fallback shareVideo gagal: $e');
       return false;
     }
   }
