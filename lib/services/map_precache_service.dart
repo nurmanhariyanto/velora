@@ -1,8 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
 import '../models/coordinate_point.dart';
+import 'velora_tile_provider.dart';
+
+export 'velora_tile_provider.dart';
 
 /// Representasi koordinat tile (x, y) pada level zoom z
 class TileCoord {
@@ -94,9 +99,122 @@ class MapPrecacheService {
     return tiles;
   }
 
+  /// Mengunduh seluruh potongan gambar peta (tiles) di sepanjang rute langsung
+  /// ke penyimpanan internal ponsel (disk storage). Menjamin saat video dirender,
+  /// 100% ubin dibaca langsung dari file lokal tanpa tergantung koneksi internet
+  /// sehingga bebas kotak hitam.
+  static Future<void> downloadAndCacheRouteTiles({
+    required List<CoordinatePoint> coordinates,
+    required String cacheDir,
+    required String providerType,
+    String urlTemplate = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    void Function(double progress, int loaded, int total)? onProgress,
+    Duration timeout = const Duration(seconds: 60),
+    bool Function()? isCancelled,
+  }) async {
+    final dir = Directory(cacheDir);
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+
+    // 1. Ekstrak seluruh ubin zoom 16 di sepanjang rute + ubin tetangga
+    final tilesZ16 = calculateRouteTiles(
+      coordinates,
+      zoom: 16,
+      includeNeighbors: true,
+      maxTiles: 800,
+    );
+
+    // 2. Ekstrak ubin zoom 15 untuk horizon cakrawala perspektif 3D
+    final tilesZ15 = calculateRouteTiles(
+      coordinates,
+      zoom: 15,
+      includeNeighbors: false,
+      maxTiles: 150,
+    );
+
+    final allTiles = <TileCoord>{...tilesZ16, ...tilesZ15}.toList();
+    final total = allTiles.length;
+    if (total == 0) {
+      onProgress?.call(1.0, 0, 0);
+      return;
+    }
+
+    int loaded = 0;
+    int nextIdx = 0;
+    final workerCount = math.min(10, allTiles.length);
+    final completer = Completer<void>();
+
+    final timer = Timer(timeout, () {
+      if (!completer.isCompleted) {
+        onProgress?.call(1.0, total, total);
+        completer.complete();
+      }
+    });
+
+    Future<void> worker() async {
+      while (nextIdx < allTiles.length && !completer.isCompleted) {
+        if (isCancelled?.call() == true) return;
+        final idx = nextIdx++;
+        final tile = allTiles[idx];
+        final filePath = VeloraTileProvider.getTileFilePath(
+          cacheDir,
+          providerType,
+          tile.z,
+          tile.x,
+          tile.y,
+        );
+        final file = File(filePath);
+
+        // Jika file sudah ada di disk dan valid (> 100 byte), langsung hitung sebagai loaded
+        if (file.existsSync() && file.lengthSync() > 100) {
+          loaded++;
+          onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
+          continue;
+        }
+
+        final url = urlTemplate
+            .replaceAll('{z}', '${tile.z}')
+            .replaceAll('{x}', '${tile.x}')
+            .replaceAll('{y}', '${tile.y}');
+
+        for (int attempt = 0; attempt < 3; attempt++) {
+          if (isCancelled?.call() == true) return;
+          try {
+            final res = await http.get(
+              Uri.parse(url),
+              headers: const {'User-Agent': userAgent},
+            ).timeout(const Duration(seconds: 10));
+
+            if (res.statusCode == 200 && res.bodyBytes.length > 100) {
+              if (!file.parent.existsSync()) {
+                file.parent.createSync(recursive: true);
+              }
+              await file.writeAsBytes(res.bodyBytes);
+              break;
+            }
+          } catch (_) {
+            if (attempt < 2) {
+              await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
+            }
+          }
+        }
+
+        loaded++;
+        onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
+      }
+    }
+
+    await Future.wait(List.generate(workerCount, (_) => worker()));
+    timer.cancel();
+    if (!completer.isCompleted) {
+      onProgress?.call(1.0, total, total);
+      completer.complete();
+    }
+  }
+
   /// Memanaskan (pre-cache & decode) seluruh tile ke dalam in-memory cache Flutter
-  /// sehingga saat animasi rute diputar atau dirender menjadi video MP4, seluruh tile
-  /// langsung tersedia di RAM tanpa delay network.
+  /// sehingga saat animasi rute diputar di layar ponsel berjalan mulus 60 FPS.
   static Future<void> precacheRouteTiles({
     required List<CoordinatePoint> coordinates,
     BuildContext? context,

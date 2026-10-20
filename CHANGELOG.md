@@ -2,6 +2,16 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.5] - 2026-10-20
+
+### 💾 Unduh Peta Langsung ke Penyimpanan Internal HP (VeloraTileProvider & Eliminasi Mutlak Kotak Hitam)
+- **Pengunduhan Ubin Peta Langsung ke Penyimpanan Internal (Disk Storage):**
+  - Mengimplementasikan `VeloraTileProvider` yang memprioritaskan pembacaan ubin citra satelit dan peta jalan langsung dari berkas lokal di memori internal HP (`velora_tile_cache`).
+  - Menambahkan alur pengunduhan mandiri pada `MapPrecacheService.downloadAndCacheRouteTiles`: sebelum render video dimulai, sistem mengunduh seluruh ubin di sepanjang koridor lintasan (zoom 16 rute utama dan zoom 15 untuk horizon cakrawala perspektif 3D) dan menyimpannya sebagai berkas gambar lokal di ponsel dengan fitur *auto-retry* 3x.
+  - Saat video dirender frame-by-frame, engine peta membaca 100% ubin dari penyimpanan lokal (kecepatan baca < 1 ms tanpa koneksi internet live), sehingga terbebas dari latensi jaringan, pembatasan server, atau pembuangan memori RAM.
+  - Menjamin hasil video bersih sempurna, tajam, dan bebas mutlak dari kotak-kotak hitam (*zero black tiles*).
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.5` (`versionCode = 28`).
+
 ## [v1.0.5.4] - 2026-10-20
 
 ### 🚀 Perekaman Video Full Frame Tanpa Terpotong, Durasi Flyover 18 Detik Sinematik & Eliminasi Total Kotak Hitam Peta

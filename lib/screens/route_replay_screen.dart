@@ -12,6 +12,7 @@ import '../models/coordinate_point.dart';
 import '../models/sports_type.dart';
 import '../models/track_milestone.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import '../services/map_precache_service.dart';
 import '../services/region_geocoding_service.dart';
@@ -96,15 +97,23 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     0.00, 0.00, 0.00, 1,   0,
   ];
 
-  late final TileProvider _tileProvider;
+  String? _cacheDir;
+  TileProvider _tileProvider = NetworkTileProvider();
 
   TileLayer _buildTileLayer() {
+    final tileProvider = _cacheDir != null
+        ? VeloraTileProvider(
+            cacheDir: _cacheDir!,
+            providerType: _isSatelliteMode ? 'satellite' : 'osm',
+          )
+        : _tileProvider;
+
     return TileLayer(
       urlTemplate: _isSatelliteMode
           ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
           : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       userAgentPackageName: 'online.nurmancloud.velora',
-      tileProvider: _tileProvider,
+      tileProvider: tileProvider,
       panBuffer: 6,
       keepBuffer: 32,
       tileDisplay: _isRenderingVideo
@@ -129,7 +138,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   void initState() {
     super.initState();
     _mapController = MapController();
-    _tileProvider = NetworkTileProvider();
+    getApplicationDocumentsDirectory().then((dir) {
+      if (mounted) {
+        setState(() {
+          _cacheDir = '${dir.path}/velora_tile_cache';
+          _tileProvider = VeloraTileProvider(
+            cacheDir: _cacheDir!,
+            providerType: _isSatelliteMode ? 'satellite' : 'osm',
+          );
+        });
+      }
+    });
 
     // 1. Hitung akumulasi jarak per titik koordinat
     _cumulativeDistances = _precomputeCumulativeDistances(widget.session.coordinates);
@@ -1780,7 +1799,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   Expanded(
                     child: Text(
                       isPrecache
-                          ? 'Menyiapkan Peta Satelit HD'
+                          ? 'Mengunduh Peta Satelit ke HP'
                           : (is4K ? 'Merender Video 4K Ultra HD' : 'Merender Video Full HD Utuh'),
                       style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
@@ -1793,7 +1812,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 children: [
                   Text(
                     isPrecache
-                        ? 'Memuat potongan citra satelit seluruh rute ke memori agar hasil video bebas kotak hitam...'
+                        ? 'Menyimpan potongan citra satelit rute langsung ke memori internal HP agar video 100% bebas kotak hitam...'
                         : (is4K
                             ? 'Mengenkode animasi flyover 18 detik ke berkas MP4 4K (35 Mbps) tanpa terpotong...'
                             : 'Mengenkode animasi flyover 18 detik ke berkas MP4 Full HD (20 Mbps) tanpa terpotong...'),
@@ -1817,7 +1836,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     children: [
                       Text(
                         isPrecache
-                            ? 'Tile $precacheLoaded / $precacheTotal'
+                            ? 'Ubin di Disk: $precacheLoaded / $precacheTotal'
                             : 'Frame $currentFrameNum / $totalFrames',
                         style: const TextStyle(
                           color: AppColors.textMuted,
@@ -1846,10 +1865,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.bolt_rounded, color: AppColors.neonCyan, size: 14),
+                        Icon(
+                          isPrecache ? Icons.save_alt_rounded : Icons.bolt_rounded,
+                          color: AppColors.neonCyan,
+                          size: 14,
+                        ),
                         const SizedBox(width: 6),
                         Text(
-                          is4K ? '4K Ultra HD • Layar Utuh • 18 Detik' : 'Full HD • Layar Utuh • 18 Detik',
+                          isPrecache
+                              ? 'Download Peta ke Disk • Bebas Kotak Hitam'
+                              : (is4K ? '4K Ultra HD • Layar Utuh • 18 Detik' : 'Full HD • Layar Utuh • 18 Detik'),
                           style: const TextStyle(
                             color: AppColors.neonCyan,
                             fontSize: 10.5,
@@ -1879,15 +1904,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       },
     );
 
-    // 3. Pre-cache 100% tile rute ke RAM sebelum mulai render agar video bebas kotak hitam
+    // 3. Unduh & simpan 100% ubin rute langsung ke disk penyimpanan internal HP sebelum render dimulai
     try {
-      await MapPrecacheService.precacheRouteTiles(
+      if (_cacheDir == null) {
+        final dir = await getApplicationDocumentsDirectory();
+        _cacheDir = '${dir.path}/velora_tile_cache';
+      }
+      await MapPrecacheService.downloadAndCacheRouteTiles(
         coordinates: widget.session.coordinates,
-        context: context,
-        tileProvider: _tileProvider,
-        tileLayer: _buildTileLayer(),
-        zoom: 16,
-        maxTiles: 800,
+        cacheDir: _cacheDir!,
+        providerType: _isSatelliteMode ? 'satellite' : 'osm',
         urlTemplate: _isSatelliteMode
             ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
             : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1898,7 +1924,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             dialogSetState!(() {});
           }
         },
-        timeout: const Duration(seconds: 45),
+        timeout: const Duration(seconds: 60),
+        isCancelled: () => isCancelled,
       );
     } catch (_) {}
 
