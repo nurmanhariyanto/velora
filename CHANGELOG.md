@@ -2,6 +2,23 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.4] - 2026-10-20
+
+### 🚀 Perekaman Video Full Frame Tanpa Terpotong, Durasi Flyover 18 Detik Sinematik & Eliminasi Total Kotak Hitam Peta
+- **Perekaman Video Full-Frame Utuh Bebas Terpotong:**
+  - Menghilangkan pemotongan piksel (*cropping*) vertikal dan horizontal pada `VideoExportService`. Video MP4 kini dikodekan pada dimensi rasio layar asli perangkat secara penuh.
+  - Menjamin 100% elemen antarmuka (HUD statistik kecepatan, elevasi, jarak, durasi di bagian bawah, watermark logo & nama atlet, banner batas kabupaten di bagian atas, serta seluruh area peta rute) terlihat utuh tanpa ada yang terpotong sedikitpun.
+- **Peningkatan Durasi Animasi Flyover ke 18 Detik Sinematik:**
+  - Menaikkan durasi animasi flyover video dari sebelumnya 8 detik (240 frame) menjadi **18 detik (540 frame pada 30 FPS)**.
+  - Pergerakan kamera kini mengalir dengan ritme tenang, mulus, dan megah, sehingga lekukan rute, tanjakan, kecepatan, dan gerbang batas kabupaten dapat dinikmati dan dibaca dengan sangat jelas.
+  - Banner batas wilayah kabupaten kini tampil secara proporsional (~2-2.5 detik) sepanjang video dan tidak lagi lenyap seketika.
+- **Pembaruan Arsitektur Pre-Caching Peta (Bebas Kotak Hitam):**
+  - Mengubah logika ekstraksi ubin pada `MapPrecacheService.calculateRouteTiles` agar mengambil ubin dasar di sepanjang 100% lintasan rute dari awal hingga akhir tanpa terpotong batas parsial.
+  - Menambahkan ubin tetangga (ring-1) di sekitar koridor rute dengan kapasitas hingga 800 tile ke dalam memori RAM (500 MB cache limit).
+  - Mengimplementasikan sistem unduh *concurrent worker pool* (10 antrean paralel) dengan fitur *auto-retry* dan *timeout* 45 detik, menjamin 100% ubin citra satelit rute telah tersimpan dan terdekode di RAM sebelum proses perekaman frame dimulai.
+  - Menambahkan jeda pemanasan (*canvas warm-up*) 500 ms di KM 0 dan meningkatkan jeda rasterisasi per frame ke 65 ms, memastikan GPU dan engine peta merender seluruh tile tanpa ada kotak hitam (*missing black tiles*).
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.4` (`versionCode = 27`).
+
 ## [v1.0.5.3] - 2026-10-19
 
 ### 🎬 Opsi Video 4K & Full HD 9:16 Anti-Blur Instagram, MediaStore Galeri Otomatis, Pita Batas Wilayah di Garis Rute & Perbaikan Menu Ganda

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
@@ -104,8 +105,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       userAgentPackageName: 'online.nurmancloud.velora',
       tileProvider: _tileProvider,
-      panBuffer: 4,
-      keepBuffer: 16,
+      panBuffer: 6,
+      keepBuffer: 32,
       tileDisplay: _isRenderingVideo
           ? const TileDisplay.instantaneous()
           : const TileDisplay.fadeIn(
@@ -324,11 +325,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     }
 
     // Periksa apakah melintasi batas kabupaten/kota baru untuk memunculkan bendera / badge nama kabupaten
+    final totalRouteDist = widget.session.distanceMeters > 0 ? widget.session.distanceMeters : 1000.0;
+    final bannerWindowMeters = math.max(totalRouteDist * 0.12, 600.0);
     for (int bIdx = 0; bIdx < _regencyBorders.length; bIdx++) {
       final border = _regencyBorders[bIdx];
       final isInsideTriggerZone = _isRenderingVideo
           ? (currentDistMeters >= border.distanceMeters &&
-              currentDistMeters <= border.distanceMeters + 450.0)
+              currentDistMeters <= border.distanceMeters + bannerWindowMeters)
           : (currentDistMeters >= border.distanceMeters);
 
       if (isInsideTriggerZone) {
@@ -1734,7 +1737,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     bool isCancelled = false;
     double exportProgress = 0.0;
     int currentFrameNum = 0;
-    const totalFrames = 240; // ~8 detik video flyover super mulus pada 30 FPS
+    const totalFrames = 540; // 18 detik video flyover pada 30 FPS (sinematik, tenang, dan detail)
     String renderPhase = 'precache'; // 'precache' atau 'encode'
     int precacheLoaded = 0;
     int precacheTotal = 0;
@@ -1778,7 +1781,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     child: Text(
                       isPrecache
                           ? 'Menyiapkan Peta Satelit HD'
-                          : (is4K ? 'Merender Video 4K Ultra HD' : 'Merender Video Full HD (9:16)'),
+                          : (is4K ? 'Merender Video 4K Ultra HD' : 'Merender Video Full HD Utuh'),
                       style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -1790,10 +1793,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 children: [
                   Text(
                     isPrecache
-                        ? 'Memuat potongan citra satelit rute ke memori agar hasil video bebas kotak hitam...'
+                        ? 'Memuat potongan citra satelit seluruh rute ke memori agar hasil video bebas kotak hitam...'
                         : (is4K
-                            ? 'Mengenkode animasi flyover ke berkas MP4 4K Ultra HD (2160x3840, 35 Mbps) rasio 9:16...'
-                            : 'Mengenkode animasi flyover ke berkas MP4 Full HD 9:16 (20 Mbps) dioptimalkan khusus Instagram Reels...'),
+                            ? 'Mengenkode animasi flyover 18 detik ke berkas MP4 4K (35 Mbps) tanpa terpotong...'
+                            : 'Mengenkode animasi flyover 18 detik ke berkas MP4 Full HD (20 Mbps) tanpa terpotong...'),
                     style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
                   ),
                   const SizedBox(height: 18),
@@ -1846,7 +1849,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                         const Icon(Icons.bolt_rounded, color: AppColors.neonCyan, size: 14),
                         const SizedBox(width: 6),
                         Text(
-                          is4K ? '4K Ultra HD (2160x3840) • 100% Offline' : '9:16 Full HD (1080x1920) • 100% Offline',
+                          is4K ? '4K Ultra HD • Layar Utuh • 18 Detik' : 'Full HD • Layar Utuh • 18 Detik',
                           style: const TextStyle(
                             color: AppColors.neonCyan,
                             fontSize: 10.5,
@@ -1884,7 +1887,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         tileProvider: _tileProvider,
         tileLayer: _buildTileLayer(),
         zoom: 16,
-        maxTiles: 200,
+        maxTiles: 800,
         urlTemplate: _isSatelliteMode
             ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
             : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -1895,7 +1898,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             dialogSetState!(() {});
           }
         },
-        timeout: const Duration(seconds: 12),
+        timeout: const Duration(seconds: 45),
       );
     } catch (_) {}
 
@@ -1915,6 +1918,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       dialogSetState!(() {});
     }
 
+    // Hangatkan kanvas pada titik awal agar tile awal selesai digambar sebelum perekaman dimulai
+    _animController.value = 0.0;
+    _lastCameraMoveTime = null;
+    _onAnimationTick();
+    if (mounted) setState(() {});
+    await WidgetsBinding.instance.endOfFrame;
+    await Future.delayed(const Duration(milliseconds: 500));
+
     // 4. Jalankan loop render frame-by-frame
     String? exportedVideoPath;
     try {
@@ -1931,7 +1942,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           _onAnimationTick();
           if (mounted) setState(() {});
           await WidgetsBinding.instance.endOfFrame;
-          await Future.delayed(const Duration(milliseconds: 30));
+          // Memberi waktu yang cukup bagi GPU dan flutter_map untuk merender tile secara sempurna
+          await Future.delayed(const Duration(milliseconds: 65));
         },
         onProgress: (progress, currentFrame, total) {
           exportProgress = progress;
@@ -2043,8 +2055,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                         const SizedBox(height: 2),
                         Text(
                           is4K
-                              ? '4K Ultra HD (2160x3840) • 9:16 Kristal Jernih'
-                              : 'Full HD 1080p (1080x1920) • 9:16 Bebas Blur',
+                              ? '4K Ultra HD • Layar Penuh Utuh • Kristal Jernih'
+                              : 'Full HD 1080p • Layar Penuh Utuh • Bebas Blur',
                           style: const TextStyle(
                             color: AppColors.neonGreen,
                             fontSize: 12,
@@ -2452,14 +2464,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ),
               const SizedBox(height: 20),
 
-              // Opsi 1: Ekspor Video Flyover MP4 Full HD (9:16 Instagram Reels & Story)
+              // Opsi 1: Ekspor Video Flyover MP4 Full HD (Layar Penuh Utuh)
               _buildShareActionTile(
                 icon: Icons.movie_creation_rounded,
                 iconColor: AppColors.primaryOrange,
-                title: 'Ekspor Video Full HD (9:16 Reels & Story)',
+                title: 'Ekspor Video Full HD (Full Frame Layar Utuh)',
                 subtitle:
-                    'Resolusi standar 1080x1920 (9:16) tajam bebas blur, otomatis disimpan ke Galeri HP (Movies/Velora) dan siap dibagikan.',
-                badge: 'REKOMENDASI INSTAGRAM REELS',
+                    'Animasi 18 detik Full HD tajam bebas blur, seluruh rute & HUD terlihat utuh tanpa terpotong, otomatis tersimpan ke Galeri HP.',
+                badge: 'FULL HD 1080P',
                 badgeColor: AppColors.neonGreen,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -2468,13 +2480,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ),
               const SizedBox(height: 10),
 
-              // Opsi 2: Ekspor Video Flyover 4K Ultra HD (2160x3840)
+              // Opsi 2: Ekspor Video Flyover 4K Ultra HD
               _buildShareActionTile(
                 icon: Icons.hd_rounded,
                 iconColor: AppColors.electricAmber,
                 title: 'Ekspor Video 4K Ultra HD (2160p)',
                 subtitle:
-                    'Resolusi ultra tajam 2160x3840 (35 Mbps) rasio 9:16 untuk kualitas visual maksimal di media sosial, otomatis tersimpan ke Galeri.',
+                    'Resolusi ultra jernih 4K (35 Mbps) animasi 18 detik kualitas sinematik maksimal tanpa terpotong, otomatis tersimpan ke Galeri.',
                 badge: '4K ULTRA HD',
                 badgeColor: AppColors.electricAmber,
                 onTap: () {

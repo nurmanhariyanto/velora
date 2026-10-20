@@ -50,24 +50,36 @@ class MapPrecacheService {
     List<CoordinatePoint> coordinates, {
     int zoom = 16,
     bool includeNeighbors = true,
-    int maxTiles = 150,
+    int maxTiles = 800,
   }) {
     if (coordinates.isEmpty) return {};
 
     final tiles = <TileCoord>{};
     final maxCoord = (math.pow(2.0, zoom) - 1).toInt();
 
-    // Sampling titik rute secara adaptif
-    final step = coordinates.length > 300 ? (coordinates.length / 150).ceil() : 1;
+    // 1. Ekstrak ubin dasar di sepanjang 100% rute secara merata (tidak memotong di tengah jalan)
+    final baseTiles = <TileCoord>{};
+    final step = coordinates.length > 250 ? (coordinates.length / 250).ceil() : 1;
 
     for (int i = 0; i < coordinates.length; i += step) {
       final pt = coordinates[i];
-      final base = latLonToTile(pt.latitude, pt.longitude, zoom);
-      tiles.add(base);
+      baseTiles.add(latLonToTile(pt.latitude, pt.longitude, zoom));
+    }
+    // Titik akhir rute wajib ada
+    baseTiles.add(latLonToTile(coordinates.last.latitude, coordinates.last.longitude, zoom));
 
-      if (includeNeighbors) {
+    // Masukkan seluruh ubin rute utama terlebih dahulu
+    for (final base in baseTiles) {
+      tiles.add(base);
+      if (tiles.length >= maxTiles) break;
+    }
+
+    // 2. Tambahkan ubin tetangga (ring 1) di sekitar koridor rute agar saat kamera miring / meluncur tidak ada kotak hitam
+    if (includeNeighbors && tiles.length < maxTiles) {
+      for (final base in baseTiles) {
         for (int dx = -1; dx <= 1; dx++) {
           for (int dy = -1; dy <= 1; dy++) {
+            if (dx == 0 && dy == 0) continue;
             final nx = (base.x + dx).clamp(0, maxCoord);
             final ny = (base.y + dy).clamp(0, maxCoord);
             tiles.add(TileCoord(nx, ny, zoom));
@@ -75,9 +87,8 @@ class MapPrecacheService {
           }
           if (tiles.length >= maxTiles) break;
         }
+        if (tiles.length >= maxTiles) break;
       }
-
-      if (tiles.length >= maxTiles) break;
     }
 
     return tiles;
@@ -92,15 +103,15 @@ class MapPrecacheService {
     TileProvider? tileProvider,
     TileLayer? tileLayer,
     int zoom = 16,
-    int maxTiles = 150,
+    int maxTiles = 800,
     String urlTemplate = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     void Function(double progress, int loaded, int total)? onProgress,
-    Duration timeout = const Duration(milliseconds: 6000),
+    Duration timeout = const Duration(seconds: 45),
     void Function(Timer timer)? onTimerCreated,
   }) async {
-    // Perbesar kapasitas ImageCache Flutter agar tile tidak dibuang selama rendering
-    PaintingBinding.instance.imageCache.maximumSize = 2500;
-    PaintingBinding.instance.imageCache.maximumSizeBytes = 250 << 20; // 250 MB
+    // Alokasikan memori in-memory cache Flutter hingga 500 MB agar tile tidak dibuang selama rendering
+    PaintingBinding.instance.imageCache.maximumSize = 3500;
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 500 << 20; // 500 MB
 
     final tiles = calculateRouteTiles(
       coordinates,
@@ -126,63 +137,89 @@ class MapPrecacheService {
     });
     onTimerCreated?.call(timer);
 
-    final futures = <Future<void>>[];
-    const headers = {'User-Agent': userAgent};
-
     final config = context != null
         ? createLocalImageConfiguration(context)
         : ImageConfiguration.empty;
 
-    for (final tile in tiles) {
-      final url = urlTemplate
-          .replaceAll('{z}', '${tile.z}')
-          .replaceAll('{x}', '${tile.x}')
-          .replaceAll('{y}', '${tile.y}');
+    final tileList = tiles.toList();
+    final workerCount = math.min(10, tileList.length);
+    int nextIndex = 0;
 
-      // Gunakan ImageProvider yang persis sama dengan TileLayer flutter_map
-      final ImageProvider imageProvider = (tileProvider != null && tileLayer != null)
-          ? tileProvider.getImage(TileCoordinates(tile.x, tile.y, tile.z), tileLayer)
-          : NetworkImage(url, headers: headers);
-
-      final tileCompleter = Completer<void>();
-      final stream = imageProvider.resolve(config);
-      late ImageStreamListener listener;
-
-      listener = ImageStreamListener(
-        (ImageInfo? image, bool sync) {
-          if (!tileCompleter.isCompleted) {
-            tileCompleter.complete();
-          }
-          try {
-            stream.removeListener(listener);
-          } catch (_) {}
-          loaded++;
-          onProgress?.call(loaded / total, loaded, total);
-        },
-        onError: (dynamic exception, StackTrace? stackTrace) {
-          if (!tileCompleter.isCompleted) {
-            tileCompleter.complete();
-          }
-          try {
-            stream.removeListener(listener);
-          } catch (_) {}
-          loaded++;
-          onProgress?.call(loaded / total, loaded, total);
-        },
-      );
-
-      stream.addListener(listener);
-      futures.add(tileCompleter.future);
+    Future<void> runWorker() async {
+      while (nextIndex < tileList.length && !completer.isCompleted) {
+        final currentIndex = nextIndex++;
+        final tile = tileList[currentIndex];
+        await _loadTileWithRetry(
+          tile: tile,
+          tileProvider: tileProvider,
+          tileLayer: tileLayer,
+          urlTemplate: urlTemplate,
+          config: config,
+        );
+        loaded++;
+        onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
+      }
     }
 
-    Future.wait(futures).then((_) {
-      timer.cancel();
-      if (!completer.isCompleted) {
-        onProgress?.call(1.0, total, total);
-        completer.complete();
-      }
-    });
+    await Future.wait(List.generate(workerCount, (_) => runWorker()));
 
-    return completer.future;
+    timer.cancel();
+    if (!completer.isCompleted) {
+      onProgress?.call(1.0, total, total);
+      completer.complete();
+    }
+  }
+
+  static Future<void> _loadTileWithRetry({
+    required TileCoord tile,
+    required TileProvider? tileProvider,
+    required TileLayer? tileLayer,
+    required String urlTemplate,
+    required ImageConfiguration config,
+  }) async {
+    for (int attempt = 0; attempt < 2; attempt++) {
+      try {
+        final completer = Completer<void>();
+        final url = urlTemplate
+            .replaceAll('{z}', '${tile.z}')
+            .replaceAll('{x}', '${tile.x}')
+            .replaceAll('{y}', '${tile.y}');
+
+        final ImageProvider imageProvider = (tileProvider != null && tileLayer != null)
+            ? tileProvider.getImage(TileCoordinates(tile.x, tile.y, tile.z), tileLayer)
+            : NetworkImage(url, headers: const {'User-Agent': userAgent});
+
+        final stream = imageProvider.resolve(config);
+        late ImageStreamListener listener;
+        listener = ImageStreamListener(
+          (ImageInfo? info, bool sync) {
+            if (!completer.isCompleted) completer.complete();
+            try {
+              stream.removeListener(listener);
+            } catch (_) {}
+          },
+          onError: (dynamic err, StackTrace? stack) {
+            if (!completer.isCompleted) completer.complete();
+            try {
+              stream.removeListener(listener);
+            } catch (_) {}
+          },
+        );
+        stream.addListener(listener);
+
+        await completer.future.timeout(
+          const Duration(seconds: 8),
+          onTimeout: () {
+            try {
+              stream.removeListener(listener);
+            } catch (_) {}
+          },
+        );
+        return;
+      } catch (_) {
+        if (attempt == 1) return;
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
+    }
   }
 }

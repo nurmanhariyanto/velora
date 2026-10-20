@@ -14,9 +14,9 @@ class VideoExportService {
   static const _mediaChannel = MethodChannel('online.nurmancloud.velora/media_store');
   static const _shareChannel = MethodChannel('online.nurmancloud.velora/social_share');
 
-  /// Memotong buffer piksel mentah ke dimensi target 9:16 (misal 1080x1920 untuk Reels/Story atau 2160x3840 untuk 4K)
-  /// yang presisi sehingga tidak terkena kompresi/stretch blur di Instagram.
-  static Uint8List cropToTargetDimensions(
+  /// Menjamin dimensi buffer piksel mentah sesuai persis ke dimensi genap H.264
+  /// tanpa memotong atau menggeser antarmuka (full-frame utuh tanpa terpotong).
+  static Uint8List cropToEvenDimensions(
     Uint8List src,
     int srcW,
     int srcH,
@@ -27,38 +27,30 @@ class VideoExportService {
     final dst = Uint8List(dstW * dstH * 4);
     final srcStride = srcW * 4;
     final dstStride = dstW * 4;
+    final copyH = srcH < dstH ? srcH : dstH;
+    final copyW = srcW < dstW ? srcW : dstW;
+    final copyBytes = copyW * 4;
 
-    // Centering horizontal
-    final maxOffsetX = (srcW - dstW).clamp(0, srcW);
-    final startX = (maxOffsetX ~/ 2).clamp(0, srcW);
-
-    // Centering vertikal: fokuskan sedikit ke area bawah (52%) tempat posisi penunjuk atlet berada
-    final maxOffsetY = (srcH - dstH).clamp(0, srcH);
-    final startY = (maxOffsetY * 0.52).toInt().clamp(0, maxOffsetY);
-
-    for (int y = 0; y < dstH; y++) {
-      if (startY + y >= srcH) break;
-      final srcOffset = (startY + y) * srcStride + (startX * 4);
-      final dstOffset = y * dstStride;
+    for (int y = 0; y < copyH; y++) {
       dst.setRange(
-        dstOffset,
-        dstOffset + dstStride,
+        y * dstStride,
+        y * dstStride + copyBytes,
         src,
-        srcOffset,
+        y * srcStride,
       );
     }
     return dst;
   }
 
-  /// Kompatibilitas mundur untuk fungsi crop genap
-  static Uint8List cropToEvenDimensions(
+  /// Kompatibilitas mundur
+  static Uint8List cropToTargetDimensions(
     Uint8List src,
     int srcW,
     int srcH,
     int dstW,
     int dstH,
   ) {
-    return cropToTargetDimensions(src, srcW, srcH, dstW, dstH);
+    return cropToEvenDimensions(src, srcW, srcH, dstW, dstH);
   }
 
   /// Menyimpan berkas video ke Galeri resmi ponsel (MediaStore Android -> folder Movies/Velora)
@@ -79,7 +71,7 @@ class VideoExportService {
     }
   }
 
-  /// Merender frame dari widget RepaintBoundary menjadi berkas video MP4 rasio 9:16 super tajam
+  /// Merender frame dari widget RepaintBoundary menjadi berkas video MP4 tajam berkualitas tinggi
   static Future<String?> renderWidgetToVideo({
     required GlobalKey boundaryKey,
     required int totalFrames,
@@ -107,18 +99,18 @@ class VideoExportService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final outputPath = '${videosDir.path}/velora_flyover_$timestamp.mp4';
 
-      // 2. Tentukan dimensi standar rasio 9:16 (Instagram Reels & Stories standard: 1080x1920 atau 2160x3840 4K)
-      final int videoWidth = (targetWidth ~/ 2) * 2;
-      final int videoHeight = (((videoWidth * 16) ~/ 9) ~/ 2) * 2;
-
-      // Rasio piksel adaptif agar kanvas menghasilkan buffer piksel penuh setara videoWidth
+      // 2. Tentukan dimensi video resolusi tinggi berbasis rasio layar asli (tanpa terpotong sedikitpun)
       final boundaryWidth = boundary.size.width;
+      final boundaryHeight = boundary.size.height;
       final double effectivePixelRatio = (boundaryWidth > 0)
-          ? (videoWidth / boundaryWidth)
+          ? (targetWidth / boundaryWidth)
           : 2.7;
 
+      final int videoWidth = (targetWidth ~/ 2) * 2;
+      final int videoHeight = (((targetWidth * boundaryHeight) / boundaryWidth).round() ~/ 2) * 2;
+
       debugPrint(
-        'VideoExportService: Memulai encode MP4 9:16 ($videoWidth x $videoHeight, $fps FPS, $totalFrames frames, ratio $effectivePixelRatio, bitrate $bitrate)',
+        'VideoExportService: Memulai encode MP4 Full Frame ($videoWidth x $videoHeight, $fps FPS, $totalFrames frames, ratio $effectivePixelRatio, bitrate $bitrate)',
       );
 
       // 3. Konfigurasi encoder video hardware H.264 dengan bitrate tinggi untuk ketajaman kristal
@@ -162,8 +154,8 @@ class VideoExportService {
 
         if (byteData == null) continue;
 
-        // Potong ke rasio 9:16 presisi bebas stretch & blur
-        final rawRgba = cropToTargetDimensions(
+        // Pastikan ukuran buffer sesuai persis dengan videoWidth * videoHeight * 4 tanpa memotong antarmuka
+        final rawRgba = cropToEvenDimensions(
           byteData.buffer.asUint8List(),
           imageW,
           imageH,
