@@ -176,18 +176,22 @@ class ForegroundServiceHandler {
     required int currentFrame,
     required int totalFrames,
     bool isCompleted = false,
+    String? customTitle,
+    String? customText,
   }) async {
     try {
       await initService();
       await requestNotificationPermission();
 
       final percent = (progress * 100).clamp(0, 100).toInt();
-      final title = isCompleted
-          ? '🎬 Video Flyover Berhasil Dibuat!'
-          : '🎬 Velora: Merender Video Flyover ($percent%)';
-      final text = isCompleted
-          ? 'Tersimpan di Galeri (Movies/Velora). Siap dibagikan!'
-          : 'Frame $currentFrame / $totalFrames • Menulis ke Galeri HP';
+      final title = customTitle ??
+          (isCompleted
+              ? '🎬 Video Flyover Berhasil Dibuat!'
+              : '🎬 Velora: Merender Video Flyover ($percent%)');
+      final text = customText ??
+          (isCompleted
+              ? 'Tersimpan di Galeri (Movies/Velora). Siap dibagikan!'
+              : 'Frame $currentFrame / $totalFrames • Menulis ke Galeri HP');
 
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.updateService(

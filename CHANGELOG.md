@@ -2,6 +2,19 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.8] - 2026-10-20
+
+### 🚀 Perbaikan Ekspor Video 4K Ultra HD & Koreksi Notifikasi Unduh Peta vs Frame Video
+- **Adaptive Multi-Tier Encoder Fallback (Bebas Gagal pada Semua Ponsel):**
+  - Mengimplementasikan pipeline inisialisasi hardware encoder bertingkat (`4K Ultra HD` -> `2K QHD` -> `Full HD 1080p` -> `HD 720p`).
+  - Membatasi dimensi maksimal encoder video 4K ke batas standar hardware MediaCodec dan batas alokasi GPU (`maxDim = 3840`), mencegah error `IllegalArgumentException: unsupported format` atau kegagalan tekstur pada layar ponsel rasio tinggi (19.5:9 atau 20:9).
+  - Jika chipset perangkat (seperti seri midrange) tidak memiliki dukungan native untuk encoding 4K, sistem secara cerdas beralih ke 2K QHD atau Full HD 1080p tanpa pernah gagal atau force close.
+  - Menggunakan profil encoder `ProfileLevel.any` untuk menjamin kompatibilitas 100% di berbagai tipe hardware Android.
+- **Pemisahan Teks Notifikasi Unduh Peta vs Render Frame Video:**
+  - Memperbaiki teks pada Android Foreground Service saat fase *pre-caching*: kini menampilkan secara jelas informasi ubin peta (`Ubin 151 / 151 • Mengunduh Citra Satelit HD`) alih-alih tertulis sebagai frame video.
+  - Notifikasi frame video (`Frame 1 / 540 • Menulis ke Galeri HP`) baru akan ditampilkan setelah fase pengunduhan peta selesai dan proses perekaman frame flyover benar-benar dimulai.
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.8` (`versionCode = 31`).
+
 ## [v1.0.5.7] - 2026-10-20
 
 ### 📲 Perbaikan Tuntas Berbagi Video Flyover ke WhatsApp & Instagram (Bebas Force Close & Feedback Visual Instan)

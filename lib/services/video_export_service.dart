@@ -79,6 +79,7 @@ class VideoExportService {
     required Future<void> Function(int frameIndex, double progress) onStepFrame,
     required void Function(double progress, int currentFrame, int totalFrames) onProgress,
     bool Function()? isCancelled,
+    bool is4K = false,
     int targetWidth = 1080,
     int bitrate = 25000000,
   }) async {
@@ -99,34 +100,132 @@ class VideoExportService {
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final outputPath = '${videosDir.path}/velora_flyover_$timestamp.mp4';
 
-      // 2. Tentukan dimensi video resolusi tinggi berbasis rasio layar asli (tanpa terpotong sedikitpun)
+      // 2. Hitung rasio aspek layar ponsel secara presisi
       final boundaryWidth = boundary.size.width;
       final boundaryHeight = boundary.size.height;
-      final double effectivePixelRatio = (boundaryWidth > 0)
-          ? (targetWidth / boundaryWidth)
-          : 2.7;
+      final double aspectRatio = (boundaryWidth > 0 && boundaryHeight > 0)
+          ? (boundaryHeight / boundaryWidth)
+          : (16.0 / 9.0);
 
-      final int videoWidth = (targetWidth ~/ 2) * 2;
-      final int videoHeight = (((targetWidth * boundaryHeight) / boundaryWidth).round() ~/ 2) * 2;
+      // 3. Susun daftar tingkatan resolusi adaptif (Tier)
+      // Hardware encoder Android (MediaCodec H.264) memiliki batas dimensi maksimal (3840 untuk 4K, 2400 untuk 1080p).
+      // Fallback adaptif menjamin video SELALU berhasil di-encode pada resolusi terbaik
+      // yang didukung chipset perangkat tanpa pernah force close / gagal.
+      final List<_EncoderTier> candidateTiers = [];
 
-      debugPrint(
-        'VideoExportService: Memulai encode MP4 Full Frame ($videoWidth x $videoHeight, $fps FPS, $totalFrames frames, ratio $effectivePixelRatio, bitrate $bitrate)',
-      );
+      if (is4K) {
+        // Tier 1: 4K Ultra HD (Maksimal batas standar 4K UHD: 3840px pada sisi terpanjang)
+        int h4k = 3840;
+        int w4k = ((3840 / aspectRatio).round() ~/ 2) * 2;
+        if (aspectRatio < 1.0) {
+          w4k = 3840;
+          h4k = ((3840 * aspectRatio).round() ~/ 2) * 2;
+        }
+        candidateTiers.add(_EncoderTier(
+          label: '4K Ultra HD',
+          width: w4k,
+          height: h4k,
+          bitrate: 35000000,
+        ));
 
-      // 3. Konfigurasi encoder video hardware H.264 dengan bitrate tinggi untuk ketajaman kristal
-      await FlutterQuickVideoEncoder.setup(
-        width: videoWidth,
-        height: videoHeight,
-        fps: fps,
-        videoBitrate: bitrate,
-        profileLevel: ProfileLevel.highAutoLevel,
-        audioChannels: 0,
-        audioBitrate: 0,
-        sampleRate: 0,
-        filepath: outputPath,
-      );
+        // Tier 2: 2K Quad HD (Maksimal 2560px pada sisi terpanjang)
+        int h2k = 2560;
+        int w2k = ((2560 / aspectRatio).round() ~/ 2) * 2;
+        if (aspectRatio < 1.0) {
+          w2k = 2560;
+          h2k = ((2560 * aspectRatio).round() ~/ 2) * 2;
+        }
+        candidateTiers.add(_EncoderTier(
+          label: '2K QHD',
+          width: w2k,
+          height: h2k,
+          bitrate: 25000000,
+        ));
+      }
 
-      // 4. Loop render tiap frame rute
+      // Tier 3: Full HD 1080p (Didukung 100% chipset Android modern)
+      int wFhd = 1080;
+      int hFhd = (((1080 * aspectRatio).round()) ~/ 2) * 2;
+      if (hFhd > 2400) {
+        hFhd = 2400;
+        wFhd = ((2400 / aspectRatio).round() ~/ 2) * 2;
+      }
+      candidateTiers.add(_EncoderTier(
+        label: 'Full HD 1080p',
+        width: wFhd,
+        height: hFhd,
+        bitrate: 20000000,
+      ));
+
+      // Tier 4: Safe HD 720p fallback
+      int wHd = 720;
+      int hHd = (((720 * aspectRatio).round()) ~/ 2) * 2;
+      candidateTiers.add(_EncoderTier(
+        label: 'HD 720p',
+        width: wHd,
+        height: hHd,
+        bitrate: 10000000,
+      ));
+
+      // 4. Inisialisasi Hardware Video Encoder dengan Adaptive Fallback
+      bool setupSuccess = false;
+      int activeWidth = 0;
+      int activeHeight = 0;
+      double activePixelRatio = 2.7;
+      int activeBitrate = 0;
+      String activeTierLabel = '';
+
+      for (final tier in candidateTiers) {
+        try {
+          final testFile = File(outputPath);
+          if (await testFile.exists()) {
+            await testFile.delete();
+          }
+
+          debugPrint(
+            'VideoExportService: Menyiapkan hardware encoder ${tier.label} (${tier.width}x${tier.height}, ${tier.bitrate ~/ 1000000} Mbps)...',
+          );
+
+          await FlutterQuickVideoEncoder.setup(
+            width: tier.width,
+            height: tier.height,
+            fps: fps,
+            videoBitrate: tier.bitrate,
+            profileLevel: ProfileLevel.any,
+            audioChannels: 0,
+            audioBitrate: 0,
+            sampleRate: 0,
+            filepath: outputPath,
+          );
+
+          activeWidth = tier.width;
+          activeHeight = tier.height;
+          activeBitrate = tier.bitrate;
+          activePixelRatio = (boundaryWidth > 0)
+              ? (activeWidth / boundaryWidth)
+              : 2.7;
+          activeTierLabel = tier.label;
+          setupSuccess = true;
+          debugPrint(
+            'VideoExportService: Hardware encoder berhasil diinisialisasi pada $activeTierLabel ($activeWidth x $activeHeight @ ${activeBitrate ~/ 1000000} Mbps, ratio $activePixelRatio)!',
+          );
+          break;
+        } catch (e) {
+          debugPrint(
+            'VideoExportService: Hardware encoder ${tier.label} tidak kompatibel dengan chipset: $e. Mencoba fallback ke resolusi berikutnya...',
+          );
+          try {
+            await FlutterQuickVideoEncoder.finish();
+          } catch (_) {}
+        }
+      }
+
+      if (!setupSuccess) {
+        debugPrint('VideoExportService: Hardware encoder gagal pada seluruh tingkat resolusi.');
+        return null;
+      }
+
+      // 5. Loop render tiap frame rute
       for (int i = 0; i < totalFrames; i++) {
         if (isCancelled?.call() == true) {
           debugPrint('VideoExportService: Proses dibatalkan oleh pengguna.');
@@ -145,8 +244,8 @@ class VideoExportService {
         // Gerakkan kamera dan titik rute ke posisi frame ke-i
         await onStepFrame(i, progress);
 
-        // Ambil snapshot piksel Full HD dari RepaintBoundary
-        final image = await boundary.toImage(pixelRatio: effectivePixelRatio);
+        // Ambil snapshot piksel Full HD / 4K dari RepaintBoundary
+        final image = await boundary.toImage(pixelRatio: activePixelRatio);
         final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
         final imageW = image.width;
         final imageH = image.height;
@@ -154,19 +253,19 @@ class VideoExportService {
 
         if (byteData == null) continue;
 
-        // Pastikan ukuran buffer sesuai persis dengan videoWidth * videoHeight * 4 tanpa memotong antarmuka
+        // Pastikan ukuran buffer sesuai persis dengan activeWidth * activeHeight * 4 tanpa memotong antarmuka
         final rawRgba = cropToEvenDimensions(
           byteData.buffer.asUint8List(),
           imageW,
           imageH,
-          videoWidth,
-          videoHeight,
+          activeWidth,
+          activeHeight,
         );
 
         // Tambahkan frame ke encoder video
         await FlutterQuickVideoEncoder.appendVideoFrame(rawRgba);
 
-        // Beritahukan progres ke UI dialog
+        // Beritahukan progres ke UI dialog & notifikasi
         onProgress(progress, i + 1, totalFrames);
       }
 
@@ -264,4 +363,19 @@ class VideoExportService {
       ),
     );
   }
+}
+
+/// Struktur data tingkat resolusi encoder video hardware
+class _EncoderTier {
+  final String label;
+  final int width;
+  final int height;
+  final int bitrate;
+
+  const _EncoderTier({
+    required this.label,
+    required this.width,
+    required this.height,
+    required this.bitrate,
+  });
 }

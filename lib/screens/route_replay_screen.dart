@@ -2160,10 +2160,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           if (_isRenderMinimized && mounted) {
             setState(() {});
           }
+          final percent = (progress * 100).clamp(0, 100).toInt();
           ForegroundServiceHandler.startOrUpdateRenderProgress(
             progress: progress,
             currentFrame: loaded,
             totalFrames: total,
+            customTitle: '🗺️ Velora: Menyiapkan Peta Rute ($percent%)',
+            customText: 'Ubin $loaded / $total • Mengunduh Citra Satelit HD',
           );
         },
         timeout: const Duration(seconds: 60),
@@ -2185,12 +2188,21 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     // Ubah fase ke 'encode'
     _renderPhase = 'encode';
+    _renderCurrentFrame = 0;
+    _renderProgress = 0.0;
     if (dialogSetState != null) {
       dialogSetState!(() {});
     }
     if (_isRenderMinimized && mounted) {
       setState(() {});
     }
+    ForegroundServiceHandler.startOrUpdateRenderProgress(
+      progress: 0.0,
+      currentFrame: 0,
+      totalFrames: _renderTotalFrames,
+      customTitle: '🎬 Velora: Merender Video Flyover (0%)',
+      customText: 'Memulai penulisan frame ke encoder hardware...',
+    );
 
     // Hangatkan kanvas pada titik awal agar tile awal selesai digambar sebelum perekaman dimulai
     _animController.value = 0.0;
@@ -2207,8 +2219,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         boundaryKey: _recordBoundaryKey,
         totalFrames: _renderTotalFrames,
         fps: 30,
+        is4K: is4K,
         targetWidth: is4K ? 2160 : 1080,
-        bitrate: is4K ? 45000000 : 25000000,
+        bitrate: is4K ? 35000000 : 20000000,
         isCancelled: () => _isRenderCancelled,
         onStepFrame: (frameIndex, progress) async {
           _animController.value = progress;
@@ -2228,10 +2241,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           if (_isRenderMinimized && mounted) {
             setState(() {});
           }
+          final percent = (progress * 100).clamp(0, 100).toInt();
           ForegroundServiceHandler.startOrUpdateRenderProgress(
             progress: progress,
             currentFrame: currentFrame,
             totalFrames: total,
+            customTitle: '🎬 Velora: Merender Video Flyover ($percent%)',
+            customText: 'Frame $currentFrame / $total • Menulis ke Galeri HP',
           );
         },
       );
