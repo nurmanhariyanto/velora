@@ -169,4 +169,48 @@ class ForegroundServiceHandler {
       }
     } catch (_) {}
   }
+
+  /// Memulai atau memperbarui notifikasi foreground untuk proses render video di latar belakang
+  static Future<void> startOrUpdateRenderProgress({
+    required double progress,
+    required int currentFrame,
+    required int totalFrames,
+    bool isCompleted = false,
+  }) async {
+    try {
+      await initService();
+      await requestNotificationPermission();
+
+      final percent = (progress * 100).clamp(0, 100).toInt();
+      final title = isCompleted
+          ? '🎬 Video Flyover Berhasil Dibuat!'
+          : '🎬 Velora: Merender Video Flyover ($percent%)';
+      final text = isCompleted
+          ? 'Tersimpan di Galeri (Movies/Velora). Siap dibagikan!'
+          : 'Frame $currentFrame / $totalFrames • Menulis ke Galeri HP';
+
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.updateService(
+          notificationTitle: title,
+          notificationText: text,
+        );
+      } else {
+        await FlutterForegroundTask.startService(
+          serviceId: 257,
+          notificationTitle: title,
+          notificationText: text,
+          callback: startCallback,
+        );
+      }
+    } catch (_) {}
+  }
+
+  /// Menghentikan notifikasi foreground setelah proses render selesai/ditutup
+  static Future<void> stopRenderProgress() async {
+    try {
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.stopService();
+      }
+    } catch (_) {}
+  }
 }

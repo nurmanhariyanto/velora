@@ -2,6 +2,21 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.6] - 2026-10-20
+
+### 📺 Peningkatan Ketajaman Video HD (Retina Mode Zoom 17) & Fitur Render di Latar Belakang (Non-Blocking)
+- **Ketajaman Kristal HD Bebas Blur (Retina Mode Peta & Zoom 17):**
+  - Mengaktifkan `retinaMode: true` pada engine peta `TileLayer`, menggandakan kerapatan piksel (*simulated retina*) dengan menempatkan 4 ubin beresolusi tinggi pada bidang yang sama (resolusi efektif 512x512).
+  - Memperbarui pengunduhan ubin pada `MapPrecacheService.downloadAndCacheRouteTiles` ke **Zoom 17 HD** (ubin rute beresolusi tinggi) dan **Zoom 16** (ubin cakrawala perspektif 3D). Ubin citra satelit disimpan langsung di penyimpanan internal HP (`velora_tile_cache`).
+  - Citra satelit dan jalanan kini tampil tajam, jernih, dan tidak lagi buram (*anti-blur*) saat dirender ke video 1080p maupun 4K.
+  - Meningkatkan bitrate video hardware encoder ke **25 Mbps (Full HD 1080p)** dan **45 Mbps (4K Ultra HD)** menggunakan profil H.264 High Profile.
+- **Ekspor Video di Latar Belakang (Bisa Sambil Melakukan Hal Lain):**
+  - Menghilangkan dialog modal yang mengunci layar saat render. Menyediakan tombol **"LATAR BELAKANG"** pada dialog progres render.
+  - Pengguna dapat meminimalkan proses render ke *floating banner* ramping di bagian bawah layar sehingga bebas menjelajahi peta, melihat grafik elevasi, atau mengecek metrik lintasan.
+  - Terintegrasi dengan **Android Foreground Service** (`ForegroundServiceHandler.startOrUpdateRenderProgress`), menampilkan bilah progres langsung di bar notifikasi sistem Android. Pengguna dapat berpindah ke aplikasi lain (WhatsApp, Instagram, dsb.) atau mengunci layar sementara video tetap dirender di latar belakang dan disimpan otomatis ke Galeri (`Movies/Velora`).
+  - Menambahkan proteksi `PopScope` agar pengguna tidak kehilangan proses render jika tidak sengaja menekan tombol kembali (*back*).
+- **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.6` (`versionCode = 29`).
+
 ## [v1.0.5.5] - 2026-10-20
 
 ### 💾 Unduh Peta Langsung ke Penyimpanan Internal HP (VeloraTileProvider & Eliminasi Mutlak Kotak Hitam)

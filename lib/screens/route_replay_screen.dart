@@ -14,6 +14,7 @@ import '../models/track_milestone.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../services/foreground_service_handler.dart';
 import '../services/map_precache_service.dart';
 import '../services/region_geocoding_service.dart';
 import '../services/track_analysis_service.dart';
@@ -71,6 +72,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   final GlobalKey _recordBoundaryKey = GlobalKey();
   bool _isRenderingVideo = false;
 
+  // Status Ekspor Video di Latar Belakang (Non-Blocking)
+  bool _isRenderMinimized = false;
+  double _renderProgress = 0.0;
+  int _renderCurrentFrame = 0;
+  int _renderTotalFrames = 540;
+  String _renderPhase = 'precache';
+  int _renderPrecacheLoaded = 0;
+  int _renderPrecacheTotal = 0;
+  bool _isRenderCancelled = false;
+  VoidCallback? _reopenRenderDialog;
+
   // Status Mode Rekam Layar Bersih (Clean Screen Record)
   bool _cleanRecordMode = false;
   bool _showRecordTooltip = false;
@@ -121,7 +133,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           : const TileDisplay.fadeIn(
               duration: Duration(milliseconds: 100),
             ),
-      retinaMode: false,
+      retinaMode: true,
       maxNativeZoom: 19,
       tileBuilder: (!_isSatelliteMode && _mapDarkTheme)
           ? (context, tileWidget, tile) {
@@ -589,9 +601,59 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         .round()
         .clamp(0, widget.session.durationSeconds);
 
-    return Scaffold(
-      backgroundColor: AppColors.darkBackground,
-      body: RepaintBoundary(
+    return PopScope(
+      canPop: !_isRenderingVideo,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_isRenderingVideo) {
+          final isPrecache = _renderPhase == 'precache';
+          final percent = isPrecache
+              ? (_renderPrecacheTotal > 0
+                  ? ((_renderPrecacheLoaded / _renderPrecacheTotal) * 100).toInt()
+                  : 0)
+              : (_renderProgress * 100).clamp(0, 100).toInt();
+
+          showDialog<void>(
+            context: context,
+            builder: (confirmCtx) => AlertDialog(
+              backgroundColor: AppColors.cardSurface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.movie_filter_rounded, color: AppColors.primaryOrange, size: 24),
+                  SizedBox(width: 8),
+                  Text('Render Sedang Berjalan', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: Text(
+                'Video flyover sedang dibuat di latar belakang ($percent%).\n\n'
+                'Video akan otomatis tersimpan ke Galeri HP (Movies/Velora) begitu selesai. Jika Anda keluar sekarang, proses render akan dibatalkan.',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(confirmCtx),
+                  child: const Text('TETAP DI SINI', style: TextStyle(color: AppColors.neonCyan, fontWeight: FontWeight.bold)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    _isRenderCancelled = true;
+                    Navigator.pop(confirmCtx);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('BATALKAN RENDER', style: TextStyle(color: Colors.redAccent)),
+                ),
+              ],
+            ),
+          );
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.darkBackground,
+        body: RepaintBoundary(
         key: _recordBoundaryKey,
         child: Stack(
           fit: StackFit.expand,
@@ -821,10 +883,20 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           // 6. Pre-buffering Loading Overlay (Menyiapkan Peta untuk 60 FPS Mulus di Semua HP)
           if (_isPreloadingTiles)
             _buildPreloadingOverlay(),
+
+          // 7. Floating Card Progres Render di Latar Belakang (Non-Blocking)
+          if (_isRenderingVideo && _isRenderMinimized)
+            Positioned(
+              bottom: MediaQuery.of(context).padding.bottom + 16,
+              left: 16,
+              right: 16,
+              child: _buildMinimizedRenderBanner(),
+            ),
         ],
       ),
     ),
-  );
+  ),
+);
   }
 
   Widget _buildPreloadingOverlay() {
@@ -943,6 +1015,128 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMinimizedRenderBanner() {
+    final isPrecache = _renderPhase == 'precache';
+    final percent = isPrecache
+        ? (_renderPrecacheTotal > 0
+            ? ((_renderPrecacheLoaded / _renderPrecacheTotal) * 100).toInt()
+            : 0)
+        : (_renderProgress * 100).clamp(0, 100).toInt();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.primaryOrange, width: 1.5),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withAlpha(30),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.movie_creation_rounded,
+                  color: AppColors.primaryOrange,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          isPrecache ? 'Unduh Peta Satelit HD' : 'Render Video HD Latar Belakang',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '$percent%',
+                          style: const TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isPrecache
+                          ? 'Ubin di Disk: $_renderPrecacheLoaded / $_renderPrecacheTotal • Latar Belakang'
+                          : 'Frame $_renderCurrentFrame / $_renderTotalFrames • Otomatis ke Galeri',
+                      style: const TextStyle(
+                        color: AppColors.textMuted,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Tombol Buka Status Dialog Penuh
+              IconButton(
+                icon: const Icon(Icons.open_in_full_rounded, color: AppColors.neonCyan, size: 20),
+                tooltip: 'Buka Dialog',
+                onPressed: () {
+                  _reopenRenderDialog?.call();
+                },
+              ),
+              // Tombol Batalkan Render
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white60, size: 20),
+                tooltip: 'Batalkan Render',
+                onPressed: () {
+                  _isRenderCancelled = true;
+                  setState(() {
+                    _cleanRecordMode = false;
+                    _isRenderingVideo = false;
+                    _isRenderMinimized = false;
+                  });
+                  ForegroundServiceHandler.stopRenderProgress();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: isPrecache
+                  ? (_renderPrecacheTotal > 0
+                      ? (_renderPrecacheLoaded / _renderPrecacheTotal).clamp(0.0, 1.0)
+                      : null)
+                  : _renderProgress,
+              backgroundColor: Colors.white12,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+              minHeight: 5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1753,14 +1947,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       _togglePlayPause();
     }
 
-    bool isCancelled = false;
-    double exportProgress = 0.0;
-    int currentFrameNum = 0;
-    const totalFrames = 540; // 18 detik video flyover pada 30 FPS (sinematik, tenang, dan detail)
-    String renderPhase = 'precache'; // 'precache' atau 'encode'
-    int precacheLoaded = 0;
-    int precacheTotal = 0;
+    _isRenderCancelled = false;
+    _renderProgress = 0.0;
+    _renderCurrentFrame = 0;
+    _renderTotalFrames = 540; // 18 detik video flyover pada 30 FPS (sinematik, tenang, dan detail)
+    _renderPhase = 'precache';
+    _renderPrecacheLoaded = 0;
+    _renderPrecacheTotal = 0;
+    _isRenderMinimized = false;
+
     StateSetter? dialogSetState;
+    BuildContext? dialogCtx;
 
     // 2. Aktifkan clean record mode & rendering flag
     setState(() {
@@ -1769,140 +1966,176 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       _autoFollow = true;
     });
 
-    // Tampilkan modal dialog progres rendering MP4
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            dialogSetState = setDialogState;
-            final isPrecache = renderPhase == 'precache';
-            final percent = isPrecache
-                ? (precacheTotal > 0 ? ((precacheLoaded / precacheTotal) * 100).toInt() : 0)
-                : (exportProgress * 100).clamp(0, 100).toInt();
+    void openDialog() {
+      if (!mounted || !_isRenderingVideo) return;
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          dialogCtx = ctx;
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              dialogSetState = setDialogState;
+              final isPrecache = _renderPhase == 'precache';
+              final percent = isPrecache
+                  ? (_renderPrecacheTotal > 0 ? ((_renderPrecacheLoaded / _renderPrecacheTotal) * 100).toInt() : 0)
+                  : (_renderProgress * 100).clamp(0, 100).toInt();
 
-            return AlertDialog(
-              backgroundColor: AppColors.cardSurface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(24),
-                side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
-              ),
-              title: Row(
-                children: [
-                  Icon(
-                    isPrecache ? Icons.cloud_download_rounded : Icons.movie_creation_rounded,
-                    color: AppColors.primaryOrange,
-                    size: 26,
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      isPrecache
-                          ? 'Mengunduh Peta Satelit ke HP'
-                          : (is4K ? 'Merender Video 4K Ultra HD' : 'Merender Video Full HD Utuh'),
-                      style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+              return AlertDialog(
+                backgroundColor: AppColors.cardSurface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+                ),
+                title: Row(
+                  children: [
+                    Icon(
+                      isPrecache ? Icons.cloud_download_rounded : Icons.movie_creation_rounded,
+                      color: AppColors.primaryOrange,
+                      size: 26,
                     ),
-                  ),
-                ],
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isPrecache
-                        ? 'Menyimpan potongan citra satelit rute langsung ke memori internal HP agar video 100% bebas kotak hitam...'
-                        : (is4K
-                            ? 'Mengenkode animasi flyover 18 detik ke berkas MP4 4K (35 Mbps) tanpa terpotong...'
-                            : 'Mengenkode animasi flyover 18 detik ke berkas MP4 Full HD (20 Mbps) tanpa terpotong...'),
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
-                  ),
-                  const SizedBox(height: 18),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: LinearProgressIndicator(
-                      value: isPrecache
-                          ? (precacheTotal > 0 ? (precacheLoaded / precacheTotal).clamp(0.0, 1.0) : null)
-                          : exportProgress,
-                      backgroundColor: Colors.white12,
-                      valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
-                      minHeight: 8,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
                         isPrecache
-                            ? 'Ubin di Disk: $precacheLoaded / $precacheTotal'
-                            : 'Frame $currentFrameNum / $totalFrames',
-                        style: const TextStyle(
-                          color: AppColors.textMuted,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
+                            ? 'Mengunduh Peta Satelit HD'
+                            : (is4K ? 'Merender Video 4K Ultra HD' : 'Merender Video Full HD Utuh'),
+                        style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
                       ),
-                      Text(
-                        '$percent%',
-                        style: const TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardSurfaceElevated,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.borderSubtle),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isPrecache
+                          ? 'Menyimpan potongan citra satelit rute zoom 17 HD langsung ke penyimpanan ponsel agar video tajam bebas kotak hitam...'
+                          : (is4K
+                              ? 'Mengenkode animasi flyover 18 detik ke berkas MP4 4K (45 Mbps) tanpa terpotong...'
+                              : 'Mengenkode animasi flyover 18 detik ke berkas MP4 Full HD (25 Mbps) tanpa terpotong...'),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
+                    ),
+                    const SizedBox(height: 18),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: isPrecache
+                            ? (_renderPrecacheTotal > 0 ? (_renderPrecacheLoaded / _renderPrecacheTotal).clamp(0.0, 1.0) : null)
+                            : _renderProgress,
+                        backgroundColor: Colors.white12,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+                        minHeight: 8,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          isPrecache ? Icons.save_alt_rounded : Icons.bolt_rounded,
-                          color: AppColors.neonCyan,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 6),
                         Text(
                           isPrecache
-                              ? 'Download Peta ke Disk • Bebas Kotak Hitam'
-                              : (is4K ? '4K Ultra HD • Layar Utuh • 18 Detik' : 'Full HD • Layar Utuh • 18 Detik'),
+                              ? 'Ubin di Disk: $_renderPrecacheLoaded / $_renderPrecacheTotal'
+                              : 'Frame $_renderCurrentFrame / $_renderTotalFrames',
                           style: const TextStyle(
-                            color: AppColors.neonCyan,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
+                            color: AppColors.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          '$percent%',
+                          style: const TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardSurfaceElevated,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.borderSubtle),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isPrecache ? Icons.save_alt_rounded : Icons.bolt_rounded,
+                            color: AppColors.neonCyan,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            isPrecache
+                                ? 'Download Peta HD ke Disk • Bebas Kotak Hitam'
+                                : (is4K ? '4K Ultra HD (45 Mbps) • Layar Utuh • 18s' : 'Full HD 1080p (25 Mbps) • Layar Utuh • 18s'),
+                            style: const TextStyle(
+                              color: AppColors.neonCyan,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      _isRenderCancelled = true;
+                      if (dialogCtx != null && Navigator.canPop(dialogCtx!)) {
+                        Navigator.pop(dialogCtx!);
+                      }
+                      dialogCtx = null;
+                      dialogSetState = null;
+                      ForegroundServiceHandler.stopRenderProgress();
+                    },
+                    child: const Text(
+                      'BATALKAN',
+                      style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  FilledButton.icon(
+                    onPressed: () {
+                      if (dialogCtx != null && Navigator.canPop(dialogCtx!)) {
+                        Navigator.pop(dialogCtx!);
+                      }
+                      dialogCtx = null;
+                      dialogSetState = null;
+                      if (mounted) {
+                        setState(() {
+                          _isRenderMinimized = true;
+                        });
+                      }
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      foregroundColor: Colors.black,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    ),
+                    icon: const Icon(Icons.picture_in_picture_alt_rounded, size: 16),
+                    label: const Text(
+                      'LATAR BELAKANG',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+                    ),
                   ),
                 ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    isCancelled = true;
-                    Navigator.pop(ctx);
-                  },
-                  child: const Text(
-                    'BATALKAN',
-                    style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
+              );
+            },
+          );
+        },
+      );
+    }
+
+    _reopenRenderDialog = openDialog;
+    openDialog();
 
     // 3. Unduh & simpan 100% ubin rute langsung ke disk penyimpanan internal HP sebelum render dimulai
     try {
@@ -1918,31 +2151,45 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
             : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
         onProgress: (progress, loaded, total) {
-          precacheLoaded = loaded;
-          precacheTotal = total;
+          _renderPrecacheLoaded = loaded;
+          _renderPrecacheTotal = total;
+          _renderProgress = progress;
           if (dialogSetState != null) {
             dialogSetState!(() {});
           }
+          if (_isRenderMinimized && mounted) {
+            setState(() {});
+          }
+          ForegroundServiceHandler.startOrUpdateRenderProgress(
+            progress: progress,
+            currentFrame: loaded,
+            totalFrames: total,
+          );
         },
         timeout: const Duration(seconds: 60),
-        isCancelled: () => isCancelled,
+        isCancelled: () => _isRenderCancelled,
       );
     } catch (_) {}
 
-    if (isCancelled) {
+    if (_isRenderCancelled) {
       if (mounted) {
         setState(() {
           _cleanRecordMode = false;
           _isRenderingVideo = false;
+          _isRenderMinimized = false;
         });
       }
+      await ForegroundServiceHandler.stopRenderProgress();
       return;
     }
 
     // Ubah fase ke 'encode'
-    renderPhase = 'encode';
+    _renderPhase = 'encode';
     if (dialogSetState != null) {
       dialogSetState!(() {});
+    }
+    if (_isRenderMinimized && mounted) {
+      setState(() {});
     }
 
     // Hangatkan kanvas pada titik awal agar tile awal selesai digambar sebelum perekaman dimulai
@@ -1958,11 +2205,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     try {
       exportedVideoPath = await VideoExportService.renderWidgetToVideo(
         boundaryKey: _recordBoundaryKey,
-        totalFrames: totalFrames,
+        totalFrames: _renderTotalFrames,
         fps: 30,
         targetWidth: is4K ? 2160 : 1080,
-        bitrate: is4K ? 35000000 : 20000000,
-        isCancelled: () => isCancelled,
+        bitrate: is4K ? 45000000 : 25000000,
+        isCancelled: () => _isRenderCancelled,
         onStepFrame: (frameIndex, progress) async {
           _animController.value = progress;
           _lastCameraMoveTime = null; // paksa kamera bergerak mengikuti titik rute
@@ -1973,11 +2220,19 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           await Future.delayed(const Duration(milliseconds: 65));
         },
         onProgress: (progress, currentFrame, total) {
-          exportProgress = progress;
-          currentFrameNum = currentFrame;
+          _renderProgress = progress;
+          _renderCurrentFrame = currentFrame;
           if (dialogSetState != null) {
             dialogSetState!(() {});
           }
+          if (_isRenderMinimized && mounted) {
+            setState(() {});
+          }
+          ForegroundServiceHandler.startOrUpdateRenderProgress(
+            progress: progress,
+            currentFrame: currentFrame,
+            totalFrames: total,
+          );
         },
       );
     } catch (e) {
@@ -1985,8 +2240,22 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     }
 
     // 5. Tutup dialog progress jika masih terbuka
-    if (mounted && Navigator.canPop(context)) {
-      Navigator.pop(context);
+    if (dialogCtx != null && dialogCtx!.mounted && Navigator.canPop(dialogCtx!)) {
+      Navigator.pop(dialogCtx!);
+      dialogCtx = null;
+      dialogSetState = null;
+    }
+
+    // Beritahukan layanan foreground bahwa video selesai
+    if (exportedVideoPath != null) {
+      await ForegroundServiceHandler.startOrUpdateRenderProgress(
+        progress: 1.0,
+        currentFrame: _renderTotalFrames,
+        totalFrames: _renderTotalFrames,
+        isCompleted: true,
+      );
+    } else {
+      await ForegroundServiceHandler.stopRenderProgress();
     }
 
     // Kembalikan clean record mode & flag rendering ke false
@@ -1994,10 +2263,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       setState(() {
         _cleanRecordMode = false;
         _isRenderingVideo = false;
+        _isRenderMinimized = false;
       });
     }
 
-    if (isCancelled) return;
+    if (_isRenderCancelled) return;
 
     // 6. Tampilkan satu-satunya menu hasil ekspor video yang lengkap
     if (exportedVideoPath != null && mounted) {
@@ -2495,9 +2765,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               _buildShareActionTile(
                 icon: Icons.movie_creation_rounded,
                 iconColor: AppColors.primaryOrange,
-                title: 'Ekspor Video Full HD (Full Frame Layar Utuh)',
+                title: 'Ekspor Video Full HD (HD Bebas Blur & Latar Belakang)',
                 subtitle:
-                    'Animasi 18 detik Full HD tajam bebas blur, seluruh rute & HUD terlihat utuh tanpa terpotong, otomatis tersimpan ke Galeri HP.',
+                    'Animasi 18 detik Full HD 1080p (25 Mbps) tajam retina bebas blur, bisa berjalan di latar belakang sambil melakukan hal lain, otomatis tersimpan ke Galeri.',
                 badge: 'FULL HD 1080P',
                 badgeColor: AppColors.neonGreen,
                 onTap: () {
@@ -2511,9 +2781,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               _buildShareActionTile(
                 icon: Icons.hd_rounded,
                 iconColor: AppColors.electricAmber,
-                title: 'Ekspor Video 4K Ultra HD (2160p)',
+                title: 'Ekspor Video 4K Ultra HD (2160p & Latar Belakang)',
                 subtitle:
-                    'Resolusi ultra jernih 4K (35 Mbps) animasi 18 detik kualitas sinematik maksimal tanpa terpotong, otomatis tersimpan ke Galeri.',
+                    'Resolusi ultra jernih 4K (45 Mbps) kualitas sinematik maksimal tajam kristal, bisa berjalan di latar belakang sambil melakukan hal lain, otomatis ke Galeri.',
                 badge: '4K ULTRA HD',
                 badgeColor: AppColors.electricAmber,
                 onTap: () {

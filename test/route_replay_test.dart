@@ -230,6 +230,59 @@ void main() {
       expect(find.text('FLYOVER REPLAY'), findsOneWidget);
     });
 
+    testWidgets('Membuka opsi ekspor video dan mendukung tombol Latar Belakang',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteReplayScreen(session: testSession),
+        ),
+      );
+
+      await tester.pump();
+      if (find.text('Lewati & Langsung Putar').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Lewati & Langsung Putar'));
+        await tester.pumpAndSettle();
+      } else {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+
+      final videoBtn = find.byTooltip('Rekam & Bagikan Video');
+      expect(videoBtn, findsOneWidget);
+
+      await tester.tap(videoBtn);
+      await tester.pumpAndSettle();
+
+      // Temukan opsi ekspor video Full HD
+      final exportTile = find.text('Ekspor Video Full HD (HD Bebas Blur & Latar Belakang)');
+      expect(exportTile, findsOneWidget);
+
+      await tester.tap(exportTile);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Verifikasi dialog render menampilkan tombol LATAR BELAKANG dan BATALKAN
+      expect(find.text('LATAR BELAKANG'), findsOneWidget);
+      expect(find.text('BATALKAN'), findsOneWidget);
+
+      // Ketuk tombol LATAR BELAKANG untuk meminimalkan proses render
+      await tester.tap(find.text('LATAR BELAKANG'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Modal dialog utama harus tertutup, dan floating banner latar belakang tampil
+      expect(find.byTooltip('Batalkan Render'), findsOneWidget);
+      expect(find.byTooltip('Buka Dialog'), findsOneWidget);
+
+      // Batalkan render dari floating banner
+      await tester.tap(find.byTooltip('Batalkan Render'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      // Banner menghilang dan antarmuka kembali normal
+      expect(find.byTooltip('Batalkan Render'), findsNothing);
+      expect(find.text('FLYOVER REPLAY'), findsOneWidget);
+    });
+
     testWidgets('Menangani siklus preloading tile peta dan memastikan kontrol siap',
         (WidgetTester tester) async {
       await tester.pumpWidget(

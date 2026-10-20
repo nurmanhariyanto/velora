@@ -117,23 +117,23 @@ class MapPrecacheService {
       dir.createSync(recursive: true);
     }
 
-    // 1. Ekstrak seluruh ubin zoom 16 di sepanjang rute + ubin tetangga
+    // 1. Ekstrak seluruh ubin zoom 17 di sepanjang rute + ubin tetangga (Resolusi Tinggi HD / Retina)
+    final tilesZ17 = calculateRouteTiles(
+      coordinates,
+      zoom: 17,
+      includeNeighbors: true,
+      maxTiles: 1200,
+    );
+
+    // 2. Ekstrak ubin zoom 16 untuk horizon cakrawala perspektif 3D & transisi
     final tilesZ16 = calculateRouteTiles(
       coordinates,
       zoom: 16,
-      includeNeighbors: true,
-      maxTiles: 800,
-    );
-
-    // 2. Ekstrak ubin zoom 15 untuk horizon cakrawala perspektif 3D
-    final tilesZ15 = calculateRouteTiles(
-      coordinates,
-      zoom: 15,
       includeNeighbors: false,
-      maxTiles: 150,
+      maxTiles: 200,
     );
 
-    final allTiles = <TileCoord>{...tilesZ16, ...tilesZ15}.toList();
+    final allTiles = <TileCoord>{...tilesZ17, ...tilesZ16}.toList();
     final total = allTiles.length;
     if (total == 0) {
       onProgress?.call(1.0, 0, 0);

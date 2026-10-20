@@ -80,7 +80,7 @@ class VideoExportService {
     required void Function(double progress, int currentFrame, int totalFrames) onProgress,
     bool Function()? isCancelled,
     int targetWidth = 1080,
-    int bitrate = 20000000,
+    int bitrate = 25000000,
   }) async {
     try {
       final boundary = boundaryKey.currentContext?.findRenderObject()
