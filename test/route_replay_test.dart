@@ -300,5 +300,109 @@ void main() {
       expect(find.text('FLYOVER REPLAY'), findsOneWidget);
       expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
     });
+
+    testWidgets('Pengguna menggeser slider (scrubbing) memperbarui statistik HUD seketika tanpa stutter',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteReplayScreen(session: testSession),
+        ),
+      );
+
+      await tester.pump();
+      if (find.text('Lewati & Langsung Putar').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Lewati & Langsung Putar'));
+        await tester.pumpAndSettle();
+      }
+
+      final sliderFinder = find.byType(Slider);
+      expect(sliderFinder, findsOneWidget);
+
+      // Geser slider ke posisi tengah (~50%)
+      final topLeft = tester.getTopLeft(sliderFinder);
+      final bottomRight = tester.getBottomRight(sliderFinder);
+      final midPoint = Offset((topLeft.dx + bottomRight.dx) / 2, (topLeft.dy + bottomRight.dy) / 2);
+
+      await tester.tapAt(midPoint);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Jarak dan waktu terupdate mengikuti titik tengah rute (~1.4 km)
+      expect(find.byType(Slider), findsOneWidget);
+      expect(find.text('JARAK'), findsOneWidget);
+      expect(find.text('SPEED'), findsOneWidget);
+      expect(find.text('ELEVASI'), findsOneWidget);
+      expect(find.text('WAKTU'), findsOneWidget);
+    });
+
+    testWidgets('Eksplorasi manual peta (pan/zoom) menonaktifkan auto-follow dan memunculkan tombol Fokus ke Atlet',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteReplayScreen(session: testSession),
+        ),
+      );
+
+      await tester.pump();
+      if (find.text('Lewati & Langsung Putar').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Lewati & Langsung Putar'));
+        await tester.pumpAndSettle();
+      }
+
+      // Tombol Kamera Awalnya aktif mengikuti atlet
+      expect(find.byTooltip('Kamera Mengikuti Atlet'), findsOneWidget);
+      expect(find.text('Fokus ke Atlet'), findsNothing);
+
+      // Simulasikan non-aktif auto follow dengan menekan tombol kamera bebas
+      await tester.tap(find.byTooltip('Kamera Mengikuti Atlet'));
+      await tester.pumpAndSettle();
+
+      // Sekarang tombol Fokus ke Atlet muncul melayang
+      expect(find.byTooltip('Kamera Bebas'), findsOneWidget);
+      expect(find.text('Fokus ke Atlet'), findsOneWidget);
+
+      // Ketuk tombol Fokus ke Atlet untuk memfokuskan kembali
+      await tester.tap(find.text('Fokus ke Atlet'));
+      await tester.pumpAndSettle();
+
+      // Kamera kembali terkunci mengikuti atlet dan tombol floating hilang
+      expect(find.byTooltip('Kamera Mengikuti Atlet'), findsOneWidget);
+      expect(find.text('Fokus ke Atlet'), findsNothing);
+    });
+
+    testWidgets('Sesi Lari merender HUD PACE (/KM) secara tepat dan bebas NaN',
+        (WidgetTester tester) async {
+      final runSession = ActivitySession(
+        id: 'session-run-replay',
+        notes: 'Lari Pagi Flyover',
+        sportsType: SportsType.run,
+        startTime: startTime,
+        endTime: startTime + (300 * 1000),
+        durationSeconds: 300,
+        distanceMeters: 1200,
+        elevationGain: 15.0,
+        averageSpeedKmh: 10.5,
+        maxSpeedKmh: 14.0,
+        averagePaceSecondsPerKm: 342, // ~5'42" /km
+        coordinates: dummyCoordinates,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteReplayScreen(session: runSession),
+        ),
+      );
+
+      await tester.pump();
+      if (find.text('Lewati & Langsung Putar').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Lewati & Langsung Putar'));
+        await tester.pumpAndSettle();
+      }
+
+      // Verifikasi bahwa untuk lari, label PACE dan unit /KM ditampilkan alih-alih SPEED
+      expect(find.text('PACE'), findsOneWidget);
+      expect(find.text('/KM'), findsOneWidget);
+      expect(find.text('Lari Pagi Flyover'), findsOneWidget);
+    });
   });
 }

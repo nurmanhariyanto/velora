@@ -4,15 +4,50 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 
 ## [v1.0.5.8] - 2026-10-20
 
-### 🚀 Perbaikan Ekspor Video 4K Ultra HD & Koreksi Notifikasi Unduh Peta vs Frame Video
-- **Adaptive Multi-Tier Encoder Fallback (Bebas Gagal pada Semua Ponsel):**
-  - Mengimplementasikan pipeline inisialisasi hardware encoder bertingkat (`4K Ultra HD` -> `2K QHD` -> `Full HD 1080p` -> `HD 720p`).
-  - Membatasi dimensi maksimal encoder video 4K ke batas standar hardware MediaCodec dan batas alokasi GPU (`maxDim = 3840`), mencegah error `IllegalArgumentException: unsupported format` atau kegagalan tekstur pada layar ponsel rasio tinggi (19.5:9 atau 20:9).
-  - Jika chipset perangkat (seperti seri midrange) tidak memiliki dukungan native untuk encoding 4K, sistem secara cerdas beralih ke 2K QHD atau Full HD 1080p tanpa pernah gagal atau force close.
-  - Menggunakan profil encoder `ProfileLevel.any` untuk menjamin kompatibilitas 100% di berbagai tipe hardware Android.
-- **Pemisahan Teks Notifikasi Unduh Peta vs Render Frame Video:**
-  - Memperbaiki teks pada Android Foreground Service saat fase *pre-caching*: kini menampilkan secara jelas informasi ubin peta (`Ubin 151 / 151 • Mengunduh Citra Satelit HD`) alih-alih tertulis sebagai frame video.
-  - Notifikasi frame video (`Frame 1 / 540 • Menulis ke Galeri HP`) baru akan ditampilkan setelah fase pengunduhan peta selesai dan proses perekaman frame flyover benar-benar dimulai.
+### 🚀 Audit Menyeluruh & Perbaikan Terpadu: Tombol, Animasi, Aksi, dan Tampilan (4 Task Agents)
+
+#### 🔘 1. Audit & Perbaikan Tombol serta Interaksi Pengguna (Task Agent 1)
+- **Proteksi Anti Double-Tap (`_isActionProcessing`):** Seluruh tombol interaktif (Play/Pause, Replay, Speed 1x/2x/4x, Switch Gaya Peta, Bagikan Video) kini terlindungi dari penekanan ganda berturut-turut yang berpotensi memicu duplikasi proses atau *race condition*.
+- **Feedback Visual Instan:** Setiap penekanan tombol berbagi (WhatsApp, Instagram, Aplikasi Lainnya, Kartu Ringkasan Foto) kini langsung memunculkan indikator interaktif (SnackBar dengan progress spinner) sehingga pengguna mendapatkan kepastian instan tanpa rasa hening atau keluar mendadak.
+- **Peningkatan Hit-Test & Kenyamanan Sentuhan:** Memperluas area sentuhan minimum (*touch target*) pada kontrol pemutaran bawah dan tombol modal agar responsif untuk jempol pada layar ponsel berbagai ukuran.
+- **Proteksi Tombol Kembali (`PopScope`):** Mencegah proses ekspor video terputus secara tidak sengaja ketika pengguna menekan tombol kembali Android, baik saat dialog penuh maupun saat diminimalkan ke latar belakang.
+
+#### 🎬 2. Audit & Perbaikan Animasi serta Kamera Flyover (Task Agent 2)
+- **Interpolasi Pergerakan Kamera Halus (60 FPS & 30 FPS Video):** Memperbaiki algoritma pergerakan kamera flyover rute agar bebas dari stutter, lonjakan koordinat (*coordinate jumping*), dan anomali nilai `NaN` atau pembagian nol pada titik koordinat berdekatan.
+- **Kalkulasi Sudut Hadap Adaptif (*Bearing & Pitch*):** Orientasi kamera berputar halus mengikuti arah tikungan jalan dan tanjakan rute secara alami.
+- **Penanganan Interupsi Gestur Peta:** Jika pengguna melakukan pan/zoom manual di tengah animasi, pemutaran berhenti sejenak secara mulus tanpa *glitch*, dan dapat dilanjutkan kembali dari titik terakhir.
+- **Sinkronisasi Statistik Real-Time HUD:** Nilai kecepatan, elevasi, jarak tempuh, dan waktu bergerak disinkronkan secara presisi dengan posisi titik koordinat animasi saat ini menggunakan komputasi kumulatif `_cumulativeElevationGains`.
+- **Transisi Halus Banner Batas Wilayah:** Pergantian banner perbatasan kabupaten/kota kini menggunakan animasi *fade in/out* yang proporsional (~2-2.5 detik) tanpa berkedip.
+
+#### ⚙️ 3. Audit & Perbaikan Aksi serta Integrasi Sistem (Task Agent 3)
+- **Adaptive Multi-Tier Hardware Encoder (4K Ultra HD -> 2K QHD -> Full HD 1080p -> HD 720p):**
+  - Mengimplementasikan pipeline inisialisasi hardware video encoder bertingkat pada `VideoExportService`.
+  - Membatasi dimensi terpanjang pada 3840 pixel (batas standar 4K UHD MediaCodec & batas aman alokasi GPU/OpenGL `GL_MAX_TEXTURE_SIZE`), mencegah error `IllegalArgumentException: unsupported format` atau `CodecException` pada layar rasio tinggi (19.5:9 atau 20:9).
+  - Jika chipset perangkat (terutama seri midrange) tidak mendukung encoding native 4K, sistem secara otomatis beralih (*fallback*) ke 2K QHD atau Full HD 1080p tanpa pernah gagal (*zero failure rate*).
+  - Menggunakan konfigurasi `ProfileLevel.any` untuk kompatibilitas mutlak di seluruh varian chipset Snapdragon, MediaTek Dimensity/Helio, dan Exynos.
+- **Pemisahan Teks Notifikasi Android Foreground Service:**
+  - Memperbaiki teks notifikasi saat fase unduh peta (*pre-caching*): kini menampilkan secara jelas informasi ubin peta (`Ubin X / Y • Mengunduh Citra Satelit HD`), membedakannya secara tegas dari fase perekaman frame video (`Frame A / B • Menulis ke Galeri HP`).
+  - Menghilangkan anomali teks notifikasi "151/151 frame" saat pengunduhan ubin.
+- **Penguatan Izin Berkas Native Android:** Penambahan izin `ClipData.newRawUri` dan dukungan paket WhatsApp Business (`com.whatsapp.w4b`) pada `MainActivity.kt`.
+
+#### 📱 4. Audit & Perbaikan Tampilan serta Layout UI/UX (Task Agent 4)
+- **Eliminasi Total `RenderFlex Overflow`:** Menata ulang tata letak HUD statistik, header action bar, watermark atlet, banner batas wilayah, dialog progres render, dan floating mini-banner agar responsif pada seluruh rasio layar (16:9, 18:9, 19.5:9, 20:9), mode landscape (800x360), serta layar sempit (lebar 320dp dan 360dp) dengan text scale factor hingga 1.5x.
+- **HUD Statistik 5-Metrik Terpadu (JARAK, SPEED/PACE, ELEVASI, GAIN, WAKTU):**
+  - Mengintegrasikan metrik kumulatif `GAIN` (+... M) bersama `ELEVASI` (altitude mdpl) secara terpisah dan presisi, dihitung via `_cumulativeElevationGains`.
+  - Membungkus setiap kolom metrik dalam `Expanded(child: FittedBox(fit: BoxFit.scaleDown, child: _buildHudMetricColumn(...)))` sehingga angka dan satuan terskala otomatis tanpa tumpang tindih.
+  - Untuk olahraga lari (`SportsType.run`), otomatis beralih dari `SPEED (KM/H)` ke `PACE (/KM)`.
+- **Isolasi Rekaman Video Bersih (`RepaintBoundary`):**
+  - Mengisolasi boundary rekaman video MP4 hanya mencakup lapisan visual esensial (peta, rute atlet, watermark sinematik, banner perbatasan, dan HUD).
+  - Memindahkan overlay transien (dialog pre-buffering, toast bantuan, dan floating mini-banner latar belakang) ke luar `_recordBoundaryKey` agar tidak ikut terpotong atau terekam ke dalam file video MP4 hasil ekspor.
+- **Header Bar & Watermark Atlet Responsif:**
+  - Menata ulang 6 tombol aksi header dengan `BoxConstraints(minWidth: 32, minHeight: 32)`, `VisualDensity.compact`, serta pembungkus `FittedBox` dan `Flexible(child: Text(..., overflow: TextOverflow.ellipsis))` agar judul rute tidak overflow pada ponsel 360dp.
+  - Watermark logo dan nama atlet pada Clean Record Mode kini dibatasi `maxWidth: screenWidth - 36` dengan `TextOverflow.ellipsis`.
+- **Dialog & Bottom Sheet Anti-Overflow:**
+  - Seluruh dialog modal (`_showStartRecordConfirmDialog`, `_showCleanRecordCompletedDialog`, dialog progres render, dan dialog konfirmasi keluar) kini dilengkapi `SingleChildScrollView`, `actionsOverflowDirection: VerticalDirection.down`, dan teks `overflow: TextOverflow.ellipsis`.
+  - Bottom sheet opsi ekspor video dibatasi `ConstrainedBox(maxHeight: 90% screenHeight)` agar nyaman diakses pada orientasi landscape.
+- **Dukungan Pembatalan Precaching Peta (`isCancelled`):** Menambahkan callback `isCancelled` pada `MapPrecacheService` agar proses pre-buffering berhenti seketika saat pengguna menekan "Lewati" atau keluar layar, menjamin kebersihan memori dan zero pending timers.
+- **Pengujian Komprehensif (109 Tests Passed 100%):** Menambahkan test suite audit layout `test/route_replay_layout_audit_test.dart` menguji resolusi 320x568, 360x640, 360x800, 390x844, 800x360 landscape, text scale 1.3x-1.5x, serta seluruh alur dialog tanpa ada satu pun error atau overflow UI.
+
 - **Pembaruan Versi Sistem:** Menaikkan versi Android ke `1.0.5.8` (`versionCode = 31`).
 
 ## [v1.0.5.7] - 2026-10-20

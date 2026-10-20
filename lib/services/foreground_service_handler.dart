@@ -170,7 +170,39 @@ class ForegroundServiceHandler {
     } catch (_) {}
   }
 
-  /// Memulai atau memperbarui notifikasi foreground untuk proses render video di latar belakang
+  /// Memulai atau memperbarui notifikasi foreground untuk fase pengunduhan ubin peta (Fase 1)
+  static Future<void> startOrUpdatePrecacheProgress({
+    required double progress,
+    required int loaded,
+    required int total,
+    bool isSatellite = true,
+  }) async {
+    try {
+      await initService();
+      await requestNotificationPermission();
+
+      final percent = (progress * 100).clamp(0, 100).toInt();
+      final title = '🗺️ Velora: Menyiapkan Peta Rute ($percent%)';
+      final text = 'Ubin $loaded / $total • ${isSatellite ? 'Mengunduh Citra Satelit HD' : 'Mengunduh Peta Rute Offline'}';
+
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.updateService(
+          notificationTitle: title,
+          notificationText: text,
+        );
+      } else {
+        await FlutterForegroundTask.startService(
+          serviceId: 257,
+          serviceTypes: [ForegroundServiceTypes.location],
+          notificationTitle: title,
+          notificationText: text,
+          callback: startCallback,
+        );
+      }
+    } catch (_) {}
+  }
+
+  /// Memulai atau memperbarui notifikasi foreground untuk proses render frame video (Fase 2)
   static Future<void> startOrUpdateRenderProgress({
     required double progress,
     required int currentFrame,
@@ -190,8 +222,8 @@ class ForegroundServiceHandler {
               : '🎬 Velora: Merender Video Flyover ($percent%)');
       final text = customText ??
           (isCompleted
-              ? 'Tersimpan di Galeri (Movies/Velora). Siap dibagikan!'
-              : 'Frame $currentFrame / $totalFrames • Menulis ke Galeri HP');
+              ? 'Tersimpan di Galeri & Download/Velora. Siap dibagikan!'
+              : 'Frame $currentFrame / $totalFrames • Menulis ke Encoder Hardware');
 
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.updateService(
@@ -201,8 +233,38 @@ class ForegroundServiceHandler {
       } else {
         await FlutterForegroundTask.startService(
           serviceId: 257,
+          serviceTypes: [ForegroundServiceTypes.location],
           notificationTitle: title,
           notificationText: text,
+          callback: startCallback,
+        );
+      }
+    } catch (_) {}
+  }
+
+  /// Notifikasi penyelesaian ekspor video
+  static Future<void> showRenderCompletedNotification({
+    String? title,
+    String? text,
+  }) async {
+    try {
+      await initService();
+      await requestNotificationPermission();
+
+      final completedTitle = title ?? '✅ Video Flyover Berhasil Dibuat!';
+      final completedText = text ?? 'Tersimpan di Galeri & Download/Velora. Ketuk untuk melihat.';
+
+      if (await FlutterForegroundTask.isRunningService) {
+        await FlutterForegroundTask.updateService(
+          notificationTitle: completedTitle,
+          notificationText: completedText,
+        );
+      } else {
+        await FlutterForegroundTask.startService(
+          serviceId: 257,
+          serviceTypes: [ForegroundServiceTypes.location],
+          notificationTitle: completedTitle,
+          notificationText: completedText,
           callback: startCallback,
         );
       }

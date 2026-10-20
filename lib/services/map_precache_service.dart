@@ -147,7 +147,9 @@ class MapPrecacheService {
 
     final timer = Timer(timeout, () {
       if (!completer.isCompleted) {
-        onProgress?.call(1.0, total, total);
+        if (isCancelled?.call() != true) {
+          onProgress?.call(1.0, total, total);
+        }
         completer.complete();
       }
     });
@@ -169,7 +171,9 @@ class MapPrecacheService {
         // Jika file sudah ada di disk dan valid (> 100 byte), langsung hitung sebagai loaded
         if (file.existsSync() && file.lengthSync() > 100) {
           loaded++;
-          onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
+          if (isCancelled?.call() != true) {
+            onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
+          }
           continue;
         }
 
@@ -187,30 +191,58 @@ class MapPrecacheService {
             ).timeout(const Duration(seconds: 10));
 
             if (res.statusCode == 200 && res.bodyBytes.length > 100) {
+              if (isCancelled?.call() == true) return;
               if (!file.parent.existsSync()) {
                 file.parent.createSync(recursive: true);
               }
-              await file.writeAsBytes(res.bodyBytes);
+              // Penulisan atomik via berkas temporer untuk mencegah ubin rusak / 0 byte
+              final tmpFile = File('$filePath.tmp');
+              await tmpFile.writeAsBytes(res.bodyBytes);
+              if (isCancelled?.call() == true) {
+                if (tmpFile.existsSync()) tmpFile.deleteSync();
+                return;
+              }
+              if (tmpFile.existsSync() && tmpFile.lengthSync() > 100) {
+                if (file.existsSync()) file.deleteSync();
+                await tmpFile.rename(filePath);
+              }
               break;
             }
           } catch (_) {
-            if (attempt < 2) {
+            if (attempt < 2 &&
+                isCancelled?.call() != true &&
+                WidgetsBinding.instance is WidgetsFlutterBinding) {
               await Future.delayed(Duration(milliseconds: 200 * (attempt + 1)));
             }
           }
         }
 
         loaded++;
-        onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
+        if (isCancelled?.call() != true) {
+          onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
+        }
       }
     }
 
     await Future.wait(List.generate(workerCount, (_) => worker()));
     timer.cancel();
     if (!completer.isCompleted) {
-      onProgress?.call(1.0, total, total);
+      if (isCancelled?.call() != true) {
+        onProgress?.call(1.0, total, total);
+      }
       completer.complete();
     }
+  }
+
+  /// Membersihkan memori in-memory image cache setelah proses selesai atau dibatalkan
+  /// guna mengembalikan ratusan megabyte RAM ke sistem operasi dan mencegah OOM
+  static void cleanupMemoryCache() {
+    try {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+      PaintingBinding.instance.imageCache.maximumSize = 1000;
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 100 << 20; // 100 MB
+    } catch (_) {}
   }
 
   /// Memanaskan (pre-cache & decode) seluruh tile ke dalam in-memory cache Flutter
@@ -226,6 +258,7 @@ class MapPrecacheService {
     void Function(double progress, int loaded, int total)? onProgress,
     Duration timeout = const Duration(seconds: 45),
     void Function(Timer timer)? onTimerCreated,
+    bool Function()? isCancelled,
   }) async {
     // Alokasikan memori in-memory cache Flutter hingga 500 MB agar tile tidak dibuang selama rendering
     PaintingBinding.instance.imageCache.maximumSize = 3500;
@@ -238,7 +271,7 @@ class MapPrecacheService {
       maxTiles: maxTiles,
     );
 
-    if (tiles.isEmpty) {
+    if (tiles.isEmpty || (isCancelled?.call() ?? false)) {
       onProgress?.call(1.0, 0, 0);
       return;
     }
@@ -264,7 +297,9 @@ class MapPrecacheService {
     int nextIndex = 0;
 
     Future<void> runWorker() async {
-      while (nextIndex < tileList.length && !completer.isCompleted) {
+      while (nextIndex < tileList.length &&
+          !completer.isCompleted &&
+          !(isCancelled?.call() ?? false)) {
         final currentIndex = nextIndex++;
         final tile = tileList[currentIndex];
         await _loadTileWithRetry(
@@ -273,6 +308,7 @@ class MapPrecacheService {
           tileLayer: tileLayer,
           urlTemplate: urlTemplate,
           config: config,
+          isCancelled: isCancelled,
         );
         loaded++;
         onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
@@ -294,8 +330,10 @@ class MapPrecacheService {
     required TileLayer? tileLayer,
     required String urlTemplate,
     required ImageConfiguration config,
+    bool Function()? isCancelled,
   }) async {
     for (int attempt = 0; attempt < 2; attempt++) {
+      if (isCancelled?.call() ?? false) return;
       try {
         final completer = Completer<void>();
         final url = urlTemplate
@@ -335,8 +373,7 @@ class MapPrecacheService {
         );
         return;
       } catch (_) {
-        if (attempt == 1) return;
-        await Future.delayed(const Duration(milliseconds: 150));
+        if (attempt == 1 || (isCancelled?.call() ?? false)) return;
       }
     }
   }

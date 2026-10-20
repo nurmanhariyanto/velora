@@ -1,8 +1,12 @@
+import 'dart:io';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:velora/models/coordinate_point.dart';
 import 'package:velora/services/map_precache_service.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('MapPrecacheService Unit Tests', () {
     test('latLonToTile mengonversi koordinat Monas dengan benar pada zoom 16', () {
       final tile = MapPrecacheService.latLonToTile(-6.1754, 106.8272, 16);
@@ -58,6 +62,48 @@ void main() {
     test('calculateRouteTiles mengembalikan himpunan kosong jika titik kosong', () {
       final tiles = MapPrecacheService.calculateRouteTiles([], zoom: 16);
       expect(tiles, isEmpty);
+    });
+
+    test('cleanupMemoryCache mengosongkan cache gambar dan menyetel batas memori aman', () {
+      PaintingBinding.instance.imageCache.maximumSize = 3500;
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 500 << 20;
+
+      MapPrecacheService.cleanupMemoryCache();
+
+      expect(PaintingBinding.instance.imageCache.maximumSize, equals(1000));
+      expect(PaintingBinding.instance.imageCache.maximumSizeBytes, equals(100 << 20));
+    });
+
+    test('downloadAndCacheRouteTiles berhenti seketika saat isCancelled bernilai true', () async {
+      final points = [
+        const CoordinatePoint(
+          activityId: 'test-cancel',
+          latitude: -6.1754,
+          longitude: 106.8272,
+          timestamp: 1000,
+        ),
+      ];
+
+      final tempDir = Directory.systemTemp.createTempSync('velora_tile_test_cancel');
+      bool wasCancelled = true;
+      double lastProgress = 0.0;
+
+      await MapPrecacheService.downloadAndCacheRouteTiles(
+        coordinates: points,
+        cacheDir: tempDir.path,
+        providerType: 'osm',
+        isCancelled: () => wasCancelled,
+        onProgress: (p, loaded, total) {
+          lastProgress = p;
+        },
+      );
+
+      // Karena langsung dibatalkan sebelum unduhan dimulai, progress tidak boleh mencapai 1.0 dari loop
+      expect(lastProgress, lessThan(1.0));
+
+      if (tempDir.existsSync()) {
+        tempDir.deleteSync(recursive: true);
+      }
     });
   });
 }

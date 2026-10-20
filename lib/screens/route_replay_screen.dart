@@ -46,10 +46,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   // Analisis lintasan & data pendukung
   late final List<TrackMilestone> _milestones;
   late final List<double> _cumulativeDistances;
+  late final List<double> _cumulativeElevationGains;
   String _athleteName = UserProfileService.defaultAthleteName;
 
   // Status pemutaran animasi
+  static const Duration _baseDuration = Duration(seconds: 18);
   bool _isPlaying = true;
+  bool _wasPlayingBeforeScrub = false;
   double _playbackSpeed = 2.0; // 1x, 2x, 4x, 8x
   bool _autoFollow = true;
   bool _mapDarkTheme = false;
@@ -87,6 +90,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   bool _cleanRecordMode = false;
   bool _showRecordTooltip = false;
   Timer? _recordTooltipTimer;
+  bool _isPickingVideo = false;
 
   // Status Pre-buffering Tile Peta untuk 60 FPS Mulus di Semua HP
   bool _isPreloadingTiles = true;
@@ -164,6 +168,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     // 1. Hitung akumulasi jarak per titik koordinat
     _cumulativeDistances = _precomputeCumulativeDistances(widget.session.coordinates);
+    _cumulativeElevationGains = _precomputeCumulativeElevationGains(widget.session.coordinates);
 
     // 2. Ekstrak penanda milestone rute (KM Splits, Puncak, Max Speed)
     _milestones = TrackAnalysisService.analyzeTrack(
@@ -171,12 +176,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       widget.session.sportsType,
     );
 
-    // 3. Durasi dasar animasi flyover (sekitar 30 detik pada kecepatan 1x)
-    const baseDuration = Duration(seconds: 30);
+    // 3. Durasi dasar animasi flyover (18 detik pada kecepatan 1x / 540 frame @ 30 FPS)
     _animController = AnimationController(
       vsync: this,
       duration: Duration(
-        milliseconds: (baseDuration.inMilliseconds / _playbackSpeed).round(),
+        milliseconds: (_baseDuration.inMilliseconds / _playbackSpeed).round(),
       ),
     );
 
@@ -261,6 +265,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         },
         timeout: const Duration(milliseconds: 4500),
         onTimerCreated: (t) => _precacheTimer = t,
+        isCancelled: () => !mounted || !_isPreloadingTiles,
       );
     } catch (_) {}
 
@@ -308,6 +313,20 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       distances[i] = total;
     }
     return distances;
+  }
+
+  List<double> _precomputeCumulativeElevationGains(List<CoordinatePoint> points) {
+    if (points.isEmpty) return const [];
+    final gains = List<double>.filled(points.length, 0.0);
+    double totalGain = 0.0;
+    for (int i = 1; i < points.length; i++) {
+      final diff = points[i].elevation - points[i - 1].elevation;
+      if (diff > 0) {
+        totalGain += diff;
+      }
+      gains[i] = totalGain;
+    }
+    return gains;
   }
 
   void _onAnimationTick() {
@@ -480,19 +499,18 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     final nextIndex = (speeds.indexOf(_playbackSpeed) + 1) % speeds.length;
     final newSpeed = speeds[nextIndex];
 
-    const baseDuration = Duration(seconds: 30);
     final remainingProgress = 1.0 - _animController.value;
 
     setState(() {
       _playbackSpeed = newSpeed;
       _animController.duration = Duration(
-        milliseconds: (baseDuration.inMilliseconds / _playbackSpeed).round(),
+        milliseconds: (_baseDuration.inMilliseconds / _playbackSpeed).round(),
       );
       if (_isPlaying) {
         _animController.animateTo(
           1.0,
           duration: Duration(
-            milliseconds: (baseDuration.inMilliseconds *
+            milliseconds: (_baseDuration.inMilliseconds *
                     remainingProgress /
                     _playbackSpeed)
                 .round(),
@@ -536,6 +554,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
   @override
   void dispose() {
+    _isPreloadingTiles = false;
+    _isRenderCancelled = true;
     _precacheTimer?.cancel();
     _chimeTimer?.cancel();
     _borderEventTimer?.cancel();
@@ -544,6 +564,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _animController.dispose();
     _mapController.dispose();
     _tileProvider.dispose();
+    ForegroundServiceHandler.stopRenderProgress();
+    MapPrecacheService.cleanupMemoryCache();
     super.dispose();
   }
 
@@ -564,11 +586,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     }
 
     final totalPoints = coords.length;
-    final progress = _animController.value;
+    final progress = _animController.value.clamp(0.0, 1.0);
     final rawIndex = progress * (totalPoints - 1);
     final currentIndex = rawIndex.floor().clamp(0, totalPoints - 1);
     final nextIndex = (currentIndex + 1).clamp(0, totalPoints - 1);
-    final fraction = rawIndex - currentIndex;
+    final fraction = (rawIndex - currentIndex).clamp(0.0, 1.0);
 
     final currentPt = coords[currentIndex];
     final nextPt = coords[nextIndex];
@@ -589,17 +611,47 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         .map((p) => LatLng(p.latitude, p.longitude))
         .toList();
 
-    // Metrik dinamis berjalan terinterpolasi
-    final currentDistanceM = _cumulativeDistances.isNotEmpty
+    // Metrik dinamis berjalan terinterpolasi dengan proteksi NaN dan pembagian nol
+    final rawDistanceM = _cumulativeDistances.isNotEmpty
         ? (_cumulativeDistances[currentIndex] +
             (_cumulativeDistances[nextIndex] - _cumulativeDistances[currentIndex]) * fraction)
         : 0.0;
+    final currentDistanceM = (rawDistanceM.isNaN || rawDistanceM.isInfinite || rawDistanceM < 0)
+        ? 0.0
+        : rawDistanceM;
     final currentDistKm = currentDistanceM / 1000.0;
-    final currentSpeed = currentPt.speedKmh + (nextPt.speedKmh - currentPt.speedKmh) * fraction;
-    final currentElevation = currentPt.elevation + (nextPt.elevation - currentPt.elevation) * fraction;
-    final elapsedSec = ((currentPt.timestamp - coords.first.timestamp) / 1000)
-        .round()
-        .clamp(0, widget.session.durationSeconds);
+
+    final rawSpeed = currentPt.speedKmh + (nextPt.speedKmh - currentPt.speedKmh) * fraction;
+    final currentSpeed = (rawSpeed.isNaN || rawSpeed.isInfinite || rawSpeed < 0)
+        ? 0.0
+        : rawSpeed;
+
+    final rawElevation = currentPt.elevation + (nextPt.elevation - currentPt.elevation) * fraction;
+    final currentElevation = (rawElevation.isNaN || rawElevation.isInfinite)
+        ? 0.0
+        : rawElevation;
+
+    final double rawElevationGain = _cumulativeElevationGains.isNotEmpty
+        ? (_cumulativeElevationGains[currentIndex] +
+            (_cumulativeElevationGains[nextIndex] - _cumulativeElevationGains[currentIndex]) * fraction)
+        : (widget.session.elevationGain > 0 ? widget.session.elevationGain * progress : 0.0);
+    final currentElevationGain = (rawElevationGain.isNaN || rawElevationGain.isInfinite || rawElevationGain < 0)
+        ? 0.0
+        : rawElevationGain;
+
+    final int totalDuration = widget.session.durationSeconds > 0
+        ? widget.session.durationSeconds
+        : ((coords.last.timestamp - coords.first.timestamp) / 1000).round();
+
+    int elapsedSec;
+    if (coords.last.timestamp > coords.first.timestamp) {
+      final interpTimestamp = currentPt.timestamp +
+          ((nextPt.timestamp - currentPt.timestamp) * fraction);
+      final rawSec = ((interpTimestamp - coords.first.timestamp) / 1000).round();
+      elapsedSec = rawSec.clamp(0, totalDuration > 0 ? totalDuration : 864000);
+    } else {
+      elapsedSec = (progress * (totalDuration > 0 ? totalDuration : 0)).round();
+    }
 
     return PopScope(
       canPop: !_isRenderingVideo,
@@ -621,17 +673,26 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 borderRadius: BorderRadius.circular(20),
                 side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
               ),
+              actionsOverflowDirection: VerticalDirection.down,
               title: const Row(
                 children: [
                   Icon(Icons.movie_filter_rounded, color: AppColors.primaryOrange, size: 24),
                   SizedBox(width: 8),
-                  Text('Render Sedang Berjalan', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                  Expanded(
+                    child: Text(
+                      'Render Sedang Berjalan',
+                      style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
                 ],
               ),
-              content: Text(
-                'Video flyover sedang dibuat di latar belakang ($percent%).\n\n'
-                'Video akan otomatis tersimpan ke Galeri HP (Movies/Velora) begitu selesai. Jika Anda keluar sekarang, proses render akan dibatalkan.',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              content: SingleChildScrollView(
+                child: Text(
+                  'Video flyover sedang dibuat di latar belakang ($percent%).\n\n'
+                  'Video akan otomatis tersimpan ke Galeri HP (Movies/Velora) begitu selesai. Jika Anda keluar sekarang, proses render akan dibatalkan.',
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                ),
               ),
               actions: [
                 TextButton(
@@ -653,11 +714,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       },
       child: Scaffold(
         backgroundColor: AppColors.darkBackground,
-        body: RepaintBoundary(
-        key: _recordBoundaryKey,
-        child: Stack(
+        body: Stack(
           fit: StackFit.expand,
           children: [
+            RepaintBoundary(
+              key: _recordBoundaryKey,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
           // 1. Lapisan Peta Citra Satelit / OSM Interaktif (Mendukung Perspektif 3D Menyamping Sinematik)
           _is3dTilted
               ? LayoutBuilder(
@@ -732,47 +796,58 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             Positioned(
               top: MediaQuery.of(context).padding.top + 14,
               left: 18,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withAlpha(180),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.white24, width: 0.8),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black45,
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.keyboard_double_arrow_right_rounded,
-                      color: AppColors.primaryOrange,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    const Text(
-                      'VELORA',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 12,
-                        letterSpacing: 1.1,
+              right: 18,
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width - 36,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(180),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white24, width: 0.8),
+                    boxShadow: const [
+                      BoxShadow(
+                        color: Colors.black45,
+                        blurRadius: 8,
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '• $_athleteName',
-                      style: const TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.keyboard_double_arrow_right_rounded,
+                        color: AppColors.primaryOrange,
+                        size: 16,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 4),
+                      const Text(
+                        'VELORA',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                          letterSpacing: 1.1,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          '• $_athleteName',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -787,6 +862,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   setState(() {
                     _cleanRecordMode = false;
                   });
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Keluar dari Mode Rekam Bersih'),
+                      duration: Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                 },
               ),
             ),
@@ -828,75 +911,136 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     currentDistKm: currentDistKm,
                     currentSpeedKmh: currentSpeed,
                     currentElevation: currentElevation,
+                    currentElevationGain: currentElevationGain,
                     elapsedSeconds: elapsedSec,
                   )
                 : _buildBottomHudAndControls(
                     currentDistKm: currentDistKm,
                     currentSpeedKmh: currentSpeed,
                     currentElevation: currentElevation,
+                    currentElevationGain: currentElevationGain,
                     elapsedSeconds: elapsedSec,
                     progress: progress,
                   ),
           ),
-
-          // 5. Toast / Tooltip saat Mode Rekam Bersih Baru Dimulai
-          if (_cleanRecordMode && _showRecordTooltip && !_isRenderingVideo)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + 56,
-              left: 24,
-              right: 24,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withAlpha(210),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppColors.primaryOrange.withAlpha(150),
-                  ),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.fiber_manual_record_rounded,
-                      color: Colors.redAccent,
-                      size: 14,
-                    ),
-                    SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        'Mode Rekam Aktif • Ketuk layar untuk keluar',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.bold,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // 6. Pre-buffering Loading Overlay (Menyiapkan Peta untuk 60 FPS Mulus di Semua HP)
-          if (_isPreloadingTiles)
-            _buildPreloadingOverlay(),
-
-          // 7. Floating Card Progres Render di Latar Belakang (Non-Blocking)
-          if (_isRenderingVideo && _isRenderMinimized)
-            Positioned(
-              bottom: MediaQuery.of(context).padding.bottom + 16,
-              left: 16,
-              right: 16,
-              child: _buildMinimizedRenderBanner(),
-            ),
         ],
       ),
     ),
+
+    // Tombol melayang "Fokus ke Atlet" saat mode kamera bebas
+    if (!_autoFollow && !_cleanRecordMode)
+      Positioned(
+        bottom: 125,
+        right: 20,
+        child: _buildRecenterFloatingButton(currentInterpPos),
+      ),
+
+    // 5. Toast / Tooltip saat Mode Rekam Bersih Baru Dimulai (Overlay di luar video)
+    if (_cleanRecordMode && _showRecordTooltip && !_isRenderingVideo)
+      Positioned(
+        top: MediaQuery.of(context).padding.top + 56,
+        left: 24,
+        right: 24,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withAlpha(210),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: AppColors.primaryOrange.withAlpha(150),
+            ),
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.fiber_manual_record_rounded,
+                color: Colors.redAccent,
+                size: 14,
+              ),
+              SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  'Mode Rekam Aktif • Ketuk layar untuk keluar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+
+    // 6. Pre-buffering Loading Overlay (Overlay di luar video)
+    if (_isPreloadingTiles)
+      _buildPreloadingOverlay(),
+
+    // 7. Floating Card Progres Render di Latar Belakang (Overlay di luar video)
+    if (_isRenderingVideo && _isRenderMinimized)
+      Positioned(
+        bottom: MediaQuery.of(context).padding.bottom + 16,
+        left: 16,
+        right: 16,
+        child: _buildMinimizedRenderBanner(),
+      ),
+    ],
   ),
+),
 );
+  }
+
+  Widget _buildRecenterFloatingButton(LatLng currentPos) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          setState(() {
+            _autoFollow = true;
+          });
+          if (_isMapReady) {
+            _mapController.move(currentPos, _mapController.camera.zoom);
+          }
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.cardSurface.withAlpha(240),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.neonCyan.withAlpha(180), width: 1.2),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black45,
+                blurRadius: 8,
+                offset: Offset(0, 3),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.gps_fixed_rounded, color: AppColors.neonCyan, size: 16),
+              SizedBox(width: 6),
+              Text(
+                'Fokus ke Atlet',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildPreloadingOverlay() {
@@ -906,8 +1050,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       color: Colors.black.withAlpha(200),
       alignment: Alignment.center,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 32),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        margin: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         decoration: BoxDecoration(
           color: AppColors.cardSurface,
           borderRadius: BorderRadius.circular(24),
@@ -923,97 +1067,110 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.neonCyan.withAlpha(35),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.speed_rounded,
-                color: AppColors.neonCyan,
-                size: 32,
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Menyiapkan Peta Rute',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.3,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Memuat tile ke memori untuk animasi 60 FPS mulus di semua ponsel...',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white.withAlpha(180),
-                fontSize: 12.5,
-                height: 1.35,
-              ),
-            ),
-            const SizedBox(height: 18),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: _preloadProgress > 0 ? _preloadProgress : null,
-                minHeight: 6,
-                backgroundColor: Colors.white12,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.neonCyan),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  _preloadTotal > 0
-                      ? '$_preloadLoaded / $_preloadTotal Tile'
-                      : 'Menghitung rute...',
-                  style: TextStyle(
-                    color: Colors.white.withAlpha(150),
-                    fontSize: 11.5,
-                  ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.neonCyan.withAlpha(35),
+                  shape: BoxShape.circle,
                 ),
-                Text(
-                  '$percent%',
-                  style: const TextStyle(
-                    color: AppColors.neonCyan,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+                child: const Icon(
+                  Icons.speed_rounded,
+                  color: AppColors.neonCyan,
+                  size: 32,
                 ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            TextButton.icon(
-              onPressed: () {
-                _precacheTimer?.cancel();
-                setState(() {
-                  _isPreloadingTiles = false;
-                });
-                if (!_isPlaying && widget.session.coordinates.length >= 2) {
-                  _animController.forward();
-                  _isPlaying = true;
-                }
-              },
-              icon: const Icon(Icons.play_arrow_rounded, color: AppColors.primaryOrange, size: 18),
-              label: const Text(
-                'Lewati & Langsung Putar',
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                'Menyiapkan Peta Rute',
                 style: TextStyle(
-                  color: AppColors.primaryOrange,
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
+                ),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Memuat tile ke memori untuk animasi 60 FPS mulus di semua ponsel...',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withAlpha(180),
                   fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
+                  height: 1.35,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: _preloadProgress > 0 ? _preloadProgress : null,
+                  minHeight: 6,
+                  backgroundColor: Colors.white12,
+                  valueColor: const AlwaysStoppedAnimation<Color>(AppColors.neonCyan),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      _preloadTotal > 0
+                          ? '$_preloadLoaded / $_preloadTotal Tile'
+                          : 'Menghitung rute...',
+                      style: TextStyle(
+                        color: Colors.white.withAlpha(150),
+                        fontSize: 11.5,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$percent%',
+                    style: const TextStyle(
+                      color: AppColors.neonCyan,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: TextButton.icon(
+                  onPressed: () {
+                    _precacheTimer?.cancel();
+                    setState(() {
+                      _isPreloadingTiles = false;
+                    });
+                    if (!_isPlaying && widget.session.coordinates.length >= 2) {
+                      _animController.forward();
+                      _isPlaying = true;
+                    }
+                  },
+                  icon: const Icon(Icons.play_arrow_rounded, color: AppColors.primaryOrange, size: 18),
+                  label: const Text(
+                    'Lewati & Langsung Putar',
+                    style: TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1028,7 +1185,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         : (_renderProgress * 100).clamp(0, 100).toInt();
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.cardSurface,
         borderRadius: BorderRadius.circular(18),
@@ -1047,7 +1204,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(7),
                 decoration: BoxDecoration(
                   color: AppColors.primaryOrange.withAlpha(30),
                   shape: BoxShape.circle,
@@ -1055,10 +1212,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 child: const Icon(
                   Icons.movie_creation_rounded,
                   color: AppColors.primaryOrange,
-                  size: 20,
+                  size: 18,
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1066,19 +1223,24 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          isPrecache ? 'Unduh Peta Satelit HD' : 'Render Video HD Latar Belakang',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Text(
+                            isPrecache ? 'Unduh Peta Satelit HD' : 'Render Video HD Latar Belakang',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           '$percent%',
                           style: const TextStyle(
                             color: AppColors.primaryOrange,
-                            fontSize: 13,
+                            fontSize: 12.5,
                             fontWeight: FontWeight.w900,
                           ),
                         ),
@@ -1091,16 +1253,21 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                           : 'Frame $_renderCurrentFrame / $_renderTotalFrames • Otomatis ke Galeri',
                       style: const TextStyle(
                         color: AppColors.textMuted,
-                        fontSize: 11,
+                        fontSize: 10.5,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               // Tombol Buka Status Dialog Penuh
               IconButton(
-                icon: const Icon(Icons.open_in_full_rounded, color: AppColors.neonCyan, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.open_in_full_rounded, color: AppColors.neonCyan, size: 18),
                 tooltip: 'Buka Dialog',
                 onPressed: () {
                   _reopenRenderDialog?.call();
@@ -1108,7 +1275,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ),
               // Tombol Batalkan Render
               IconButton(
-                icon: const Icon(Icons.close_rounded, color: Colors.white60, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close_rounded, color: Colors.white60, size: 18),
                 tooltip: 'Batalkan Render',
                 onPressed: () {
                   _isRenderCancelled = true;
@@ -1436,6 +1606,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                       fontSize: 14.5,
                       fontWeight: FontWeight.w900,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
@@ -1454,10 +1626,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     return Container(
       padding: EdgeInsets.fromLTRB(
-        12,
-        MediaQuery.of(context).padding.top + 8,
-        16,
-        12,
+        6,
+        MediaQuery.of(context).padding.top + 6,
+        6,
+        8,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -1473,7 +1645,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
             tooltip: 'Kembali',
             onPressed: () => Navigator.pop(context),
           ),
@@ -1483,51 +1658,55 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
                         widget.session.displayTitle,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 16,
+                          fontSize: 15,
                           fontWeight: FontWeight.w900,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryOrange.withAlpha(50),
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: AppColors.primaryOrange,
-                          width: 0.8,
+                      const SizedBox(width: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOrange.withAlpha(50),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(
+                            color: AppColors.primaryOrange,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: const Text(
+                          'FLYOVER REPLAY',
+                          style: TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 8.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.7,
+                          ),
                         ),
                       ),
-                      child: const Text(
-                        'FLYOVER REPLAY',
-                        style: TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontSize: 9,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
+                const SizedBox(height: 1),
                 Text(
                   '$_athleteName • $formattedDate',
                   style: const TextStyle(
                     color: Colors.white70,
-                    fontSize: 12,
+                    fontSize: 11,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -1535,12 +1714,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ],
             ),
           ),
+          const SizedBox(width: 2),
           // Tombol Mode POV Flyover (Chase Cam vs Flyover Stabil Utara)
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: VisualDensity.compact,
             icon: Icon(
               _povMode ? Icons.explore_rounded : Icons.explore_off_rounded,
               color: _povMode ? AppColors.electricAmber : Colors.white60,
-              size: 22,
+              size: 20,
             ),
             tooltip: _povMode ? 'Mode POV Berputar Aktif' : 'Mode Flyover Stabil (Utara)',
             onPressed: () {
@@ -1554,10 +1737,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ),
           // Tombol Sudut Pandang 3D Menyamping (Perspective Tilt vs 2D Datar)
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: VisualDensity.compact,
             icon: Icon(
               _is3dTilted ? Icons.view_in_ar_rounded : Icons.layers_rounded,
               color: _is3dTilted ? AppColors.electricAmber : Colors.white60,
-              size: 22,
+              size: 20,
             ),
             tooltip: _is3dTilted ? 'Perspektif 3D Menyamping Aktif' : 'Tampilan 2D Datar',
             onPressed: () {
@@ -1568,10 +1754,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ),
           // Tombol Kunci Kamera Follow
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: VisualDensity.compact,
             icon: Icon(
               _autoFollow ? Icons.gps_fixed_rounded : Icons.gps_not_fixed_rounded,
               color: _autoFollow ? AppColors.neonCyan : Colors.white60,
-              size: 22,
+              size: 20,
             ),
             tooltip: _autoFollow ? 'Kamera Mengikuti Atlet' : 'Kamera Bebas',
             onPressed: () {
@@ -1582,12 +1771,15 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ),
           // Tombol Mode Satelit HD vs Peta Jalan OSM
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            visualDensity: VisualDensity.compact,
             icon: Icon(
               _isSatelliteMode
                   ? Icons.satellite_alt_rounded
                   : Icons.map_rounded,
               color: _isSatelliteMode ? AppColors.electricAmber : Colors.white70,
-              size: 22,
+              size: 20,
             ),
             tooltip: _isSatelliteMode ? 'Mode Satelit HD Aktif' : 'Mode Peta Jalan',
             onPressed: () {
@@ -1599,12 +1791,15 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           // Tombol Mode Gelap/Terang (aktif saat mode peta jalan)
           if (!_isSatelliteMode)
             IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              visualDensity: VisualDensity.compact,
               icon: Icon(
                 _mapDarkTheme
                     ? Icons.brightness_medium_rounded
                     : Icons.wb_sunny_rounded,
                 color: _mapDarkTheme ? AppColors.electricAmber : Colors.white70,
-                size: 22,
+                size: 20,
               ),
               tooltip: 'Ubah Tema Peta',
               onPressed: () {
@@ -1615,10 +1810,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             ),
           // Tombol Rekam & Bagikan Video
           IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+            visualDensity: VisualDensity.compact,
             icon: const Icon(
               Icons.videocam_rounded,
               color: AppColors.primaryOrange,
-              size: 24,
+              size: 22,
             ),
             tooltip: 'Rekam & Bagikan Video',
             onPressed: _showShareVideoSheet,
@@ -1665,12 +1863,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               children: [
                 Row(
                   children: [
-                    Text(
-                      milestone.title,
-                      style: const TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
+                    Flexible(
+                      child: Text(
+                        milestone.title,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     if (milestone.isFastestKm) ...[
@@ -1690,6 +1892,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     color: AppColors.textSecondary,
                     fontSize: 12,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -1703,6 +1907,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     required double currentDistKm,
     required double currentSpeedKmh,
     required double currentElevation,
+    required double currentElevationGain,
     required int elapsedSeconds,
     required double progress,
   }) {
@@ -1719,48 +1924,79 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. Baris 4 Metrik Dinamis HUD
+          // 1. Baris 5 Metrik Dinamis HUD
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _buildHudMetric(
-                label: 'JARAK',
-                value: currentDistKm.toStringAsFixed(2),
-                unit: 'KM',
-                accentColor: AppColors.neonCyan,
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _buildHudMetric(
+                    label: 'JARAK',
+                    value: currentDistKm.toStringAsFixed(2),
+                    unit: 'KM',
+                    accentColor: AppColors.neonCyan,
+                  ),
+                ),
               ),
               _buildVerticalDivider(),
-              _buildHudMetric(
-                label: widget.session.sportsType == SportsType.run
-                    ? 'PACE'
-                    : 'SPEED',
-                value: widget.session.sportsType == SportsType.run
-                    ? (currentSpeedKmh > 1.0
-                        ? PaceCalculator.formatPace(3600.0 / currentSpeedKmh)
-                        : "--'--\"")
-                    : currentSpeedKmh.toStringAsFixed(1),
-                unit: widget.session.sportsType == SportsType.run
-                    ? '/KM'
-                    : 'KM/H',
-                accentColor: AppColors.primaryOrange,
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _buildHudMetric(
+                    label: widget.session.sportsType == SportsType.run
+                        ? 'PACE'
+                        : 'SPEED',
+                    value: widget.session.sportsType == SportsType.run
+                        ? (currentSpeedKmh > 1.0
+                            ? PaceCalculator.formatPace(3600.0 / currentSpeedKmh)
+                            : "--'--\"")
+                        : currentSpeedKmh.toStringAsFixed(1),
+                    unit: widget.session.sportsType == SportsType.run
+                        ? '/KM'
+                        : 'KM/H',
+                    accentColor: AppColors.primaryOrange,
+                  ),
+                ),
               ),
               _buildVerticalDivider(),
-              _buildHudMetric(
-                label: 'ELEVASI',
-                value: '+${currentElevation.toStringAsFixed(0)}',
-                unit: 'M',
-                accentColor: const Color(0xFF6366F1),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _buildHudMetric(
+                    label: 'ELEVASI',
+                    value: currentElevation.toStringAsFixed(0),
+                    unit: 'M',
+                    accentColor: const Color(0xFF818CF8),
+                  ),
+                ),
               ),
               _buildVerticalDivider(),
-              _buildHudMetric(
-                label: 'WAKTU',
-                value: PaceCalculator.formatDuration(elapsedSeconds),
-                unit: '',
-                accentColor: Colors.white,
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _buildHudMetric(
+                    label: 'GAIN',
+                    value: '+${currentElevationGain.toStringAsFixed(0)}',
+                    unit: 'M',
+                    accentColor: AppColors.neonGreen,
+                  ),
+                ),
+              ),
+              _buildVerticalDivider(),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: _buildHudMetric(
+                    label: 'WAKTU',
+                    value: PaceCalculator.formatDuration(elapsedSeconds),
+                    unit: '',
+                    accentColor: Colors.white,
+                  ),
+                ),
               ),
             ],
           ),
@@ -1770,16 +2006,31 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           // 2. Timeline Scrubber Slider
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
-              trackHeight: 3.5,
+              trackHeight: 4.0,
               activeTrackColor: AppColors.primaryOrange,
               inactiveTrackColor: Colors.white12,
               thumbColor: AppColors.primaryOrange,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8.5),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 18),
             ),
             child: Slider(
               value: progress.clamp(0.0, 1.0),
-              onChanged: _seekTo,
+              onChanged: _isRenderingVideo ? null : _seekTo,
+              onChangeStart: _isRenderingVideo
+                  ? null
+                  : (val) {
+                      _wasPlayingBeforeScrub = _isPlaying;
+                      if (_isPlaying) {
+                        _animController.stop();
+                      }
+                    },
+              onChangeEnd: _isRenderingVideo
+                  ? null
+                  : (val) {
+                      if (_wasPlayingBeforeScrub && !_animController.isAnimating) {
+                        _animController.repeat();
+                      }
+                    },
             ),
           ),
 
@@ -1788,22 +2039,29 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Pengubah Kecepatan Pemutaran (1x, 2x, 4x, 8x)
-              InkWell(
-                onTap: _changePlaybackSpeed,
-                borderRadius: BorderRadius.circular(12),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppColors.cardSurfaceElevated,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderSubtle),
-                  ),
-                  child: Text(
-                    '${_playbackSpeed.toStringAsFixed(0)}x',
-                    style: const TextStyle(
-                      color: AppColors.primaryOrange,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 12,
+              Material(
+                color: AppColors.cardSurfaceElevated,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: AppColors.borderSubtle),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: _isRenderingVideo ? null : _changePlaybackSpeed,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 48, minHeight: 44),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    child: Text(
+                      '${_playbackSpeed.toStringAsFixed(0)}x',
+                      style: TextStyle(
+                        color: _isRenderingVideo
+                            ? AppColors.textSecondary.withAlpha(120)
+                            : AppColors.primaryOrange,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ),
@@ -1816,25 +2074,34 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   IconButton(
                     icon: const Icon(Icons.replay_rounded, color: Colors.white70),
                     tooltip: 'Ulangi dari Awal',
-                    onPressed: _restartReplay,
+                    onPressed: _isRenderingVideo ? null : _restartReplay,
                   ),
                   const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: _togglePlayPause,
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.electricAmber,
-                            AppColors.primaryOrange,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+                  Material(
+                    shape: const CircleBorder(),
+                    color: Colors.transparent,
+                    clipBehavior: Clip.antiAlias,
+                    child: Ink(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        gradient: _isRenderingVideo
+                            ? LinearGradient(
+                                colors: [
+                                  AppColors.cardSurfaceElevated,
+                                  AppColors.cardSurfaceElevated.withAlpha(200),
+                                ],
+                              )
+                            : const LinearGradient(
+                                colors: [
+                                  AppColors.electricAmber,
+                                  AppColors.primaryOrange,
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                         shape: BoxShape.circle,
-                        boxShadow: [
+                        boxShadow: const [
                           BoxShadow(
                             color: Colors.black45,
                             blurRadius: 10,
@@ -1842,12 +2109,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                           ),
                         ],
                       ),
-                      child: Icon(
-                        _isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        size: 30,
-                        color: Colors.white,
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: _isRenderingVideo ? null : _togglePlayPause,
+                        child: Icon(
+                          _isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          size: 32,
+                          color: _isRenderingVideo ? Colors.white38 : Colors.white,
+                        ),
                       ),
                     ),
                   ),
@@ -1856,6 +2127,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
               // Persentase Progress Rute
               Container(
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 44),
+                alignment: Alignment.center,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: AppColors.cardSurfaceElevated,
@@ -1896,6 +2169,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             fontWeight: FontWeight.w800,
             letterSpacing: 0.8,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 2),
         Row(
@@ -1907,9 +2182,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               value,
               style: TextStyle(
                 color: accentColor,
-                fontSize: 16,
+                fontSize: 15.5,
                 fontWeight: FontWeight.w900,
               ),
+              maxLines: 1,
             ),
             if (unit.isNotEmpty) ...[
               const SizedBox(width: 2),
@@ -1917,9 +2193,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 unit,
                 style: TextStyle(
                   color: accentColor.withAlpha(160),
-                  fontSize: 9,
+                  fontSize: 8.5,
                   fontWeight: FontWeight.w700,
                 ),
+                maxLines: 1,
               ),
             ],
           ],
@@ -1942,6 +2219,12 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
   /// Merender animasi flyover rute menjadi berkas video MP4 secara otomatis (Full HD 9:16 atau 4K Ultra HD)
   Future<void> _startInAppVideoRender({bool is4K = false}) async {
+    // 0. Cegah eksekusi ganda jika proses render sedang berjalan
+    if (_isRenderingVideo) {
+      debugPrint('Proses render video sedang berjalan, mengabaikan pemicu duplikat.');
+      return;
+    }
+
     // 1. Jeda pemutaran animasi jika sedang aktif
     if (_isPlaying) {
       _togglePlayPause();
@@ -1987,6 +2270,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   borderRadius: BorderRadius.circular(24),
                   side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
                 ),
+                actionsOverflowDirection: VerticalDirection.down,
                 title: Row(
                   children: [
                     Icon(
@@ -2005,97 +2289,118 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     ),
                   ],
                 ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      isPrecache
-                          ? 'Menyimpan potongan citra satelit rute zoom 17 HD langsung ke penyimpanan ponsel agar video tajam bebas kotak hitam...'
-                          : (is4K
-                              ? 'Mengenkode animasi flyover 18 detik ke berkas MP4 4K (45 Mbps) tanpa terpotong...'
-                              : 'Mengenkode animasi flyover 18 detik ke berkas MP4 Full HD (25 Mbps) tanpa terpotong...'),
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
-                    ),
-                    const SizedBox(height: 18),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: isPrecache
-                            ? (_renderPrecacheTotal > 0 ? (_renderPrecacheLoaded / _renderPrecacheTotal).clamp(0.0, 1.0) : null)
-                            : _renderProgress,
-                        backgroundColor: Colors.white12,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
-                        minHeight: 8,
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isPrecache
+                            ? 'Menyimpan potongan citra satelit rute zoom 17 HD langsung ke penyimpanan ponsel agar video tajam bebas kotak hitam...'
+                            : (is4K
+                                ? 'Mengenkode animasi flyover 18 detik ke berkas MP4 4K (45 Mbps) tanpa terpotong...'
+                                : 'Mengenkode animasi flyover 18 detik ke berkas MP4 Full HD (25 Mbps) tanpa terpotong...'),
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12.5),
                       ),
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          isPrecache
-                              ? 'Ubin di Disk: $_renderPrecacheLoaded / $_renderPrecacheTotal'
-                              : 'Frame $_renderCurrentFrame / $_renderTotalFrames',
-                          style: const TextStyle(
-                            color: AppColors.textMuted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          '$percent%',
-                          style: const TextStyle(
-                            color: AppColors.primaryOrange,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardSurfaceElevated,
+                      const SizedBox(height: 18),
+                      ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.borderSubtle),
+                        child: LinearProgressIndicator(
+                          value: isPrecache
+                              ? (_renderPrecacheTotal > 0 ? (_renderPrecacheLoaded / _renderPrecacheTotal).clamp(0.0, 1.0) : null)
+                              : _renderProgress,
+                          backgroundColor: Colors.white12,
+                          valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+                          minHeight: 8,
+                        ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      const SizedBox(height: 10),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Icon(
-                            isPrecache ? Icons.save_alt_rounded : Icons.bolt_rounded,
-                            color: AppColors.neonCyan,
-                            size: 14,
+                          Expanded(
+                            child: Text(
+                              isPrecache
+                                  ? 'Ubin di Disk: $_renderPrecacheLoaded / $_renderPrecacheTotal'
+                                  : 'Frame $_renderCurrentFrame / $_renderTotalFrames',
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           Text(
-                            isPrecache
-                                ? 'Download Peta HD ke Disk • Bebas Kotak Hitam'
-                                : (is4K ? '4K Ultra HD (45 Mbps) • Layar Utuh • 18s' : 'Full HD 1080p (25 Mbps) • Layar Utuh • 18s'),
+                            '$percent%',
                             style: const TextStyle(
-                              color: AppColors.neonCyan,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
+                              color: AppColors.primaryOrange,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardSurfaceElevated,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.borderSubtle),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isPrecache ? Icons.save_alt_rounded : Icons.bolt_rounded,
+                              color: AppColors.neonCyan,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                isPrecache
+                                    ? 'Download Peta HD ke Disk • Bebas Kotak Hitam'
+                                    : (is4K ? '4K Ultra HD (45 Mbps) • Layar Utuh • 18s' : 'Full HD 1080p (25 Mbps) • Layar Utuh • 18s'),
+                                style: const TextStyle(
+                                  color: AppColors.neonCyan,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 actions: [
                   TextButton(
-                    onPressed: () {
-                      _isRenderCancelled = true;
-                      if (dialogCtx != null && Navigator.canPop(dialogCtx!)) {
-                        Navigator.pop(dialogCtx!);
-                      }
-                      dialogCtx = null;
-                      dialogSetState = null;
-                      ForegroundServiceHandler.stopRenderProgress();
-                    },
+                    onPressed: _isRenderCancelled
+                        ? null
+                        : () {
+                            _isRenderCancelled = true;
+                            if (dialogCtx != null && Navigator.canPop(dialogCtx!)) {
+                              Navigator.pop(dialogCtx!);
+                            }
+                            dialogCtx = null;
+                            dialogSetState = null;
+                            ForegroundServiceHandler.stopRenderProgress();
+                            MapPrecacheService.cleanupMemoryCache();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Render video dibatalkan.'),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
                     child: const Text(
                       'BATALKAN',
                       style: TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.bold),
@@ -2112,6 +2417,21 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                         setState(() {
                           _isRenderMinimized = true;
                         });
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Row(
+                              children: [
+                                Icon(Icons.picture_in_picture_alt_rounded, color: AppColors.neonCyan, size: 18),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text('Render berlanjut di latar belakang. Video otomatis ke Galeri.'),
+                                ),
+                              ],
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
                       }
                     },
                     style: FilledButton.styleFrom(
@@ -2160,13 +2480,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           if (_isRenderMinimized && mounted) {
             setState(() {});
           }
-          final percent = (progress * 100).clamp(0, 100).toInt();
-          ForegroundServiceHandler.startOrUpdateRenderProgress(
+          ForegroundServiceHandler.startOrUpdatePrecacheProgress(
             progress: progress,
-            currentFrame: loaded,
-            totalFrames: total,
-            customTitle: '🗺️ Velora: Menyiapkan Peta Rute ($percent%)',
-            customText: 'Ubin $loaded / $total • Mengunduh Citra Satelit HD',
+            loaded: loaded,
+            total: total,
+            isSatellite: _isSatelliteMode,
           );
         },
         timeout: const Duration(seconds: 60),
@@ -2183,6 +2501,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         });
       }
       await ForegroundServiceHandler.stopRenderProgress();
+      MapPrecacheService.cleanupMemoryCache();
       return;
     }
 
@@ -2247,7 +2566,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             currentFrame: currentFrame,
             totalFrames: total,
             customTitle: '🎬 Velora: Merender Video Flyover ($percent%)',
-            customText: 'Frame $currentFrame / $total • Menulis ke Galeri HP',
+            customText: 'Frame $currentFrame / $total • Menulis ke Galeri & Download/Velora',
           );
         },
       );
@@ -2264,11 +2583,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     // Beritahukan layanan foreground bahwa video selesai
     if (exportedVideoPath != null) {
-      await ForegroundServiceHandler.startOrUpdateRenderProgress(
-        progress: 1.0,
-        currentFrame: _renderTotalFrames,
-        totalFrames: _renderTotalFrames,
-        isCompleted: true,
+      await ForegroundServiceHandler.showRenderCompletedNotification(
+        title: '🎬 Video Flyover Berhasil Dibuat!',
+        text: 'Tersimpan di Galeri & Download/Velora. Siap dibagikan!',
       );
     } else {
       await ForegroundServiceHandler.stopRenderProgress();
@@ -2283,7 +2600,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       });
     }
 
-    if (_isRenderCancelled) return;
+    if (_isRenderCancelled) {
+      MapPrecacheService.cleanupMemoryCache();
+      return;
+    }
 
     // 6. Tampilkan satu-satunya menu hasil ekspor video yang lengkap
     if (exportedVideoPath != null && mounted) {
@@ -2302,430 +2622,550 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   /// Menampilkan menu tunggal hasil ekspor video dengan opsi lengkap & konfirmasi galeri
   void _showVideoExportSuccessSheet(String videoPath, {bool is4K = false}) {
     final fileName = videoPath.split('/').last;
+    bool isActionBusy = false;
+    String? busyActionId;
+
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: AppColors.cardSurface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border(
-              top: BorderSide(color: AppColors.neonGreen, width: 2),
-            ),
-          ),
-          padding: EdgeInsets.fromLTRB(
-            20,
-            16,
-            20,
-            MediaQuery.of(context).padding.bottom + 20,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            return Container(
+              decoration: const BoxDecoration(
+                color: AppColors.cardSurface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(
+                  top: BorderSide(color: AppColors.neonGreen, width: 2),
                 ),
               ),
-              const SizedBox(height: 16),
-              // Header Sukses & Badge Galeri
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.neonGreen.withAlpha(40),
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.neonGreen, width: 1.5),
-                    ),
-                    child: const Icon(
-                      Icons.check_circle_rounded,
-                      color: AppColors.neonGreen,
-                      size: 26,
+              padding: EdgeInsets.fromLTRB(
+                20,
+                16,
+                20,
+                MediaQuery.of(context).padding.bottom + 20,
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.88,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Video Berhasil Dibuat!',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                          ),
+                  const SizedBox(height: 16),
+                  // Header Sukses & Badge Galeri
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.neonGreen.withAlpha(40),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppColors.neonGreen, width: 1.5),
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          is4K
-                              ? '4K Ultra HD • Layar Penuh Utuh • Kristal Jernih'
-                              : 'Full HD 1080p • Layar Penuh Utuh • Bebas Blur',
-                          style: const TextStyle(
-                            color: AppColors.neonGreen,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                        child: const Icon(
+                          Icons.check_circle_rounded,
+                          color: AppColors.neonGreen,
+                          size: 26,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Video Berhasil Dibuat!',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              is4K
+                                  ? '4K Ultra HD • Layar Penuh Utuh • Kristal Jernih'
+                                  : 'Full HD 1080p • Layar Penuh Utuh • Bebas Blur',
+                              style: const TextStyle(
+                                color: AppColors.neonGreen,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Banner Informasi Tersimpan di Galeri
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.neonGreen.withAlpha(20),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: AppColors.neonGreen.withAlpha(100), width: 1.2),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.photo_library_rounded, color: AppColors.neonGreen, size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Tersimpan Otomatis di Galeri Ponsel',
+                                style: TextStyle(
+                                  color: AppColors.neonGreen,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Album Movies > Velora ($fileName)',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 18),
+
+                  // Pilihan Berbagi
+                  _buildShareActionTile(
+                    icon: Icons.camera_alt_rounded,
+                    iconColor: const Color(0xFFE1306C),
+                    title: 'Bagikan ke Instagram (Reels & Story)',
+                    subtitle: 'Kirim langsung video flyover 9:16 rasio asli ke Instagram tanpa blur.',
+                    badge: 'LANGSUNG KE INSTAGRAM',
+                    badgeColor: const Color(0xFFE1306C),
+                    enabled: !isActionBusy,
+                    isLoading: isActionBusy && busyActionId == 'instagram',
+                    onTap: () async {
+                      if (isActionBusy) return;
+                      setSheetState(() {
+                        isActionBusy = true;
+                        busyActionId = 'instagram';
+                      });
+                      if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                        Navigator.pop(sheetCtx);
+                      }
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFFE1306C),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text('Membuka Instagram...'),
+                            ],
+                          ),
+                          duration: Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      await VideoExportService.shareToInstagram(videoPath);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildShareActionTile(
+                    icon: Icons.chat_rounded,
+                    iconColor: const Color(0xFF25D366),
+                    title: 'Bagikan ke WhatsApp',
+                    subtitle: 'Kirim video MP4 langsung ke Status atau chat WhatsApp.',
+                    badge: 'WHATSAPP',
+                    badgeColor: const Color(0xFF25D366),
+                    enabled: !isActionBusy,
+                    isLoading: isActionBusy && busyActionId == 'whatsapp',
+                    onTap: () async {
+                      if (isActionBusy) return;
+                      setSheetState(() {
+                        isActionBusy = true;
+                        busyActionId = 'whatsapp';
+                      });
+                      if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                        Navigator.pop(sheetCtx);
+                      }
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Color(0xFF25D366),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text('Membuka WhatsApp...'),
+                            ],
+                          ),
+                          duration: Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      await VideoExportService.shareToWhatsApp(videoPath);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildShareActionTile(
+                    icon: Icons.share_rounded,
+                    iconColor: AppColors.primaryOrange,
+                    title: 'Bagikan ke Aplikasi Lainnya',
+                    subtitle: 'Pilih aplikasi lain seperti TikTok, Telegram, Drive, dsb.',
+                    enabled: !isActionBusy,
+                    isLoading: isActionBusy && busyActionId == 'other',
+                    onTap: () async {
+                      if (isActionBusy) return;
+                      setSheetState(() {
+                        isActionBusy = true;
+                        busyActionId = 'other';
+                      });
+                      if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                        Navigator.pop(sheetCtx);
+                      }
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Row(
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primaryOrange,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Text('Membuka menu berbagi...'),
+                            ],
+                          ),
+                          duration: Duration(seconds: 2),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                      await VideoExportService.shareVideo(
+                        videoPath,
+                        text: 'Flyover Rute Latihan • Velora',
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildShareActionTile(
+                    icon: Icons.photo_library_rounded,
+                    iconColor: AppColors.electricAmber,
+                    title: 'Bagikan Kartu Ringkasan (Foto & Peta HD)',
+                    subtitle: 'Buat poster statistik Full HD untuk story atau status.',
+                    enabled: !isActionBusy,
+                    isLoading: isActionBusy && busyActionId == 'summary_card',
+                    onTap: () {
+                      if (isActionBusy) return;
+                      setSheetState(() {
+                        isActionBusy = true;
+                        busyActionId = 'summary_card';
+                      });
+                      if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                        Navigator.pop(sheetCtx);
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SharePreviewScreen(session: widget.session),
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 14),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextButton(
+                      onPressed: isActionBusy
+                          ? null
+                          : () {
+                              if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                                Navigator.pop(sheetCtx);
+                              }
+                            },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: Text(
+                        'SELESAI',
+                        style: TextStyle(
+                          color: isActionBusy ? AppColors.textMuted.withAlpha(100) : AppColors.textMuted,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              // Banner Informasi Tersimpan di Galeri
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: AppColors.neonGreen.withAlpha(20),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.neonGreen.withAlpha(100), width: 1.2),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.photo_library_rounded, color: AppColors.neonGreen, size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Tersimpan Otomatis di Galeri Ponsel',
-                            style: TextStyle(
-                              color: AppColors.neonGreen,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Album Movies > Velora ($fileName)',
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 11,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // Pilihan Berbagi
-              _buildShareActionTile(
-                icon: Icons.camera_alt_rounded,
-                iconColor: const Color(0xFFE1306C),
-                title: 'Bagikan ke Instagram (Reels & Story)',
-                subtitle: 'Kirim langsung video flyover 9:16 rasio asli ke Instagram tanpa blur.',
-                badge: 'LANGSUNG KE INSTAGRAM',
-                badgeColor: const Color(0xFFE1306C),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Row(
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFFE1306C),
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Text('Membuka Instagram...'),
-                        ],
-                      ),
-                      duration: Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                  await VideoExportService.shareToInstagram(videoPath);
-                },
-              ),
-              const SizedBox(height: 10),
-
-              _buildShareActionTile(
-                icon: Icons.chat_rounded,
-                iconColor: const Color(0xFF25D366),
-                title: 'Bagikan ke WhatsApp',
-                subtitle: 'Kirim video MP4 langsung ke Status atau chat WhatsApp.',
-                badge: 'WHATSAPP',
-                badgeColor: const Color(0xFF25D366),
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Row(
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFF25D366),
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Text('Membuka WhatsApp...'),
-                        ],
-                      ),
-                      duration: Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                  await VideoExportService.shareToWhatsApp(videoPath);
-                },
-              ),
-              const SizedBox(height: 10),
-
-              _buildShareActionTile(
-                icon: Icons.share_rounded,
-                iconColor: AppColors.primaryOrange,
-                title: 'Bagikan ke Aplikasi Lainnya',
-                subtitle: 'Pilih aplikasi lain seperti TikTok, Telegram, Drive, dsb.',
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Row(
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primaryOrange,
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Text('Membuka menu berbagi...'),
-                        ],
-                      ),
-                      duration: Duration(seconds: 2),
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                  await VideoExportService.shareVideo(
-                    videoPath,
-                    text: 'Flyover Rute Latihan • Velora',
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-
-              _buildShareActionTile(
-                icon: Icons.photo_library_rounded,
-                iconColor: AppColors.electricAmber,
-                title: 'Bagikan Kartu Ringkasan (Foto & Peta HD)',
-                subtitle: 'Buat poster statistik Full HD untuk story atau status.',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SharePreviewScreen(session: widget.session),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 14),
-
-              SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  child: const Text(
-                    'SELESAI',
-                    style: TextStyle(
-                      color: AppColors.textMuted,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
+        );
+          },
         );
       },
     );
   }
 
   void _showStartRecordConfirmDialog() {
-    Navigator.of(context, rootNavigator: true).pop();
+    bool isSubmitting = false;
+
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.videocam_rounded, color: AppColors.primaryOrange, size: 28),
-            SizedBox(width: 10),
-            Text(
-              'Siapkan Perekam Layar',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.cardSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+          ),
+          title: const Row(
+            children: [
+              Icon(Icons.videocam_rounded, color: AppColors.primaryOrange, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Siapkan Perekam Layar',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '1. Tarik bar status/notifikasi atas ponsel Anda ke bawah.\n'
+                  '2. Nyalakan fitur "Perekam Layar" (Screen Recorder) bawaan HP.\n'
+                  '3. Tekan "MULAI PUTAR RUTE" di bawah.\n\n'
+                  'Seluruh tombol akan disembunyikan dan hasil video rekaman layar otomatis tersimpan di Galeri ponsel Anda.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.45),
+                ),
+              ],
+            ),
+          ),
+          actionsOverflowDirection: VerticalDirection.down,
+          actionsOverflowButtonSpacing: 8,
+          actions: [
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () {
+                      if (dialogCtx.mounted && Navigator.canPop(dialogCtx)) {
+                        Navigator.pop(dialogCtx);
+                      }
+                    },
+              child: const Text('BATAL', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            ElevatedButton.icon(
+              onPressed: isSubmitting
+                  ? null
+                  : () {
+                      setDialogState(() => isSubmitting = true);
+                      if (dialogCtx.mounted && Navigator.canPop(dialogCtx)) {
+                        Navigator.pop(dialogCtx);
+                      }
+                      _enterCleanRecordMode();
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              icon: isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.play_arrow_rounded, size: 18, color: Colors.white),
+              label: const Text(
+                'MULAI PUTAR RUTE',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+              ),
             ),
           ],
         ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '1. Tarik bar status/notifikasi atas ponsel Anda ke bawah.\n'
-              '2. Nyalakan fitur "Perekam Layar" (Screen Recorder) bawaan HP.\n'
-              '3. Tekan "MULAI PUTAR RUTE" di bawah.\n\n'
-              'Seluruh tombol akan disembunyikan dan hasil video rekaman layar otomatis tersimpan di Galeri ponsel Anda.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.45),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('BATAL', style: TextStyle(color: AppColors.textMuted)),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _enterCleanRecordMode();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            icon: const Icon(Icons.play_arrow_rounded, size: 18, color: Colors.white),
-            label: const Text(
-              'MULAI PUTAR RUTE',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ),
-        ],
       ),
     );
   }
 
   void _showCleanRecordCompletedDialog() {
+    bool isSubmitting = false;
+
     showDialog<void>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.cardSurface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: const BorderSide(color: AppColors.neonCyan, width: 1.5),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 28),
-            SizedBox(width: 10),
-            Text(
-              'Putar Rute Selesai!',
-              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Rute animasi flyover telah selesai diputar.\n',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-            Text(
-              '• Ingin Berkas Video Flyover Langsung Jadi?\n'
-              'Tekan tombol "EKSPOR VIDEO MP4" untuk membuat file video MP4 siap bagikan!\n\n'
-              '• Sudah Merekam Layar HP?\n'
-              'Tekan "PILIH DARI GALERI" untuk membagikan file video rekaman layar tersebut.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('TUTUP', style: TextStyle(color: AppColors.textMuted)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.cardSurface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+            side: const BorderSide(color: AppColors.neonCyan, width: 1.5),
           ),
-          OutlinedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _startInAppVideoRender();
-            },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.neonGreen,
-              side: const BorderSide(color: AppColors.neonGreen),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            icon: const Icon(Icons.movie_creation_rounded, size: 16),
-            label: const Text(
-              'EKSPOR VIDEO MP4',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
-          ),
-          OutlinedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _pickAndShareRecordedVideo();
-            },
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.neonCyan,
-              side: const BorderSide(color: AppColors.neonCyan),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            icon: const Icon(Icons.video_library_rounded, size: 16),
-            label: const Text(
-              'PILIH DARI GALERI',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => SharePreviewScreen(session: widget.session),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 28),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Putar Rute Selesai!',
+                  style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            ),
-            icon: const Icon(Icons.share_rounded, size: 16, color: Colors.white),
-            label: const Text(
-              'BAGIKAN KARTU HD',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ],
+          ),
+          content: const SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Rute animasi flyover telah selesai diputar.\n',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+                Text(
+                  '• Ingin Berkas Video Flyover Langsung Jadi?\n'
+                  'Tekan tombol "EKSPOR VIDEO MP4" untuk membuat file video MP4 siap bagikan!\n\n'
+                  '• Sudah Merekam Layar HP?\n'
+                  'Tekan "PILIH DARI GALERI" untuk membagikan file video rekaman layar tersebut.',
+                  style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
+                ),
+              ],
             ),
           ),
-        ],
+          actionsOverflowDirection: VerticalDirection.down,
+          actionsOverflowButtonSpacing: 8,
+          actions: [
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () {
+                      if (dialogCtx.mounted && Navigator.canPop(dialogCtx)) {
+                        Navigator.pop(dialogCtx);
+                      }
+                    },
+              child: const Text('TUTUP', style: TextStyle(color: AppColors.textMuted)),
+            ),
+            OutlinedButton.icon(
+              onPressed: isSubmitting
+                  ? null
+                  : () {
+                      setDialogState(() => isSubmitting = true);
+                      if (dialogCtx.mounted && Navigator.canPop(dialogCtx)) {
+                        Navigator.pop(dialogCtx);
+                      }
+                      _startInAppVideoRender();
+                    },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.neonGreen,
+                side: const BorderSide(color: AppColors.neonGreen),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              icon: const Icon(Icons.movie_creation_rounded, size: 16),
+              label: const Text(
+                'EKSPOR VIDEO MP4',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: isSubmitting
+                  ? null
+                  : () {
+                      setDialogState(() => isSubmitting = true);
+                      if (dialogCtx.mounted && Navigator.canPop(dialogCtx)) {
+                        Navigator.pop(dialogCtx);
+                      }
+                      _pickAndShareRecordedVideo();
+                    },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.neonCyan,
+                side: const BorderSide(color: AppColors.neonCyan),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              icon: const Icon(Icons.video_library_rounded, size: 16),
+              label: const Text(
+                'PILIH DARI GALERI',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: isSubmitting
+                  ? null
+                  : () {
+                      setDialogState(() => isSubmitting = true);
+                      if (dialogCtx.mounted && Navigator.canPop(dialogCtx)) {
+                        Navigator.pop(dialogCtx);
+                      }
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SharePreviewScreen(session: widget.session),
+                        ),
+                      );
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              icon: const Icon(Icons.share_rounded, size: 16, color: Colors.white),
+              label: const Text(
+                'BAGIKAN KARTU HD',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2755,174 +3195,272 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     });
   }
 
-  Future<void> _showShareVideoSheet() async {
+  Future<void> _showShareVideoSheet() => _showExportOptionsSheet();
+
+  Future<void> _showExportOptionsSheet() async {
     final wasPlaying = _isPlaying;
     if (wasPlaying) {
       _togglePlayPause();
     }
+
+    bool isActionBusy = false;
+    String? busyActionId;
 
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: AppColors.cardSurface,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            border: Border(
-              top: BorderSide(color: AppColors.borderHighlight, width: 1.5),
-            ),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Handle drag indicator
-              Center(
-                child: Container(
-                  width: 44,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(2),
+        return StatefulBuilder(
+          builder: (sheetCtx, setSheetState) {
+            return ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(sheetCtx).size.height * 0.9,
+              ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppColors.cardSurface,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                  border: Border(
+                    top: BorderSide(color: AppColors.borderHighlight, width: 1.5),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-
-              // Judul & Deskripsi
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryOrange.withAlpha(40),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: AppColors.primaryOrange.withAlpha(120),
-                        width: 1.2,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle drag indicator
+                    Center(
+                      child: Container(
+                        width: 44,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                    child: const Icon(
-                      Icons.video_library_rounded,
-                      color: AppColors.primaryOrange,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    const SizedBox(height: 16),
+
+                    // Judul & Deskripsi
+                    Row(
                       children: [
-                        Text(
-                          'Bagikan Video Flyover Rute',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryOrange.withAlpha(40),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: AppColors.primaryOrange.withAlpha(120),
+                              width: 1.2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.video_library_rounded,
+                            color: AppColors.primaryOrange,
+                            size: 24,
                           ),
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Instagram Reels, TikTok, YouTube Shorts & WhatsApp',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 12,
+                        const SizedBox(width: 14),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Bagikan Video Flyover Rute',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              SizedBox(height: 2),
+                              Text(
+                                'Instagram Reels, TikTok, YouTube Shorts & WhatsApp',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
+                    const SizedBox(height: 20),
 
-              // Opsi 1: Ekspor Video Flyover MP4 Full HD (Layar Penuh Utuh)
-              _buildShareActionTile(
-                icon: Icons.movie_creation_rounded,
-                iconColor: AppColors.primaryOrange,
-                title: 'Ekspor Video Full HD (HD Bebas Blur & Latar Belakang)',
-                subtitle:
-                    'Animasi 18 detik Full HD 1080p (25 Mbps) tajam retina bebas blur, bisa berjalan di latar belakang sambil melakukan hal lain, otomatis tersimpan ke Galeri.',
-                badge: 'FULL HD 1080P',
-                badgeColor: AppColors.neonGreen,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _startInAppVideoRender(is4K: false);
-                },
-              ),
-              const SizedBox(height: 10),
-
-              // Opsi 2: Ekspor Video Flyover 4K Ultra HD
-              _buildShareActionTile(
-                icon: Icons.hd_rounded,
-                iconColor: AppColors.electricAmber,
-                title: 'Ekspor Video 4K Ultra HD (2160p & Latar Belakang)',
-                subtitle:
-                    'Resolusi ultra jernih 4K (45 Mbps) kualitas sinematik maksimal tajam kristal, bisa berjalan di latar belakang sambil melakukan hal lain, otomatis ke Galeri.',
-                badge: '4K ULTRA HD',
-                badgeColor: AppColors.electricAmber,
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _startInAppVideoRender(is4K: true);
-                },
-              ),
-              const SizedBox(height: 10),
-
-              // Opsi 2: Mode Rekam Layar Bersih
-              _buildShareActionTile(
-                icon: Icons.fiber_smart_record_rounded,
-                iconColor: AppColors.neonCyan,
-                title: 'Mulai Mode Rekam Layar Bersih',
-                subtitle:
-                    'Sembunyikan tombol antarmuka dan putar rute dari KM 0 untuk direkam dengan Perekam Layar bawaan HP.',
-                onTap: _showStartRecordConfirmDialog,
-              ),
-              const SizedBox(height: 10),
-
-              // Opsi 3: Bagikan Video dari Galeri
-              _buildShareActionTile(
-                icon: Icons.upload_file_rounded,
-                iconColor: AppColors.neonCyan,
-                title: 'Bagikan Berkas Video dari Galeri',
-                subtitle:
-                    'Kirim langsung hasil rekaman layar ke WhatsApp, Instagram Reels, TikTok, atau aplikasi lainnya.',
-                onTap: () async {
-                  Navigator.pop(ctx);
-                  await _pickAndShareRecordedVideo();
-                },
-              ),
-              const SizedBox(height: 10),
-
-              // Opsi 4: Bagikan Kartu Ringkasan (Foto & Peta HD)
-              _buildShareActionTile(
-                icon: Icons.photo_library_rounded,
-                iconColor: AppColors.electricAmber,
-                title: 'Bagikan Kartu Ringkasan (Foto & Peta HD)',
-                subtitle:
-                    'Buat gambar poster statistik Full HD rasio 9:16 untuk Instagram Story atau Status WA.',
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => SharePreviewScreen(session: widget.session),
+                    // Opsi 1: Ekspor Video Flyover MP4 Full HD (Layar Penuh Utuh)
+                    _buildShareActionTile(
+                      icon: Icons.movie_creation_rounded,
+                      iconColor: AppColors.primaryOrange,
+                      title: 'Ekspor Video Full HD (HD Bebas Blur & Latar Belakang)',
+                      subtitle:
+                          'Animasi 18 detik Full HD 1080p (25 Mbps) tajam retina bebas blur, bisa berjalan di latar belakang sambil melakukan hal lain, otomatis tersimpan ke Galeri.',
+                      badge: 'FULL HD 1080P',
+                      badgeColor: AppColors.neonGreen,
+                      enabled: !isActionBusy,
+                      isLoading: isActionBusy && busyActionId == 'fhd',
+                      onTap: () {
+                        if (isActionBusy || _isRenderingVideo) return;
+                        setSheetState(() {
+                          isActionBusy = true;
+                          busyActionId = 'fhd';
+                        });
+                        if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                          Navigator.pop(sheetCtx);
+                        }
+                        if (mounted) {
+                          _startInAppVideoRender(is4K: false);
+                        }
+                      },
                     ),
-                  );
-                },
+                    const SizedBox(height: 10),
+
+                    // Opsi 2: Ekspor Video Flyover 4K Ultra HD
+                    _buildShareActionTile(
+                      icon: Icons.hd_rounded,
+                      iconColor: AppColors.electricAmber,
+                      title: 'Ekspor Video 4K Ultra HD (2160p & Latar Belakang)',
+                      subtitle:
+                          'Resolusi ultra jernih 4K (45 Mbps) kualitas sinematik maksimal tajam kristal, bisa berjalan di latar belakang sambil melakukan hal lain, otomatis ke Galeri.',
+                      badge: '4K ULTRA HD',
+                      badgeColor: AppColors.electricAmber,
+                      enabled: !isActionBusy,
+                      isLoading: isActionBusy && busyActionId == '4k',
+                      onTap: () {
+                        if (isActionBusy || _isRenderingVideo) return;
+                        setSheetState(() {
+                          isActionBusy = true;
+                          busyActionId = '4k';
+                        });
+                        if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                          Navigator.pop(sheetCtx);
+                        }
+                        if (mounted) {
+                          _startInAppVideoRender(is4K: true);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Opsi 3: Mode Rekam Layar Bersih
+                    _buildShareActionTile(
+                      icon: Icons.fiber_smart_record_rounded,
+                      iconColor: AppColors.neonCyan,
+                      title: 'Mulai Mode Rekam Layar Bersih',
+                      subtitle:
+                          'Sembunyikan tombol antarmuka dan putar rute dari KM 0 untuk direkam dengan Perekam Layar bawaan HP.',
+                      enabled: !isActionBusy,
+                      isLoading: isActionBusy && busyActionId == 'clean_record',
+                      onTap: () {
+                        if (isActionBusy) return;
+                        setSheetState(() {
+                          isActionBusy = true;
+                          busyActionId = 'clean_record';
+                        });
+                        if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                          Navigator.pop(sheetCtx);
+                        }
+                        if (mounted) {
+                          _showStartRecordConfirmDialog();
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Opsi 4: Bagikan Video dari Galeri
+                    _buildShareActionTile(
+                      icon: Icons.upload_file_rounded,
+                      iconColor: AppColors.neonCyan,
+                      title: 'Bagikan Berkas Video dari Galeri',
+                      subtitle:
+                          'Kirim langsung hasil rekaman layar ke WhatsApp, Instagram Reels, TikTok, atau aplikasi lainnya.',
+                      enabled: !isActionBusy,
+                      isLoading: isActionBusy && busyActionId == 'gallery',
+                      onTap: () async {
+                        if (isActionBusy) return;
+                        setSheetState(() {
+                          isActionBusy = true;
+                          busyActionId = 'gallery';
+                        });
+                        if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                          Navigator.pop(sheetCtx);
+                        }
+                        await _pickAndShareRecordedVideo();
+                      },
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Opsi 5: Bagikan Kartu Ringkasan (Foto & Peta HD)
+                    _buildShareActionTile(
+                      icon: Icons.photo_library_rounded,
+                      iconColor: AppColors.electricAmber,
+                      title: 'Bagikan Kartu Ringkasan (Foto & Peta HD)',
+                      subtitle:
+                          'Buat gambar poster statistik Full HD rasio 9:16 untuk Instagram Story atau Status WA.',
+                      enabled: !isActionBusy,
+                      isLoading: isActionBusy && busyActionId == 'summary_card',
+                      onTap: () {
+                        if (isActionBusy) return;
+                        setSheetState(() {
+                          isActionBusy = true;
+                          busyActionId = 'summary_card';
+                        });
+                        if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                          Navigator.pop(sheetCtx);
+                        }
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SharePreviewScreen(session: widget.session),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Tombol Tutup / Batal
+                    SizedBox(
+                      width: double.infinity,
+                      child: TextButton(
+                        onPressed: isActionBusy
+                            ? null
+                            : () {
+                                if (sheetCtx.mounted && Navigator.canPop(sheetCtx)) {
+                                  Navigator.pop(sheetCtx);
+                                }
+                              },
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: Text(
+                          'TUTUP',
+                          style: TextStyle(
+                            color: isActionBusy
+                                ? AppColors.textMuted.withAlpha(100)
+                                : AppColors.textMuted,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
-      );
-    },
+            ),
+          );
+          },
+        );
+      },
     );
   }
 
   Future<void> _pickAndShareRecordedVideo() async {
+    if (_isPickingVideo) return;
+    _isPickingVideo = true;
     try {
       final picker = ImagePicker();
       final video = await picker.pickVideo(source: ImageSource.gallery);
@@ -2959,6 +3497,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ),
         );
       }
+    } finally {
+      _isPickingVideo = false;
     }
   }
 
@@ -2970,90 +3510,125 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     String? badge,
     Color? badgeColor,
     required VoidCallback onTap,
+    bool enabled = true,
+    bool isLoading = false,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppColors.cardSurfaceElevated,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.borderSubtle),
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: iconColor.withAlpha(35),
-                borderRadius: BorderRadius.circular(12),
+    return Material(
+      color: AppColors.cardSurfaceElevated,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.borderSubtle),
+      ),
+      child: InkWell(
+        onTap: enabled && !isLoading ? onTap : null,
+        splashColor: iconColor.withAlpha(50),
+        highlightColor: Colors.white.withAlpha(15),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: iconColor.withAlpha(35),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: iconColor.withAlpha(90), width: 1.2),
+                ),
+                child: Center(
+                  child: isLoading
+                      ? SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            valueColor: AlwaysStoppedAnimation<Color>(iconColor),
+                          ),
+                        )
+                      : Icon(icon, color: iconColor, size: 22),
+                ),
               ),
-              child: Icon(icon, color: iconColor, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      if (badge != null) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: (badgeColor ?? AppColors.primaryOrange)
-                                .withAlpha(40),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: badgeColor ?? AppColors.primaryOrange,
-                              width: 0.8,
-                            ),
-                          ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
                           child: Text(
-                            badge,
+                            title,
                             style: TextStyle(
-                              color: badgeColor ?? AppColors.primaryOrange,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
+                              color: enabled ? Colors.white : AppColors.textMuted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 6),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: (badgeColor ?? AppColors.primaryOrange)
+                                    .withAlpha(40),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: badgeColor ?? AppColors.primaryOrange,
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                badge,
+                                style: TextStyle(
+                                  color: badgeColor ?? AppColors.primaryOrange,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 11,
-                      height: 1.3,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: enabled ? AppColors.textSecondary : AppColors.textMuted,
+                        fontSize: 11,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.white38,
-              size: 20,
-            ),
-          ],
+              const SizedBox(width: 8),
+              if (isLoading)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.textMuted),
+                  ),
+                )
+              else
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: enabled ? Colors.white38 : Colors.white12,
+                  size: 20,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -3063,6 +3638,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     required double currentDistKm,
     required double currentSpeedKmh,
     required double currentElevation,
+    required double currentElevationGain,
     required int elapsedSeconds,
   }) {
     final isRun = widget.session.sportsType == SportsType.run;
@@ -3087,47 +3663,81 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
           // 1. JARAK
-          _buildHudMetricColumn(
-            icon: Icons.straighten_rounded,
-            label: 'JARAK',
-            value: currentDistKm.toStringAsFixed(2),
-            unit: 'KM',
-            valueColor: AppColors.neonCyan,
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _buildHudMetricColumn(
+                icon: Icons.straighten_rounded,
+                label: 'JARAK',
+                value: currentDistKm.toStringAsFixed(2),
+                unit: 'KM',
+                valueColor: AppColors.neonCyan,
+              ),
+            ),
           ),
           _buildHudDivider(),
 
           // 2. SPEED / PACE
-          _buildHudMetricColumn(
-            icon: Icons.speed_rounded,
-            label: speedLabel,
-            value: speedValue,
-            unit: speedUnit,
-            valueColor: AppColors.primaryOrange,
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _buildHudMetricColumn(
+                icon: Icons.speed_rounded,
+                label: speedLabel,
+                value: speedValue,
+                unit: speedUnit,
+                valueColor: AppColors.primaryOrange,
+              ),
+            ),
           ),
           _buildHudDivider(),
 
           // 3. ELEVASI
-          _buildHudMetricColumn(
-            icon: Icons.terrain_rounded,
-            label: 'ELEVASI',
-            value: '+${currentElevation.toStringAsFixed(0)}',
-            unit: 'M',
-            valueColor: const Color(0xFF818CF8),
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _buildHudMetricColumn(
+                icon: Icons.terrain_rounded,
+                label: 'ELEVASI',
+                value: currentElevation.toStringAsFixed(0),
+                unit: 'M',
+                valueColor: const Color(0xFF818CF8),
+              ),
+            ),
           ),
           _buildHudDivider(),
 
-          // 4. WAKTU
-          _buildHudMetricColumn(
-            icon: Icons.timer_outlined,
-            label: 'WAKTU',
-            value: PaceCalculator.formatDuration(elapsedSeconds),
-            unit: '',
-            valueColor: Colors.white,
+          // 4. GAIN
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _buildHudMetricColumn(
+                icon: Icons.arrow_upward_rounded,
+                label: 'GAIN',
+                value: '+${currentElevationGain.toStringAsFixed(0)}',
+                unit: 'M',
+                valueColor: AppColors.neonGreen,
+              ),
+            ),
+          ),
+          _buildHudDivider(),
+
+          // 5. WAKTU
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _buildHudMetricColumn(
+                icon: Icons.timer_outlined,
+                label: 'WAKTU',
+                value: PaceCalculator.formatDuration(elapsedSeconds),
+                unit: '',
+                valueColor: Colors.white,
+              ),
+            ),
           ),
         ],
       ),
@@ -3158,6 +3768,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 fontWeight: FontWeight.w800,
                 letterSpacing: 0.8,
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -3171,10 +3783,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               value,
               style: TextStyle(
                 color: valueColor,
-                fontSize: 17,
+                fontSize: 16.5,
                 fontWeight: FontWeight.w900,
                 letterSpacing: -0.5,
               ),
+              maxLines: 1,
             ),
             if (unit.isNotEmpty) ...[
               const SizedBox(width: 2.5),
@@ -3182,9 +3795,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 unit,
                 style: TextStyle(
                   color: valueColor.withAlpha(200),
-                  fontSize: 9.5,
+                  fontSize: 9.0,
                   fontWeight: FontWeight.w800,
                 ),
+                maxLines: 1,
               ),
             ],
           ],
@@ -3196,7 +3810,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   Widget _buildHudDivider() {
     return Container(
       width: 1,
-      height: 30,
+      height: 28,
       color: Colors.white12,
     );
   }

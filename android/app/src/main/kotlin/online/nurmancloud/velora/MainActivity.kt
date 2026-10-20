@@ -63,30 +63,43 @@ class MainActivity : FlutterActivity() {
         }
 
         // Channel untuk Menyimpan Video Langsung ke Galeri Resmi Ponsel (Android MediaStore)
+        // dan Menduplikasi ke Direktori Publik Download/Velora
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MEDIA_CHANNEL).setMethodCallHandler { call, result ->
             if (call.method == "saveVideoToGallery") {
                 val filePath = call.argument<String>("filePath")
                 val title = call.argument<String>("title") ?: "velora_flyover"
 
                 if (filePath == null) {
-                    result.error("INVALID_ARGUMENT", "filePath is null", null)
+                    result.error("INVALID_ARGUMENT", "filePath bernilai null", null)
                     return@setMethodCallHandler
                 }
 
                 val sourceFile = File(filePath)
-                if (!sourceFile.exists()) {
-                    result.error("FILE_NOT_FOUND", "File does not exist: $filePath", null)
+                if (!sourceFile.exists() || sourceFile.length() == 0L) {
+                    result.error("FILE_NOT_FOUND", "Berkas video tidak ditemukan atau kosong: $filePath", null)
                     return@setMethodCallHandler
                 }
 
                 try {
                     val timestamp = System.currentTimeMillis()
-                    val displayName = "${title}_$timestamp.mp4"
-                    val resolver = context.contentResolver
+                    val cleanTitle = if (title.endsWith(".mp4", ignoreCase = true)) {
+                        title.substring(0, title.length - 4)
+                    } else {
+                        title
+                    }
+                    val displayName = if (cleanTitle.contains(Regex("\\d{10,}"))) {
+                        "$cleanTitle.mp4"
+                    } else {
+                        "${cleanTitle}_$timestamp.mp4"
+                    }
 
+                    val resolver = context.contentResolver
+                    var itemUri: Uri? = null
+
+                    // 1. Simpan ke MediaStore Galeri Video Resmi (Movies/Velora)
                     val contentValues = android.content.ContentValues().apply {
                         put(android.provider.MediaStore.Video.Media.DISPLAY_NAME, displayName)
-                        put(android.provider.MediaStore.Video.Media.TITLE, title)
+                        put(android.provider.MediaStore.Video.Media.TITLE, cleanTitle)
                         put(android.provider.MediaStore.Video.Media.MIME_TYPE, "video/mp4")
                         put(android.provider.MediaStore.Video.Media.DATE_ADDED, timestamp / 1000)
                         put(android.provider.MediaStore.Video.Media.DATE_MODIFIED, timestamp / 1000)
@@ -106,16 +119,21 @@ class MainActivity : FlutterActivity() {
                         android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
                     }
 
-                    val itemUri = resolver.insert(collection, contentValues)
+                    itemUri = resolver.insert(collection, contentValues)
                     if (itemUri == null) {
-                        result.error("INSERT_FAILED", "Failed to create MediaStore entry", null)
+                        result.error("INSERT_FAILED", "Gagal membuat entri video di MediaStore", null)
                         return@setMethodCallHandler
                     }
 
-                    resolver.openOutputStream(itemUri)?.use { outStream ->
-                        sourceFile.inputStream().use { inStream ->
-                            inStream.copyTo(outStream)
+                    try {
+                        resolver.openOutputStream(itemUri)?.use { outStream ->
+                            sourceFile.inputStream().use { inStream ->
+                                inStream.copyTo(outStream)
+                            }
                         }
+                    } catch (streamErr: Exception) {
+                        try { resolver.delete(itemUri, null, null) } catch (_: Exception) {}
+                        throw streamErr
                     }
 
                     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
@@ -124,17 +142,63 @@ class MainActivity : FlutterActivity() {
                         resolver.update(itemUri, contentValues, null, null)
                     }
 
-                    // Panggil MediaScannerConnection agar Galeri ponsel (Google Photos, Samsung, Xiaomi) langsung menampilkan video
-                    android.media.MediaScannerConnection.scanFile(
-                        context,
-                        arrayOf(sourceFile.absolutePath),
-                        arrayOf("video/mp4"),
-                        null
-                    )
+                    // Pindai file pada Android versi lama
+                    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
+                        val moviesDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_MOVIES), "Velora")
+                        val moviesPath = File(moviesDir, displayName).absolutePath
+                        android.media.MediaScannerConnection.scanFile(
+                            context,
+                            arrayOf(moviesPath),
+                            arrayOf("video/mp4"),
+                            null
+                        )
+                    }
+
+                    // 2. Salin juga ke direktori publik Download/Velora sebagai cadangan mandiri
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            val downloadValues = android.content.ContentValues().apply {
+                                put(android.provider.MediaStore.Downloads.DISPLAY_NAME, displayName)
+                                put(android.provider.MediaStore.Downloads.TITLE, cleanTitle)
+                                put(android.provider.MediaStore.Downloads.MIME_TYPE, "video/mp4")
+                                put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS + "/Velora")
+                                put(android.provider.MediaStore.Downloads.IS_PENDING, 1)
+                            }
+                            val downloadCollection = android.provider.MediaStore.Downloads.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                            val downloadUri = resolver.insert(downloadCollection, downloadValues)
+                            if (downloadUri != null) {
+                                resolver.openOutputStream(downloadUri)?.use { dOut ->
+                                    sourceFile.inputStream().use { dIn ->
+                                        dIn.copyTo(dOut)
+                                    }
+                                }
+                                downloadValues.clear()
+                                downloadValues.put(android.provider.MediaStore.Downloads.IS_PENDING, 0)
+                                resolver.update(downloadUri, downloadValues, null, null)
+                            }
+                        } else {
+                            val downloadDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "Velora")
+                            if (!downloadDir.exists()) downloadDir.mkdirs()
+                            val destDownloadFile = File(downloadDir, displayName)
+                            sourceFile.inputStream().use { input ->
+                                destDownloadFile.outputStream().use { output ->
+                                    input.copyTo(output)
+                                }
+                            }
+                            android.media.MediaScannerConnection.scanFile(
+                                context,
+                                arrayOf(destDownloadFile.absolutePath),
+                                arrayOf("video/mp4"),
+                                null
+                            )
+                        }
+                    } catch (downloadErr: Exception) {
+                        android.util.Log.w("VeloraMediaStore", "Info salin ke direktori Download/Velora: ${downloadErr.message}")
+                    }
 
                     result.success(itemUri.toString())
                 } catch (e: Exception) {
-                    result.error("SAVE_FAILED", e.message, null)
+                    result.error("SAVE_FAILED", "Gagal menyimpan video ke galeri: ${e.message}", null)
                 }
             } else {
                 result.notImplemented()
@@ -147,21 +211,26 @@ class MainActivity : FlutterActivity() {
             val text = call.argument<String>("text") ?: ""
 
             if (filePath == null) {
-                result.error("INVALID_ARGUMENT", "filePath is null", null)
+                result.error("INVALID_ARGUMENT", "filePath bernilai null", null)
                 return@setMethodCallHandler
             }
 
             val file = File(filePath)
-            if (!file.exists()) {
-                result.error("FILE_NOT_FOUND", "File does not exist: $filePath", null)
+            if (!file.exists() || file.length() == 0L) {
+                result.error("FILE_NOT_FOUND", "Berkas tidak ditemukan atau kosong: $filePath", null)
                 return@setMethodCallHandler
             }
 
-            val uri: Uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                file
-            )
+            val uri: Uri = try {
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    file
+                )
+            } catch (uriErr: Exception) {
+                result.error("FILE_PROVIDER_ERROR", "Gagal membuat URI berkas: ${uriErr.message}", null)
+                return@setMethodCallHandler
+            }
 
             val mimeType = if (filePath.endsWith(".mp4", ignoreCase = true)) "video/mp4" else "image/png"
 
@@ -179,38 +248,48 @@ class MainActivity : FlutterActivity() {
                             } catch (_: Exception) {}
                         }
 
+                        // 1. Coba kirim langsung ke aplikasi WhatsApp
                         if (targetPackage != null) {
-                            context.grantUriPermission(targetPackage, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            val intent = Intent(Intent.ACTION_SEND).apply {
-                                type = mimeType
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                putExtra(Intent.EXTRA_TEXT, text)
-                                clipData = android.content.ClipData.newRawUri("", uri)
-                                setPackage(targetPackage)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            try {
+                                context.grantUriPermission(targetPackage, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = mimeType
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    if (text.isNotEmpty()) {
+                                        putExtra(Intent.EXTRA_TEXT, text)
+                                    }
+                                    clipData = android.content.ClipData.newRawUri("", uri)
+                                    setPackage(targetPackage)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                context.startActivity(intent)
+                                result.success(true)
+                                return@setMethodCallHandler
+                            } catch (directErr: Exception) {
+                                android.util.Log.w("VeloraShare", "Kirim langsung WhatsApp gagal, beralih ke chooser: ${directErr.message}")
                             }
-                            context.startActivity(intent)
-                            result.success(true)
-                        } else {
-                            // Fallback jika WhatsApp tidak terpasang: buka dialog pemilihan aplikasi sistem
-                            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = mimeType
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                putExtra(Intent.EXTRA_TEXT, text)
-                                clipData = android.content.ClipData.newRawUri("", uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-                            val chooser = Intent.createChooser(sendIntent, "Bagikan via WhatsApp").apply {
-                                clipData = android.content.ClipData.newRawUri("", uri)
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            context.startActivity(chooser)
-                            result.success(true)
                         }
+
+                        // 2. Fallback: buka pemilih aplikasi sistem (System Chooser)
+                        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = mimeType
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            if (text.isNotEmpty()) {
+                                putExtra(Intent.EXTRA_TEXT, text)
+                            }
+                            clipData = android.content.ClipData.newRawUri("", uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        val chooser = Intent.createChooser(sendIntent, "Bagikan via WhatsApp").apply {
+                            clipData = android.content.ClipData.newRawUri("", uri)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(chooser)
+                        result.success(true)
                     } catch (e: Exception) {
-                        result.error("SHARE_ERROR", e.message, null)
+                        result.error("SHARE_ERROR", "Gagal membagikan ke WhatsApp: ${e.message}", null)
                     }
                 }
                 "shareToInstagramStory" -> {
@@ -224,35 +303,44 @@ class MainActivity : FlutterActivity() {
 
                         if (isIgInstalled) {
                             context.grantUriPermission("com.instagram.android", uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            
+
                             // 1. Coba Intent Resmi Meta untuk Instagram Stories
-                            val storyIntent = Intent("com.instagram.share.ADD_TO_STORY").apply {
-                                setDataAndType(uri, mimeType)
-                                putExtra("source_application", context.packageName)
-                                clipData = android.content.ClipData.newRawUri("", uri)
-                                setPackage("com.instagram.android")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            if (storyIntent.resolveActivity(pm) != null) {
-                                context.startActivity(storyIntent)
-                                result.success(true)
-                                return@setMethodCallHandler
+                            try {
+                                val storyIntent = Intent("com.instagram.share.ADD_TO_STORY").apply {
+                                    setDataAndType(uri, mimeType)
+                                    putExtra("source_application", context.packageName)
+                                    putExtra("interactive_asset_uri", uri)
+                                    clipData = android.content.ClipData.newRawUri("", uri)
+                                    setPackage("com.instagram.android")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                if (storyIntent.resolveActivity(pm) != null) {
+                                    context.startActivity(storyIntent)
+                                    result.success(true)
+                                    return@setMethodCallHandler
+                                }
+                            } catch (metaErr: Exception) {
+                                android.util.Log.w("VeloraShare", "Meta Stories Intent gagal, coba ACTION_SEND: ${metaErr.message}")
                             }
 
                             // 2. Fallback: kirim langsung via Intent.ACTION_SEND ke paket Instagram
-                            val igIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = mimeType
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                clipData = android.content.ClipData.newRawUri("", uri)
-                                setPackage("com.instagram.android")
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            if (igIntent.resolveActivity(pm) != null) {
-                                context.startActivity(igIntent)
-                                result.success(true)
-                                return@setMethodCallHandler
+                            try {
+                                val igIntent = Intent(Intent.ACTION_SEND).apply {
+                                    type = mimeType
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    clipData = android.content.ClipData.newRawUri("", uri)
+                                    setPackage("com.instagram.android")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                }
+                                if (igIntent.resolveActivity(pm) != null) {
+                                    context.startActivity(igIntent)
+                                    result.success(true)
+                                    return@setMethodCallHandler
+                                }
+                            } catch (igSendErr: Exception) {
+                                android.util.Log.w("VeloraShare", "Instagram ACTION_SEND gagal, beralih ke chooser: ${igSendErr.message}")
                             }
                         }
 
@@ -271,7 +359,7 @@ class MainActivity : FlutterActivity() {
                         context.startActivity(chooser)
                         result.success(true)
                     } catch (e: Exception) {
-                        result.error("SHARE_ERROR", e.message, null)
+                        result.error("SHARE_ERROR", "Gagal membagikan ke Instagram: ${e.message}", null)
                     }
                 }
                 else -> result.notImplemented()

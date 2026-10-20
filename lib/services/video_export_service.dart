@@ -7,12 +7,21 @@ import 'package:flutter/services.dart';
 import 'package:flutter_quick_video_encoder/flutter_quick_video_encoder.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'map_precache_service.dart';
 
 /// Layanan untuk merender animasi flyover rute menjadi berkas video MP4
 /// secara mandiri di perangkat (100% offline, hardware-accelerated MediaCodec).
 class VideoExportService {
   static const _mediaChannel = MethodChannel('online.nurmancloud.velora/media_store');
   static const _shareChannel = MethodChannel('online.nurmancloud.velora/social_share');
+
+  /// Menyelaraskan dimensi pixel ke kelipatan alignment tertentu (8 atau 16)
+  /// untuk mencegah crash encoder perangkat keras H.264 (MediaCodec/OMX/C2).
+  static int alignDimension(int val, int alignment) {
+    if (alignment <= 1) return val;
+    final aligned = (val ~/ alignment) * alignment;
+    return aligned < alignment ? alignment : aligned;
+  }
 
   /// Menjamin dimensi buffer piksel mentah sesuai persis ke dimensi genap H.264
   /// tanpa memotong atau menggeser antarmuka (full-frame utuh tanpa terpotong).
@@ -53,18 +62,16 @@ class VideoExportService {
     return cropToEvenDimensions(src, srcW, srcH, dstW, dstH);
   }
 
-  /// Menyimpan berkas video ke Galeri resmi ponsel (MediaStore Android -> folder Movies/Velora)
+  /// Menyimpan berkas video ke Galeri resmi ponsel (MediaStore Android -> folder Movies/Velora
+  /// dan disalin ke folder publik Download/Velora)
   static Future<bool> saveVideoToGallery(String filePath, {String title = 'velora_flyover'}) async {
     try {
-      if (Platform.isAndroid) {
-        final result = await _mediaChannel.invokeMethod<String>('saveVideoToGallery', {
-          'filePath': filePath,
-          'title': title,
-        });
-        debugPrint('VideoExportService: Berhasil simpan ke MediaStore: $result');
-        return result != null;
-      }
-      return false;
+      final result = await _mediaChannel.invokeMethod<String>('saveVideoToGallery', {
+        'filePath': filePath,
+        'title': title,
+      });
+      debugPrint('VideoExportService: Berhasil simpan ke MediaStore & Download/Velora: $result');
+      return result != null;
     } catch (e) {
       debugPrint('VideoExportService: Gagal menyimpan ke galeri MediaStore: $e');
       return false;
@@ -83,6 +90,7 @@ class VideoExportService {
     int targetWidth = 1080,
     int bitrate = 25000000,
   }) async {
+    String? outputPath;
     try {
       final boundary = boundaryKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
@@ -98,7 +106,7 @@ class VideoExportService {
         await videosDir.create(recursive: true);
       }
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final outputPath = '${videosDir.path}/velora_flyover_$timestamp.mp4';
+      outputPath = '${videosDir.path}/velora_flyover_$timestamp.mp4';
 
       // 2. Hitung rasio aspek layar ponsel secara presisi
       final boundaryWidth = boundary.size.width;
@@ -107,19 +115,21 @@ class VideoExportService {
           ? (boundaryHeight / boundaryWidth)
           : (16.0 / 9.0);
 
-      // 3. Susun daftar tingkatan resolusi adaptif (Tier)
-      // Hardware encoder Android (MediaCodec H.264) memiliki batas dimensi maksimal (3840 untuk 4K, 2400 untuk 1080p).
+      // 3. Susun daftar tingkatan resolusi adaptif (5-Tier Fallback)
+      // Encoder hardware Android (MediaCodec H.264) mensyaratkan perataan makroblok 16x16 / 8x8.
       // Fallback adaptif menjamin video SELALU berhasil di-encode pada resolusi terbaik
       // yang didukung chipset perangkat tanpa pernah force close / gagal.
       final List<_EncoderTier> candidateTiers = [];
 
       if (is4K) {
-        // Tier 1: 4K Ultra HD (Maksimal batas standar 4K UHD: 3840px pada sisi terpanjang)
-        int h4k = 3840;
-        int w4k = ((3840 / aspectRatio).round() ~/ 2) * 2;
-        if (aspectRatio < 1.0) {
-          w4k = 3840;
-          h4k = ((3840 * aspectRatio).round() ~/ 2) * 2;
+        // Tier 1: 4K Ultra HD (Batas standar 4K UHD: 3840px pada sisi terpanjang)
+        int w4k, h4k;
+        if (aspectRatio >= 1.0) {
+          h4k = alignDimension(3840, 16);
+          w4k = alignDimension((3840 / aspectRatio).round(), 8);
+        } else {
+          w4k = alignDimension(3840, 8);
+          h4k = alignDimension((3840 * aspectRatio).round(), 16);
         }
         candidateTiers.add(_EncoderTier(
           label: '4K Ultra HD',
@@ -129,42 +139,72 @@ class VideoExportService {
         ));
 
         // Tier 2: 2K Quad HD (Maksimal 2560px pada sisi terpanjang)
-        int h2k = 2560;
-        int w2k = ((2560 / aspectRatio).round() ~/ 2) * 2;
-        if (aspectRatio < 1.0) {
-          w2k = 2560;
-          h2k = ((2560 * aspectRatio).round() ~/ 2) * 2;
+        int w2k, h2k;
+        if (aspectRatio >= 1.0) {
+          h2k = alignDimension(2560, 16);
+          w2k = alignDimension((2560 / aspectRatio).round(), 8);
+        } else {
+          w2k = alignDimension(2560, 8);
+          h2k = alignDimension((2560 * aspectRatio).round(), 16);
         }
         candidateTiers.add(_EncoderTier(
           label: '2K QHD',
           width: w2k,
           height: h2k,
-          bitrate: 25000000,
+          bitrate: 22000000,
         ));
       }
 
       // Tier 3: Full HD 1080p (Didukung 100% chipset Android modern)
-      int wFhd = 1080;
-      int hFhd = (((1080 * aspectRatio).round()) ~/ 2) * 2;
-      if (hFhd > 2400) {
-        hFhd = 2400;
-        wFhd = ((2400 / aspectRatio).round() ~/ 2) * 2;
+      int wFhd, hFhd;
+      if (aspectRatio >= 1.0) {
+        wFhd = 1080;
+        int rawH = (1080 * aspectRatio).round();
+        if (rawH > 2400) rawH = 2400;
+        hFhd = alignDimension(rawH, 16);
+      } else {
+        hFhd = alignDimension(1080, 16);
+        int rawW = (1080 / aspectRatio).round();
+        if (rawW > 2400) rawW = 2400;
+        wFhd = alignDimension(rawW, 8);
       }
       candidateTiers.add(_EncoderTier(
         label: 'Full HD 1080p',
         width: wFhd,
         height: hFhd,
-        bitrate: 20000000,
+        bitrate: 16000000,
       ));
 
-      // Tier 4: Safe HD 720p fallback
-      int wHd = 720;
-      int hHd = (((720 * aspectRatio).round()) ~/ 2) * 2;
+      // Tier 4: HD 720p Safe Fallback
+      int wHd, hHd;
+      if (aspectRatio >= 1.0) {
+        wHd = 720;
+        hHd = alignDimension((720 * aspectRatio).round(), 16);
+      } else {
+        hHd = alignDimension(720, 16);
+        wHd = alignDimension((720 / aspectRatio).round(), 8);
+      }
       candidateTiers.add(_EncoderTier(
         label: 'HD 720p',
         width: wHd,
         height: hHd,
-        bitrate: 10000000,
+        bitrate: 8000000,
+      ));
+
+      // Tier 5: SD 540p Ultra Safe Fallback (Jaminan kompatibilitas untuk perangkat sangat terbatas)
+      int wSd, hSd;
+      if (aspectRatio >= 1.0) {
+        wSd = alignDimension(540, 8);
+        hSd = alignDimension((540 * aspectRatio).round(), 16);
+      } else {
+        hSd = alignDimension(540, 16);
+        wSd = alignDimension((540 / aspectRatio).round(), 8);
+      }
+      candidateTiers.add(_EncoderTier(
+        label: 'SD 540p',
+        width: wSd,
+        height: hSd,
+        bitrate: 4000000,
       ));
 
       // 4. Inisialisasi Hardware Video Encoder dengan Adaptive Fallback
@@ -227,15 +267,10 @@ class VideoExportService {
 
       // 5. Loop render tiap frame rute
       for (int i = 0; i < totalFrames; i++) {
+        // Cek pembatalan sebelum memulai frame
         if (isCancelled?.call() == true) {
           debugPrint('VideoExportService: Proses dibatalkan oleh pengguna.');
-          try {
-            await FlutterQuickVideoEncoder.finish();
-            final partialFile = File(outputPath);
-            if (await partialFile.exists()) {
-              await partialFile.delete();
-            }
-          } catch (_) {}
+          await _cleanupCancelledExport(outputPath);
           return null;
         }
 
@@ -243,6 +278,13 @@ class VideoExportService {
 
         // Gerakkan kamera dan titik rute ke posisi frame ke-i
         await onStepFrame(i, progress);
+
+        // Cek pembatalan kembali setelah pergerakan frame
+        if (isCancelled?.call() == true) {
+          debugPrint('VideoExportService: Proses dibatalkan saat perpindahan frame.');
+          await _cleanupCancelledExport(outputPath);
+          return null;
+        }
 
         // Ambil snapshot piksel Full HD / 4K dari RepaintBoundary
         final image = await boundary.toImage(pixelRatio: activePixelRatio);
@@ -269,24 +311,15 @@ class VideoExportService {
         onProgress(progress, i + 1, totalFrames);
       }
 
-      // 5. Finalisasi berkas video
+      // 6. Finalisasi berkas video
       await FlutterQuickVideoEncoder.finish();
       debugPrint('VideoExportService: Video berhasil ditulis ke $outputPath');
 
-      // 6. Simpan otomatis ke Galeri resmi ponsel (MediaStore Android -> folder Movies/Velora)
+      // 7. Simpan otomatis ke Galeri resmi ponsel (MediaStore Android Movies & Download/Velora)
       await saveVideoToGallery(outputPath, title: 'velora_flyover_$timestamp');
 
-      // Salin juga ke folder publik Download & Movies ponsel sebagai fallback sekunder
-      try {
-        final downloadDir = Directory('/storage/emulated/0/Download/Velora');
-        if (!await downloadDir.exists()) {
-          await downloadDir.create(recursive: true);
-        }
-        final publicFile = File('${downloadDir.path}/velora_flyover_$timestamp.mp4');
-        await File(outputPath).copy(publicFile.path);
-      } catch (e) {
-        debugPrint('VideoExportService: Info copy ke Download: $e');
-      }
+      // 8. Bersihkan memori cache gambar setelah render selesai
+      MapPrecacheService.cleanupMemoryCache();
 
       final file = File(outputPath);
       if (await file.exists() && await file.length() > 0) {
@@ -298,22 +331,45 @@ class VideoExportService {
       try {
         await FlutterQuickVideoEncoder.finish();
       } catch (_) {}
+      if (outputPath != null) {
+        try {
+          final partialFile = File(outputPath);
+          if (await partialFile.exists()) {
+            await partialFile.delete();
+          }
+        } catch (_) {}
+      }
+      MapPrecacheService.cleanupMemoryCache();
       return null;
     }
+  }
+
+  /// Pembersihan aman saat ekspor video dibatalkan oleh pengguna
+  static Future<void> _cleanupCancelledExport(String? outputPath) async {
+    try {
+      await FlutterQuickVideoEncoder.finish();
+    } catch (_) {}
+    if (outputPath != null) {
+      try {
+        final partialFile = File(outputPath);
+        if (await partialFile.exists()) {
+          await partialFile.delete();
+        }
+      } catch (_) {}
+    }
+    MapPrecacheService.cleanupMemoryCache();
   }
 
   /// Membagikan berkas video langsung ke Instagram Story / Reels
   static Future<bool> shareToInstagram(String filePath) async {
     try {
-      if (Platform.isAndroid) {
-        final result = await _shareChannel.invokeMethod<bool>(
-          'shareToInstagramStory',
-          {'filePath': filePath},
-        );
-        if (result == true) return true;
-      }
+      final result = await _shareChannel.invokeMethod<bool>(
+        'shareToInstagramStory',
+        {'filePath': filePath},
+      );
+      if (result == true) return true;
     } catch (e) {
-      debugPrint('VideoExportService: Gagal share ke Instagram: $e');
+      debugPrint('VideoExportService: Info share ke Instagram: $e');
     }
     // Fallback otomatis membuka pemilih berbagi sistem
     try {
@@ -328,15 +384,13 @@ class VideoExportService {
   /// Membagikan berkas video langsung ke WhatsApp
   static Future<bool> shareToWhatsApp(String filePath, {String? text}) async {
     try {
-      if (Platform.isAndroid) {
-        final result = await _shareChannel.invokeMethod<bool>(
-          'shareToWhatsApp',
-          {'filePath': filePath, 'text': text ?? 'Flyover Rute Latihan • Velora'},
-        );
-        if (result == true) return true;
-      }
+      final result = await _shareChannel.invokeMethod<bool>(
+        'shareToWhatsApp',
+        {'filePath': filePath, 'text': text ?? 'Flyover Rute Latihan • Velora'},
+      );
+      if (result == true) return true;
     } catch (e) {
-      debugPrint('VideoExportService: Gagal share ke WhatsApp: $e');
+      debugPrint('VideoExportService: Info share ke WhatsApp: $e');
     }
     // Fallback otomatis membuka pemilih berbagi sistem
     try {
@@ -348,11 +402,14 @@ class VideoExportService {
     }
   }
 
-  /// Membagikan berkas video yang telah selesai diekspor ke aplikasi lain (WhatsApp, Reels, TikTok, dsb)
+  /// Membagikan berkas video yang telah selesai diekspor ke aplikasi lain (WhatsApp, Reels, dsb)
   static Future<ShareResult> shareVideo(String filePath, {String? text}) async {
     final file = File(filePath);
     if (!await file.exists()) {
-      throw Exception('Berkas video tidak ditemukan pada: $filePath');
+      throw FileSystemException('Berkas video tidak ditemukan pada: $filePath');
+    }
+    if (await file.length() == 0) {
+      throw FileSystemException('Berkas video kosong (0 byte)', filePath);
     }
 
     return await SharePlus.instance.share(
@@ -379,3 +436,4 @@ class _EncoderTier {
     required this.bitrate,
   });
 }
+

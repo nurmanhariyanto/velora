@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:velora/services/video_export_service.dart';
@@ -6,6 +7,28 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('VideoExportService Unit Tests', () {
+    test('alignDimension menyelaraskan dimensi ke kelipatan 8 dan 16 untuk MediaCodec', () {
+      // Kelipatan 8 untuk lebar Full HD, HD, 4K
+      expect(VideoExportService.alignDimension(1080, 8), equals(1080));
+      expect(VideoExportService.alignDimension(720, 8), equals(720));
+      expect(VideoExportService.alignDimension(2160, 8), equals(2160));
+      expect(VideoExportService.alignDimension(3840, 8), equals(3840));
+      expect(VideoExportService.alignDimension(540, 8), equals(536));
+
+      // Kelipatan 16 untuk tinggi layar non-standar (misal 2340px atau 2460px)
+      expect(VideoExportService.alignDimension(2340, 16), equals(2336));
+      expect(VideoExportService.alignDimension(2336 % 16, 16), equals(16));
+      expect(2336 % 16, equals(0));
+      expect(VideoExportService.alignDimension(2400, 16), equals(2400));
+      expect(2400 % 16, equals(0));
+      expect(VideoExportService.alignDimension(3840, 16), equals(3840));
+      expect(3840 % 16, equals(0));
+
+      // Batas minimum
+      expect(VideoExportService.alignDimension(4, 16), equals(16));
+      expect(VideoExportService.alignDimension(0, 8), equals(8));
+    });
+
     test('cropToEvenDimensions memotong dimensi ganjil ke genap secara akurat', () {
       // Misal gambar 5 x 3 piksel (RGPA = 4 bytes per piksel)
       final srcW = 5;
@@ -85,6 +108,106 @@ void main() {
       expect(widthPx2, equals(1080));
       expect(widthPx3, equals(1080));
       expect(ratio2, greaterThan(2.5));
+    });
+
+    test('saveVideoToGallery memanggil MethodChannel dan mengembalikan status sukses', () async {
+      const channel = MethodChannel('online.nurmancloud.velora/media_store');
+      String? invokedMethod;
+      Map<dynamic, dynamic>? receivedArgs;
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall call) async {
+        invokedMethod = call.method;
+        receivedArgs = call.arguments as Map<dynamic, dynamic>?;
+        if (call.method == 'saveVideoToGallery') {
+          return 'content://media/external/video/media/42';
+        }
+        return null;
+      });
+
+      final success = await VideoExportService.saveVideoToGallery(
+        '/data/user/0/online.nurmancloud.velora/app_flutter/test.mp4',
+        title: 'rute_pagi',
+      );
+
+      expect(success, isTrue);
+      expect(invokedMethod, equals('saveVideoToGallery'));
+      expect(receivedArgs?['title'], equals('rute_pagi'));
+      expect(receivedArgs?['filePath'], contains('test.mp4'));
+    });
+
+    test('saveVideoToGallery menangani error platform channel secara graceful', () async {
+      const channel = MethodChannel('online.nurmancloud.velora/media_store');
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall call) async {
+        throw PlatformException(code: 'SAVE_FAILED', message: 'Storage full');
+      });
+
+      final success = await VideoExportService.saveVideoToGallery(
+        '/data/user/0/online.nurmancloud.velora/app_flutter/test.mp4',
+      );
+
+      // Harus mengembalikan false tanpa melempar unhandled exception
+      expect(success, isFalse);
+    });
+
+    test('shareToWhatsApp memanggil channel sosial dan mengembalikan status', () async {
+      const channel = MethodChannel('online.nurmancloud.velora/social_share');
+      String? invokedMethod;
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall call) async {
+        invokedMethod = call.method;
+        if (call.method == 'shareToWhatsApp') {
+          return true;
+        }
+        return false;
+      });
+
+      final success = await VideoExportService.shareToWhatsApp('/tmp/test.mp4', text: 'Rute Keren!');
+
+      expect(success, isTrue);
+      expect(invokedMethod, equals('shareToWhatsApp'));
+    });
+
+    test('shareToInstagram memanggil channel sosial dan mengembalikan status', () async {
+      const channel = MethodChannel('online.nurmancloud.velora/social_share');
+      String? invokedMethod;
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (MethodCall call) async {
+        invokedMethod = call.method;
+        if (call.method == 'shareToInstagramStory') {
+          return true;
+        }
+        return false;
+      });
+
+      final success = await VideoExportService.shareToInstagram('/tmp/test.mp4');
+
+      expect(success, isTrue);
+      expect(invokedMethod, equals('shareToInstagramStory'));
+    });
+
+    test('shareVideo memvalidasi keberadaan dan ukuran berkas', () async {
+      // 1. Berkas tidak ada
+      expect(
+        () => VideoExportService.shareVideo('/tmp/non_existent_velora_video_9999.mp4'),
+        throwsA(isA<FileSystemException>()),
+      );
+
+      // 2. Berkas kosong (0 byte)
+      final tempEmptyFile = File('${Directory.systemTemp.path}/empty_velora_test.mp4');
+      if (tempEmptyFile.existsSync()) tempEmptyFile.deleteSync();
+      tempEmptyFile.createSync();
+
+      expect(
+        () => VideoExportService.shareVideo(tempEmptyFile.path),
+        throwsA(isA<FileSystemException>()),
+      );
+
+      tempEmptyFile.deleteSync();
     });
   });
 }
