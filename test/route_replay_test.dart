@@ -405,5 +405,51 @@ void main() {
       expect(find.text('/KM'), findsOneWidget);
       expect(find.text('Lari Pagi Flyover'), findsOneWidget);
     });
+
+    testWidgets('RouteReplayScreen mendukung rute pendakian gunung dengan elevasi bertahap',
+        (WidgetTester tester) async {
+      final mountainCoordinates = List.generate(20, (i) {
+        return CoordinatePoint(
+          id: i,
+          activityId: 'replay-climb-test',
+          latitude: -0.050 + (i * 0.001),
+          longitude: 109.345 + (i * 0.0008),
+          elevation: 50.0 + (i * 35.0), // Elevasi mendaki tajam
+          speed: 4.5,
+          timestamp: startTime + (i * 10 * 1000),
+        );
+      });
+
+      final mountainSession = ActivitySession(
+        id: 'session-climb-test',
+        notes: 'Gowes Tanjakan Gunung',
+        sportsType: SportsType.ride,
+        startTime: startTime,
+        endTime: startTime + (200 * 1000),
+        durationSeconds: 200,
+        distanceMeters: 2200,
+        elevationGain: 665.0,
+        averageSpeedKmh: 16.2,
+        maxSpeedKmh: 24.0,
+        averagePaceSecondsPerKm: 222,
+        coordinates: mountainCoordinates,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteReplayScreen(session: mountainSession),
+        ),
+      );
+
+      await tester.pump();
+      if (find.text('Lewati & Langsung Putar').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Lewati & Langsung Putar'));
+        await tester.pumpAndSettle();
+      }
+
+      // Verifikasi layar berhasil dirender dan menampilkan judul gowes tanjakan gunung
+      expect(find.text('Gowes Tanjakan Gunung'), findsOneWidget);
+      expect(find.byType(RouteReplayScreen), findsOneWidget);
+    });
   });
 }

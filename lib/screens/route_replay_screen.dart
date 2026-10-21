@@ -64,6 +64,12 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   bool _is3dTilted = true; // Default: Sudut Pandang 3D Menyamping (Perspective Tilt Oblique Bird's Eye View)
   double _smoothedBearing = 0.0;
 
+  // Simulasi Mendaki Gunung 3D (3D Dynamic Mountain Climbing Engine)
+  double _currentGrade = 0.0; // Persentase kemiringan lereng tanjakan (+ mendaki, - turunan)
+  double _currentClimbTilt = 0.0; // Offset kemiringan sudut kamera mendaki (radians)
+  double _currentClimbLift = 0.0; // Offset pengangkatan vertikal kamera (pixels)
+  bool get _isClimbing => _currentGrade >= 3.0; // Status sedang menempuh tanjakan mendaki gunung
+
   // Titik aktif & notifikasi milestone
   TrackMilestone? _latestChimeMilestone;
   Timer? _chimeTimer;
@@ -383,6 +389,34 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     final interpLat = currentPoint.latitude + (nextPoint.latitude - currentPoint.latitude) * fraction;
     final interpLng = currentPoint.longitude + (nextPoint.longitude - currentPoint.longitude) * fraction;
     final targetPos = LatLng(interpLat, interpLng);
+
+    // Hitung kemiringan tanjakan lereng gunung (% grade) secara real-time
+    double instantaneousGrade = 0.0;
+    final lookAheadIdx = (index + 4).clamp(0, totalPoints - 1);
+    if (lookAheadIdx > index) {
+      final pA = widget.session.coordinates[index];
+      final pB = widget.session.coordinates[lookAheadIdx];
+      final elevDelta = pB.elevation - pA.elevation;
+      final distDelta = Haversine.calculateDistance(pA.latitude, pA.longitude, pB.latitude, pB.longitude);
+      if (distDelta >= 6.0) {
+        instantaneousGrade = (elevDelta / distDelta) * 100.0;
+      }
+    }
+    // Haluskan transisi kemiringan lereng tanjakan (smooth grade damping)
+    _currentGrade = _currentGrade + (instantaneousGrade - _currentGrade) * 0.12;
+
+    // Respon kemiringan sudut kamera mendaki 3D:
+    // Saat mendaki gunung (tanjakan > 0%): kamera mendongak menengadah menatap lereng (+0.18 rad) & terangkat naik (+32 px)
+    // Saat turunan (< 0%): kamera sedikit menunduk menatap lembah
+    final targetClimbTilt = _currentGrade > 0
+        ? (_currentGrade.clamp(0.0, 16.0) / 16.0) * 0.18
+        : (_currentGrade.clamp(-14.0, 0.0) / 14.0) * 0.09;
+    final targetClimbLift = _currentGrade > 0
+        ? (_currentGrade.clamp(0.0, 16.0) / 16.0) * 32.0
+        : (_currentGrade.clamp(-14.0, 0.0) / 14.0) * 16.0;
+
+    _currentClimbTilt = _currentClimbTilt + (targetClimbTilt - _currentClimbTilt) * 0.10;
+    _currentClimbLift = _currentClimbLift + (targetClimbLift - _currentClimbLift) * 0.10;
 
     // Hitung jarak kumulatif terinterpolasi
     final currentDistMeters = _cumulativeDistances.isNotEmpty
@@ -817,7 +851,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                               alignment: const FractionalOffset(0.5, 0.71),
                               transform: Matrix4.identity()
                                 ..setEntry(3, 2, 0.001)
-                                ..rotateX(-0.70), // Kemiringan perspektif 3D maju ke depan (horizon menyempit di atas)
+                                ..setTranslationRaw(0.0, _currentClimbLift, 0.0)
+                                ..rotateX(-0.70 + _currentClimbTilt), // Kemiringan 3D dinamis: mendongak menatap lereng saat mendaki gunung
                               child: _buildFlutterMap(
                                 currentInterpPos: currentInterpPos,
                                 fullRoutePoints: fullRoutePoints,
@@ -1429,19 +1464,23 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         if (traversedPoints.isNotEmpty)
           PolylineLayer(
             polylines: [
-              // Lapisan 1: Pendaran Cahaya Luar (Outer Glow Neon Amber)
+              // Lapisan 1: Pendaran Cahaya Luar (Berubah menjadi Oranye Api saat Mendaki Gunung)
               Polyline(
                 points: traversedPoints,
                 strokeWidth: 14.0,
-                color: const Color(0xFFFFD600).withAlpha(130),
+                color: _isClimbing
+                    ? const Color(0xFFFF3D00).withAlpha(150)
+                    : const Color(0xFFFFD600).withAlpha(130),
                 strokeCap: StrokeCap.round,
                 strokeJoin: StrokeJoin.round,
               ),
-              // Lapisan 2: Berkas Emas Terang (Vibrant Electric Sun Gold)
+              // Lapisan 2: Berkas Emas Terang / Amber Api
               Polyline(
                 points: traversedPoints,
                 strokeWidth: 6.5,
-                color: const Color(0xFFFFEA00),
+                color: _isClimbing
+                    ? const Color(0xFFFF6D00)
+                    : const Color(0xFFFFEA00),
                 strokeCap: StrokeCap.round,
                 strokeJoin: StrokeJoin.round,
               ),
@@ -1449,7 +1488,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               Polyline(
                 points: traversedPoints,
                 strokeWidth: 2.2,
-                color: Colors.white.withAlpha(230),
+                color: Colors.white.withAlpha(235),
                 strokeCap: StrokeCap.round,
                 strokeJoin: StrokeJoin.round,
               ),
@@ -1462,6 +1501,15 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             // Milestone yang sudah atau akan dilewati
             ..._milestones.map((m) {
               final isPassed = m.distanceMeters <= currentDistanceM;
+              if (m.type == TrackMilestoneType.peakElevation) {
+                return Marker(
+                  point: LatLng(m.latitude, m.longitude),
+                  width: 170,
+                  height: 64,
+                  alignment: Alignment.bottomCenter,
+                  child: _buildMountainPeakPin(m, isPassed),
+                );
+              }
               return Marker(
                 point: LatLng(m.latitude, m.longitude),
                 width: m.isFastestKm ? 28 : 24,
@@ -1719,6 +1767,139 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     );
   }
 
+  Widget _buildMountainPeakPin(TrackMilestone m, bool isPassed) {
+    return Transform(
+      alignment: Alignment.bottomCenter,
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.0015)
+        ..rotateX(_isSatelliteMode ? (0.70 - _currentClimbTilt) : 0.0),
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutBack,
+        scale: isPassed ? 1.08 : 0.95,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 250),
+          opacity: isPassed ? 1.0 : 0.85,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Badge Puncak Gunung 3D (Sunset Crimson Gradient)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFFFF5722),
+                      Color(0xFFE64A19),
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF5722).withAlpha(isPassed ? 220 : 130),
+                      blurRadius: isPassed ? 16 : 8,
+                      spreadRadius: isPassed ? 2 : 0,
+                      offset: const Offset(0, 3),
+                    ),
+                    const BoxShadow(
+                      color: Colors.black45,
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('🏔️', style: TextStyle(fontSize: 13)),
+                    const SizedBox(width: 5),
+                    Text(
+                      'PUNCAK ${m.elevation.toStringAsFixed(0)}M',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black45,
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Pointer segitiga ke bawah
+              Transform.translate(
+                offset: const Offset(0, -2),
+                child: Transform.rotate(
+                  angle: math.pi / 4,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE64A19),
+                      border: Border(
+                        bottom: BorderSide(color: Colors.white, width: 0.8),
+                        right: BorderSide(color: Colors.white, width: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Tiang vertikal 3D
+              Container(
+                width: 2.0,
+                height: 12.0,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white,
+                      Color(0xFFFF8A65),
+                      Color(0xFFFF5722),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF5722).withAlpha(160),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+              // Ground Anchor
+              Container(
+                width: 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: const Color(0xFFFF5722),
+                    width: 1.4,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0xFFFF5722),
+                      blurRadius: 8,
+                      spreadRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildRoadTrackPin({
     required RoadTransitionEvent road,
     required bool isActive,
@@ -1739,7 +1920,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       alignment: Alignment.bottomCenter,
       transform: Matrix4.identity()
         ..setEntry(3, 2, 0.0015)
-        ..rotateX(_isSatelliteMode ? 0.70 : 0.0), // Melawan kemiringan kanvas 3D (-0.70) agar pin berdiri tegak lurus (billboard 3D) menghadap kamera
+        ..rotateX(_isSatelliteMode ? (0.70 - _currentClimbTilt) : 0.0), // Melawan kemiringan kanvas 3D dinamis agar pin berdiri tegak lurus (billboard 3D) menghadap kamera
       child: AnimatedScale(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeOutBack,
@@ -2253,10 +2434,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: _buildHudMetric(
-                    label: 'ELEVASI',
+                    label: _isClimbing ? '▲ +${_currentGrade.toStringAsFixed(1)}%' : 'ELEVASI',
                     value: currentElevation.toStringAsFixed(0),
                     unit: 'M',
-                    accentColor: const Color(0xFF818CF8),
+                    accentColor: _isClimbing ? const Color(0xFFFF5722) : const Color(0xFF818CF8),
                   ),
                 ),
               ),
@@ -4178,11 +4359,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: _buildHudMetricColumn(
-                icon: Icons.terrain_rounded,
-                label: 'ELEVASI',
+                icon: _isClimbing ? Icons.trending_up_rounded : Icons.terrain_rounded,
+                label: _isClimbing ? '▲ +${_currentGrade.toStringAsFixed(1)}%' : 'ELEVASI',
                 value: currentElevation.toStringAsFixed(0),
                 unit: 'M',
-                valueColor: const Color(0xFF818CF8),
+                valueColor: _isClimbing ? const Color(0xFFFF5722) : const Color(0xFF818CF8),
               ),
             ),
           ),

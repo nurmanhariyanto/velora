@@ -18,8 +18,8 @@ android {
         applicationId = "online.nurmancloud.velora"
         minSdk = 24
         targetSdk = flutter.targetSdkVersion
-        versionCode = 34
-        versionName = "1.0.7"
+        versionCode = 35
+        versionName = "1.0.8"
     }
 
     signingConfigs {

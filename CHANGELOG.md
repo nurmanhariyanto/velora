@@ -2,6 +2,22 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.8] - 2026-10-22
+
+### 🏔️ Simulasi Mendaki Gunung 3D (3D Dynamic Mountain Climbing Engine) & Pin Puncak Elevasi 3D
+
+#### 🏔️ 1. Simulasi Mendaki Gunung 3D Sinematik
+- **Kamera Mendongak Menatap Lereng (Dynamic Pitch & Altitude Lift):**
+  - Kamera satelit 3D kini merespons kemiringan lereng tanjakan secara *real-time*. Saat atlet menempuh kontur tanjakan gunung (*grade percentage > 0%*), kamera secara dinamis mendongak menengadah menatap lereng ke atas (`+0.18 rad`) dan mengangkat sudut vertikal (`+32 px`), menghadirkan sensasi mendaki lereng gunung yang nyata dan sinematik.
+- **Berkas Lintasan Oranye Api (Climb Polyline Glow Shift):**
+  - Jalur rute aktif bertransisi dari kuning emas menjadi pendaran berkas oranye api menyala saat mendaki tanjakan gunung, memberikan visualisasi tenaga pendakian yang dramatis.
+- **Pin Milestone Puncak Tertinggi 3D (`_buildMountainPeakPin`):**
+  - Penanda titik puncak tertinggi (summit peak) kini terpasang dengan lencana 3D berwarna *sunset crimson*, lengkap dengan teks ketinggian dalam meter (`🏔️ PUNCAK XXXM`), tiang penanda 3D, dan titik suar penancap di aspal.
+- **Indikator Kemiringan Tanjakan Dinamis di HUD:**
+  - Panel statistik elevasi (pada tampilan normal maupun rekaman video) menampilkan persentase kemiringan lereng tanjakan secara langsung (`▲ +X.X%`) beserta aksen warna oranye saat menanjak.
+- **Kalibrasi Billboard 3D Dinamis:**
+  - Pin nama jalan dan pin puncak secara otomatis mengompensasi pergerakan sudut kamera mendaki gunung (`rotateX(0.70 - _currentClimbTilt)`) sehingga seluruh penanda selalu berdiri tegak lurus sempurna menghadap mata penonton.
+
 ## [v1.0.7] - 2026-10-22
 
 ### 🛣️ Animasi Kemunculan 3D Pin Jalan, Persistensi Permanen di Lintasan & Deduplikasi Tunggal
