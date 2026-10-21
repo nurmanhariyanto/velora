@@ -17,6 +17,7 @@ import 'package:share_plus/share_plus.dart';
 import '../services/foreground_service_handler.dart';
 import '../services/map_precache_service.dart';
 import '../services/region_geocoding_service.dart';
+import '../services/road_geocoding_service.dart';
 import '../services/track_analysis_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/video_export_service.dart';
@@ -104,6 +105,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   RegencyBorderEvent? _activeBorderEvent;
   Timer? _borderEventTimer;
   final Set<int> _triggeredBorderIndices = <int>{};
+
+  // Penanda Nama Jalan & Transisi Rute (Badge Jalan Sinematik)
+  List<RoadTransitionEvent> _roadTransitions = [];
+  RoadTransitionEvent? _activeRoadEvent;
+  Timer? _roadEventTimer;
+  final Set<int> _triggeredRoadIndices = <int>{};
+  bool _showRoadNameBadge = true;
+
+  // Zona Aman Tampilan Video untuk IG Story/Reels & WA Status (Anti Terpotong Kolom Balas)
+  bool _enableSocialSafeZone = true;
 
   // Matriks OpenStreetMap Mode Gelap Khas Velora
   static const List<double> _darkMatrix = <double>[
@@ -200,6 +211,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
     _loadAthleteName();
     _detectRegencyBorders();
+    _detectRoadTransitions();
 
     // Memuat awal (pre-cache) tile peta di sepanjang rute untuk performa 60 FPS mulus di semua ponsel
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -230,6 +242,34 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       if (mounted) {
         setState(() {
           _activeBorderEvent = null;
+        });
+      }
+    });
+  }
+
+  Future<void> _detectRoadTransitions() async {
+    try {
+      final transitions = await RoadGeocodingService.detectRoadTransitions(
+        coordinates: widget.session.coordinates,
+        cumulativeDistances: _cumulativeDistances,
+      );
+      if (mounted) {
+        setState(() {
+          _roadTransitions = transitions;
+        });
+      }
+    } catch (_) {}
+  }
+
+  void _triggerRoadTransitionAlert(RoadTransitionEvent roadEvent) {
+    _roadEventTimer?.cancel();
+    setState(() {
+      _activeRoadEvent = roadEvent;
+    });
+    _roadEventTimer = Timer(const Duration(milliseconds: 3500), () {
+      if (mounted) {
+        setState(() {
+          _activeRoadEvent = null;
         });
       }
     });
@@ -401,6 +441,37 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       return false;
     });
 
+    // Pemicu Badge Nama Jalan saat melintasi transisi ruas jalan baru
+    if (_showRoadNameBadge) {
+      final roadWindowMeters = math.min(math.max(totalRouteDist * 0.10, 300.0), totalRouteDist * 0.25);
+      for (int rIdx = 0; rIdx < _roadTransitions.length; rIdx++) {
+        final road = _roadTransitions[rIdx];
+        final isInsideTriggerZone = _isRenderingVideo
+            ? (currentDistMeters >= road.distanceMeters &&
+                currentDistMeters <= road.distanceMeters + roadWindowMeters)
+            : (currentDistMeters >= road.distanceMeters);
+
+        if (isInsideTriggerZone) {
+          if (!_triggeredRoadIndices.contains(rIdx)) {
+            _triggeredRoadIndices.add(rIdx);
+            _triggerRoadTransitionAlert(road);
+          }
+        } else if (_isRenderingVideo && _activeRoadEvent == road) {
+          _activeRoadEvent = null;
+        }
+      }
+      _triggeredRoadIndices.removeWhere((idx) {
+        if (idx < _roadTransitions.length) {
+          return currentDistMeters < _roadTransitions[idx].distanceMeters;
+        }
+        return false;
+      });
+    } else {
+      if (_activeRoadEvent != null) {
+        _activeRoadEvent = null;
+      }
+    }
+
     // Hitung arah hadap kendaraan (bearing) ke titik rute berikutnya
     final rawBearing = Haversine.calculateBearing(
       currentPoint.latitude,
@@ -545,6 +616,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _triggeredBorderIndices.clear();
     _activeBorderEvent = null;
     _borderEventTimer?.cancel();
+    _triggeredRoadIndices.clear();
+    _activeRoadEvent = null;
+    _roadEventTimer?.cancel();
     if (!_isPlaying) {
       _togglePlayPause();
     } else {
@@ -559,6 +633,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _precacheTimer?.cancel();
     _chimeTimer?.cancel();
     _borderEventTimer?.cancel();
+    _roadEventTimer?.cancel();
     _recordTooltipTimer?.cancel();
     _animController.removeListener(_onAnimationTick);
     _animController.dispose();
@@ -794,7 +869,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           // Watermark Logo Velora & Nama Atlet (Tampil Sinematik saat Clean Mode / Render Video)
           if (_cleanRecordMode)
             Positioned(
-              top: MediaQuery.of(context).padding.top + 14,
+              top: MediaQuery.of(context).padding.top + (_enableSocialSafeZone ? 24 : 14),
               left: 18,
               right: 18,
               child: Align(
@@ -895,15 +970,28 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           // 3b. Pop-up Badge Bendera Saat Melintasi Batas Wilayah Kabupaten Baru (Tampil di Replay & Video MP4)
           if (_activeBorderEvent != null)
             Positioned(
-              top: MediaQuery.of(context).padding.top + (_cleanRecordMode ? 52 : 74),
+              top: MediaQuery.of(context).padding.top + (_cleanRecordMode ? (_enableSocialSafeZone ? 66 : 52) : 74),
               left: 20,
               right: 20,
               child: _buildRegencyBorderBanner(_activeBorderEvent!),
             ),
 
+          // 3c. Pop-up Badge Nama Jalan Saat Berpindah ke Ruas Baru (Tampil di Replay & Video MP4)
+          if (_showRoadNameBadge && _activeRoadEvent != null)
+            Positioned(
+              bottom: _cleanRecordMode
+                  ? (_enableSocialSafeZone ? 152 : 100)
+                  : 148,
+              left: 20,
+              right: 20,
+              child: _buildRoadNameBadge(_activeRoadEvent!),
+            ),
+
           // 4. Panel HUD Statistik Berjalan & Pengontrol Pemutaran Bawah
           Positioned(
-            bottom: _cleanRecordMode ? 36 : 24,
+            bottom: _cleanRecordMode
+                ? (_enableSocialSafeZone ? 88 : 36)
+                : 24,
             left: 16,
             right: 16,
             child: _cleanRecordMode
@@ -1605,6 +1693,83 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                       color: Colors.white,
                       fontSize: 14.5,
                       fontWeight: FontWeight.w900,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRoadNameBadge(RoadTransitionEvent roadEvent) {
+    return Center(
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width - 40,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A).withAlpha(240),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.neonCyan.withAlpha(200), width: 1.5),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.neonCyan.withAlpha(70),
+              blurRadius: 16,
+              spreadRadius: 1,
+              offset: const Offset(0, 3),
+            ),
+            const BoxShadow(
+              color: Colors.black54,
+              blurRadius: 10,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: AppColors.neonCyan.withAlpha(40),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.neonCyan.withAlpha(160), width: 1),
+              ),
+              child: const Icon(
+                Icons.alt_route_rounded,
+                color: AppColors.neonCyan,
+                size: 16,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'RUAS JALAN',
+                    style: TextStyle(
+                      color: AppColors.neonCyan,
+                      fontSize: 9.0,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    roadEvent.roadName,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -3289,7 +3454,170 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
+
+                    // Pengaturan Tampilan & Format Video (Nama Jalan & Safe Zone IG/WA)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(10),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: Colors.white12, width: 1),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(
+                                Icons.tune_rounded,
+                                color: AppColors.electricAmber,
+                                size: 16,
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'PENGATURAN TAMPILAN VIDEO',
+                                    style: TextStyle(
+                                      color: AppColors.electricAmber,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+
+                          // Toggle 1: Safe Zone IG & WA Status (Anti-Terpotong)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: AppColors.neonCyan.withAlpha(25),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppColors.neonCyan.withAlpha(90),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.fit_screen_rounded,
+                                  color: AppColors.neonCyan,
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Zona Aman IG & WA (Anti-Terpotong)',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Angkat panel statistik agar tidak tertutup kolom "Balas" WhatsApp atau Stories/Reels.',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: _enableSocialSafeZone,
+                                activeThumbColor: AppColors.neonCyan,
+                                activeTrackColor: AppColors.neonCyan.withAlpha(140),
+                                onChanged: isActionBusy
+                                    ? null
+                                    : (val) {
+                                        setSheetState(() {
+                                          _enableSocialSafeZone = val;
+                                        });
+                                        if (mounted) setState(() {});
+                                      },
+                              ),
+                            ],
+                          ),
+                          const Divider(color: Colors.white12, height: 16),
+
+                          // Toggle 2: Badge Nama Jalan di Video
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryOrange.withAlpha(25),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppColors.primaryOrange.withAlpha(90),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.signpost_rounded,
+                                  color: AppColors.primaryOrange,
+                                  size: 18,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Badge Nama Jalan di Video',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    SizedBox(height: 2),
+                                    Text(
+                                      'Tampilkan nama ruas jalan saat berbelok/berpindah jalan di rute.',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch.adaptive(
+                                value: _showRoadNameBadge,
+                                activeThumbColor: AppColors.primaryOrange,
+                                activeTrackColor: AppColors.primaryOrange.withAlpha(140),
+                                onChanged: isActionBusy
+                                    ? null
+                                    : (val) {
+                                        setSheetState(() {
+                                          _showRoadNameBadge = val;
+                                        });
+                                        if (mounted) setState(() {});
+                                      },
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
                     // Opsi 1: Ekspor Video Flyover MP4 Full HD (Layar Penuh Utuh)
                     _buildShareActionTile(
@@ -3556,7 +3884,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   children: [
                     Row(
                       children: [
-                        Flexible(
+                        Expanded(
                           child: Text(
                             title,
                             style: TextStyle(

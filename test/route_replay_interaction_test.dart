@@ -268,5 +268,39 @@ void main() {
       expect(find.text('FLYOVER REPLAY'), findsOneWidget);
       expect(find.text('Keluar dari Mode Rekam Bersih'), findsOneWidget);
     });
+
+    testWidgets('Sheet Ekspor memiliki toggle Pengaturan Tampilan Video (Zona Aman & Badge Jalan)',
+        (WidgetTester tester) async {
+      await tester.pumpWidget(createReplayScreen());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Buka Sheet Ekspor
+      await tester.tap(find.byTooltip('Rekam & Bagikan Video'));
+      await tester.pumpAndSettle();
+
+      // Verifikasi judul pengaturan
+      expect(find.text('PENGATURAN TAMPILAN VIDEO'), findsOneWidget);
+
+      // Verifikasi toggle Zona Aman IG & WA
+      expect(find.text('Zona Aman IG & WA (Anti-Terpotong)'), findsOneWidget);
+
+      // Verifikasi toggle Badge Nama Jalan di Video
+      expect(find.text('Badge Nama Jalan di Video'), findsOneWidget);
+
+      // Verifikasi Switch dapat berinteraksi
+      final switches = find.byType(Switch);
+      expect(switches, findsNWidgets(2));
+
+      // Ketuk switch Badge Nama Jalan untuk mengubah nilainya
+      await tester.tap(switches.at(1));
+      await tester.pumpAndSettle();
+
+      // Tutup sheet
+      await tester.ensureVisible(find.text('TUTUP'));
+      await tester.tap(find.text('TUTUP'));
+      await tester.pumpAndSettle();
+      expect(find.text('FLYOVER REPLAY'), findsOneWidget);
+    });
   });
 }

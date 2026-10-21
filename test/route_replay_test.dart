@@ -201,6 +201,7 @@ void main() {
       expect(find.text('Bagikan Kartu Ringkasan (Foto & Peta HD)'), findsOneWidget);
 
       // Ketuk opsi Mode Rekam Layar Bersih
+      await tester.ensureVisible(find.text('Mulai Mode Rekam Layar Bersih'));
       await tester.tap(find.text('Mulai Mode Rekam Layar Bersih'));
       await tester.pumpAndSettle();
 

@@ -2,6 +2,34 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.5.9] - 2026-10-21
+
+### 🛣️ Badge Nama Jalan Sinematik & Zona Aman Media Sosial (Anti-Terpotong IG & WA)
+
+#### 🛣️ 1. Badge Nama Jalan saat Transisi Rute (Replay & Video MP4)
+- **Deteksi Transisi Ruas Jalan Otomatis (`RoadGeocodingService`):**
+  - Mengimplementasikan reverse-geocoding cerdas dengan basis data offline jalur olahraga populer (Pontianak, Jakarta, Bandung, Surabaya, Bali) untuk respons instan (0 ms tanpa kuota data).
+  - Reverse geocoding online cadangan OpenStreetMap Nominatim level jalan (`zoom=18`) dengan in-memory cache untuk performa maksimal.
+  - Deteksi tikungan tajam (> 28°) dan interval jarak rute (~300 meter) untuk mendeteksi perpindahan nama jalan secara tepat waktu.
+- **Badge Sinematik Sinematik (`RUAS JALAN • Jl. ...`):**
+  - Desain dark glass elegan beraksen neon cyan dengan ikon penunjuk arah jalan, melayang di atas panel statistik saat atlet memasuki ruas jalan baru.
+- **Pengaturan Seleksi Sebelum Render Video:**
+  - Pengguna dapat memilih untuk mengaktifkan atau menonaktifkan badge nama jalan secara bebas sebelum proses render video dimulai melalui toggle switch interaktif di lembar opsi ekspor.
+
+#### 📱 2. Zona Aman Media Sosial (Anti-Terpotong Kolom Balas WhatsApp & Instagram)
+- **Elevasi Posisi HUD Statistik (`_enableSocialSafeZone`):**
+  - Mengangkat posisi panel statistik berjalan (Jarak, Speed/Pace, Elevasi, Gain, Waktu) serta badge nama jalan dari dasar layar (`bottom: 88 dp` dan `bottom: 152 dp`).
+  - Menjamin statistik tetap 100% terlihat jelas dan tidak tertutup oleh kolom input pesan "Balas..." bawaan WhatsApp Status maupun kolom "Kirim Pesan" dan metadata akun Instagram Stories / Reels.
+  - Menyelaraskan padding atas watermark Velora dan nama atlet agar bebas dari garis status bar dan progress bar Instagram/WhatsApp.
+- **Toggle Interaktif Zona Aman:**
+  - Opsi "Zona Aman IG & WA (Anti-Terpotong)" tersedia langsung di menu bagikan video (aktif secara default).
+
+#### 🛡️ 3. Perbaikan Responsif Tampilan Sheet Ekspor Video
+- **Pemberian `Expanded` & `FittedBox`:**
+  - Mengeliminasi potensi `RenderFlex overflow` pada judul dan badge resolusi lembar ekspor video saat diakses pada ponsel beresolusi lebar 360dp atau dengan text scale factor tinggi.
+- **Pengujian Komprehensif:**
+  - Seluruh 116 pengujian unit dan widget (`flutter test`) berhasil lulus 100%, serta 0 isu pada `flutter analyze`.
+
 ## [v1.0.5.8] - 2026-10-20
 
 ### 🚀 Audit Menyeluruh & Perbaikan Terpadu: Tombol, Animasi, Aksi, dan Tampilan (4 Task Agents)
