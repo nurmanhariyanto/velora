@@ -22,6 +22,7 @@ import '../services/road_geocoding_service.dart';
 import '../services/track_analysis_service.dart';
 import '../services/user_profile_service.dart';
 import '../services/video_export_service.dart';
+import '../services/wakelock_service.dart';
 import '../widgets/track_milestone_pin.dart';
 import 'share_preview_screen.dart';
 
@@ -41,7 +42,7 @@ class RouteReplayScreen extends StatefulWidget {
 }
 
 class _RouteReplayScreenState extends State<RouteReplayScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final MapController _mapController;
   late final AnimationController _animController;
 
@@ -167,6 +168,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mapController = MapController();
     getApplicationDocumentsDirectory().then((dir) {
       if (mounted) {
@@ -658,7 +660,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed && _isRenderingVideo) {
+      WakelockService.enable();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    WakelockService.disable();
     _isPreloadingTiles = false;
     _isRenderCancelled = true;
     _precacheTimer?.cancel();
@@ -2842,6 +2854,33 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                           ],
                         ),
                       ),
+                      if (!isPrecache) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0F172A),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF38BDF8).withAlpha(120)),
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.screen_lock_portrait_rounded, size: 14, color: Color(0xFF38BDF8)),
+                              SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Layar dijaga tetap aktif agar pembuatan video selesai optimal',
+                                  style: TextStyle(
+                                    color: Color(0xFF94A3B8),
+                                    fontSize: 10.5,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -2856,6 +2895,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                             }
                             dialogCtx = null;
                             dialogSetState = null;
+                            WakelockService.disable();
                             ForegroundServiceHandler.stopRenderProgress();
                             MapPrecacheService.cleanupMemoryCache();
                             if (mounted) {
@@ -2967,10 +3007,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           _isRenderMinimized = false;
         });
       }
+      await WakelockService.disable();
       await ForegroundServiceHandler.stopRenderProgress();
       MapPrecacheService.cleanupMemoryCache();
       return;
     }
+
+    // Amankan layar agar tetap menyala selama proses render video berlangsung
+    await WakelockService.enable();
 
     // Ubah fase ke 'encode'
     _renderPhase = 'encode';
@@ -3021,10 +3065,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     }
 
     if (mounted) setState(() {});
-    await WidgetsBinding.instance.endOfFrame;
+    try {
+      await WidgetsBinding.instance.endOfFrame.timeout(const Duration(milliseconds: 300));
+    } catch (_) {}
     // Beri jeda 2 detik agar GPU dan flutter_map selesai melukis seluruh ubin pada titik awal secara sempurna
     await Future.delayed(const Duration(milliseconds: 2000));
-    await WidgetsBinding.instance.endOfFrame;
+    try {
+      await WidgetsBinding.instance.endOfFrame.timeout(const Duration(milliseconds: 300));
+    } catch (_) {}
 
     // 4. Jalankan loop render frame-by-frame
     String? exportedVideoPath;
@@ -3042,7 +3090,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           _lastCameraMoveTime = null; // paksa kamera bergerak mengikuti titik rute
           _onAnimationTick();
           if (mounted) setState(() {});
-          await WidgetsBinding.instance.endOfFrame;
+          try {
+            await WidgetsBinding.instance.endOfFrame.timeout(const Duration(milliseconds: 300));
+          } catch (_) {
+            // Toleransi aman jika layar sedang dijeda sejenak oleh sistem operasi
+          }
           // Memberi waktu yang cukup bagi GPU dan flutter_map untuk merender tile secara sempurna
           await Future.delayed(const Duration(milliseconds: 85));
         },
@@ -3067,6 +3119,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       );
     } catch (e) {
       debugPrint('Error during video render: $e');
+    } finally {
+      // Pastikan proteksi layar dilepas setelah render selesai / dibatalkan
+      await WakelockService.disable();
     }
 
     // 5. Tutup dialog progress jika masih terbuka

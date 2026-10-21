@@ -12,9 +12,46 @@ class MainActivity : FlutterActivity() {
     private val INSTALLER_CHANNEL = "online.nurmancloud.velora/app_installer"
     private val SHARE_CHANNEL = "online.nurmancloud.velora/social_share"
     private val MEDIA_CHANNEL = "online.nurmancloud.velora/media_store"
+    private val WAKELOCK_CHANNEL = "online.nurmancloud.velora/wakelock"
+    private var renderWakeLock: android.os.PowerManager.WakeLock? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        // Channel untuk Menjaga Layar Tetap Aktif Saat Proses Render Video Berjalan
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, WAKELOCK_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "keepScreenOn" -> {
+                    val enable = call.argument<Boolean>("enable") ?: true
+                    this.runOnUiThread {
+                        try {
+                            if (enable) {
+                                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                                if (renderWakeLock == null) {
+                                    val pm = getSystemService(android.content.Context.POWER_SERVICE) as? android.os.PowerManager
+                                    renderWakeLock = pm?.newWakeLock(
+                                        android.os.PowerManager.PARTIAL_WAKE_LOCK,
+                                        "velora:render_cpu_wakelock"
+                                    )?.apply {
+                                        setReferenceCounted(false)
+                                    }
+                                }
+                                renderWakeLock?.acquire(10 * 60 * 1000L) // Maksimal 10 menit batas waktu aman
+                            } else {
+                                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                                if (renderWakeLock?.isHeld == true) {
+                                    renderWakeLock?.release()
+                                }
+                            }
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("WAKELOCK_ERROR", e.message, null)
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
 
         // Channel untuk Pemasangan Pembaruan APK Mandiri
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, INSTALLER_CHANNEL).setMethodCallHandler { call, result ->
@@ -365,5 +402,14 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    override fun onDestroy() {
+        try {
+            if (renderWakeLock?.isHeld == true) {
+                renderWakeLock?.release()
+            }
+        } catch (_: Exception) {}
+        super.onDestroy()
     }
 }

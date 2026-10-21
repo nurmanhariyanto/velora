@@ -2,6 +2,28 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.9] - 2026-10-22
+
+### 🔒 Proteksi Layar Aktif (Wakelock Engine) & Pemulihan Render Video Tanpa Terhenti
+
+#### 🔒 1. Proteksi Layar Tetap Aktif Saat Render Video (Wakelock Engine)
+- **Pencegahan Layar Mati Otomatis (`FLAG_KEEP_SCREEN_ON`):**
+  - Mengintegrasikan manajemen layar aktif tingkat sistem operasi Android (`WakelockService`) yang secara otomatis menjaga layar ponsel tetap menyala selama proses pembuatan video flyover berlangsung, sehingga sistem operasi tidak mematikan layar karena batas waktu tidur (*display timeout*).
+- **Perlindungan CPU Latar Belakang (*CPU WakeLock*):**
+  - Mengaktifkan `PARTIAL_WAKE_LOCK` bersamaan dengan `ForegroundService` agar prosesor perangkat tetap bekerja penuh memproses frame grafis dan penulisan berkas MP4.
+- **Pelepasan Otomatis Pasca-Render:**
+  - Segera setelah video selesai dibuat atau dibatalkan, proteksi layar aktif dilepas secara otomatis untuk mengembalikan batas waktu layar ponsel ke pengaturan hemat daya default pengguna.
+
+#### 🛡️ 2. Pemulihan Permukaan Grafis Toleran Gangguan (*Fault-Tolerant Frame Capture*)
+- **Penanganan Frame Tanpa Hang (*Frame Timeout Handling*):**
+  - Menambahkan pembatasan waktu aman (*timeout protection*) pada `endOfFrame` dan sinkronisasi vsync sehingga proses render tidak akan pernah membeku (*freeze / hang*) jika terjadi gangguan transisi layar.
+- **Toleransi Pemulihan Permukaan Grafis (*Auto-Retry toImage*):**
+  - Perekaman snapshot RepaintBoundary kini dilengkapi toleransi pengulangan otomatis (*retry loop*) hingga 5 kali percobaan jika permukaan grafis (*surface*) sedang dijeda sejenak oleh sistem operasi, mencegah kegagalan ekspor prematur.
+- **Penyelarasan Siklus Hidup Aplikasi (*Lifecycle Resumption*):**
+  - Menyelaraskan *lifecycle observer* saat aplikasi kembali ke layar depan (*resumed*) untuk memastikan status render berlanjut secara mulus.
+- **Informasi Antarmuka Relevan:**
+  - Menampilkan lencana informasi non-teknis pada jendela progres ekspor: *"Layar dijaga tetap aktif agar pembuatan video selesai optimal"*.
+
 ## [v1.0.8] - 2026-10-22
 
 ### 🏔️ Simulasi Mendaki Gunung 3D (3D Dynamic Mountain Climbing Engine) & Pin Puncak Elevasi 3D

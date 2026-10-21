@@ -286,8 +286,26 @@ class VideoExportService {
           return null;
         }
 
-        // Ambil snapshot piksel Full HD / 4K dari RepaintBoundary
-        final image = await boundary.toImage(pixelRatio: activePixelRatio);
+        // Ambil snapshot piksel Full HD / 4K dari RepaintBoundary dengan toleransi pemulihan permukaan grafis
+        ui.Image? image;
+        int retries = 0;
+        while (retries < 5) {
+          try {
+            image = await boundary.toImage(pixelRatio: activePixelRatio);
+            break;
+          } catch (surfaceErr) {
+            retries++;
+            debugPrint('VideoExportService: Percobaan toImage ke-$retries ($surfaceErr). Menunggu pemulihan permukaan grafis...');
+            await Future.delayed(const Duration(milliseconds: 250));
+            if (isCancelled?.call() == true) break;
+          }
+        }
+
+        if (image == null) {
+          debugPrint('VideoExportService: Permukaan grafis belum siap untuk frame $i. Melanjutkan frame berikutnya...');
+          continue;
+        }
+
         final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
         final imageW = image.width;
         final imageH = image.height;
