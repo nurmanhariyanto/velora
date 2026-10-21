@@ -183,7 +183,7 @@ void main() {
       await tester.tap(videoBtn);
       await tester.pumpAndSettle();
 
-      expect(find.text('Bagikan Video Flyover Rute'), findsOneWidget);
+      expect(find.text('Bagikan Video Rute'), findsOneWidget);
       expect(find.text('TUTUP'), findsOneWidget);
 
       // Ketuk tombol TUTUP
@@ -193,7 +193,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Sheet harus tertutup
-      expect(find.text('Bagikan Video Flyover Rute'), findsNothing);
+      expect(find.text('Bagikan Video Rute'), findsNothing);
     });
 
     testWidgets('Dialog Konfirmasi Rekam Layar memiliki tombol BATAL yang menutup dialog',
@@ -210,8 +210,8 @@ void main() {
       await tester.tap(videoBtn);
       await tester.pumpAndSettle();
 
-      // Pilih Mode Rekam Layar Bersih
-      final cleanRecordTile = find.text('Mulai Mode Rekam Layar Bersih');
+      // Pilih Mode Rekam Layar
+      final cleanRecordTile = find.text('Mode Rekam Layar');
       await tester.ensureVisible(cleanRecordTile);
       await tester.pumpAndSettle();
       await tester.tap(cleanRecordTile);
@@ -242,8 +242,8 @@ void main() {
       await tester.tap(find.byTooltip('Rekam & Bagikan Video'));
       await tester.pumpAndSettle();
 
-      // Pilih Mode Rekam Layar Bersih
-      final cleanRecordTile = find.text('Mulai Mode Rekam Layar Bersih');
+      // Pilih Mode Rekam Layar
+      final cleanRecordTile = find.text('Mode Rekam Layar');
       await tester.ensureVisible(cleanRecordTile);
       await tester.pumpAndSettle();
       await tester.tap(cleanRecordTile);
@@ -269,7 +269,7 @@ void main() {
       expect(find.text('Keluar dari Mode Rekam Bersih'), findsOneWidget);
     });
 
-    testWidgets('Sheet Ekspor memiliki toggle Pengaturan Tampilan Video (Zona Aman & Badge Jalan)',
+    testWidgets('Sheet Ekspor memiliki toggle Pengaturan Tampilan (Tata Letak Proporsional & Nama Jalan di Jalur)',
         (WidgetTester tester) async {
       await tester.pumpWidget(createReplayScreen());
       await tester.pump();
@@ -280,13 +280,13 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verifikasi judul pengaturan
-      expect(find.text('PENGATURAN TAMPILAN VIDEO'), findsOneWidget);
+      expect(find.text('PENGATURAN TAMPILAN'), findsOneWidget);
 
-      // Verifikasi toggle Zona Aman IG & WA
-      expect(find.text('Zona Aman IG & WA (Anti-Terpotong)'), findsOneWidget);
+      // Verifikasi toggle Tata Letak Proporsional
+      expect(find.text('Tata Letak Proporsional'), findsOneWidget);
 
-      // Verifikasi toggle Badge Nama Jalan di Video
-      expect(find.text('Badge Nama Jalan di Video'), findsOneWidget);
+      // Verifikasi toggle Nama Jalan di Jalur
+      expect(find.text('Nama Jalan di Jalur'), findsOneWidget);
 
       // Verifikasi Switch dapat berinteraksi
       final switches = find.byType(Switch);

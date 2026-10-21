@@ -219,8 +219,8 @@ void main() {
     await tester.tap(videoBtn);
     await tester.pumpAndSettle();
 
-    // Pilih Mode Rekam Layar Bersih
-    final cleanRecordTile = find.text('Mulai Mode Rekam Layar Bersih');
+    // Pilih Mode Rekam Layar
+    final cleanRecordTile = find.text('Mode Rekam Layar');
     expect(cleanRecordTile, findsOneWidget);
     await tester.ensureVisible(cleanRecordTile);
     await tester.pumpAndSettle();

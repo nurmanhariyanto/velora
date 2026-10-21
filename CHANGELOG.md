@@ -4,31 +4,37 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 
 ## [v1.0.5.9] - 2026-10-21
 
-### 🛣️ Badge Nama Jalan Sinematik & Zona Aman Media Sosial (Anti-Terpotong IG & WA)
+### 🛣️ Animasi Nama Jalan di Jalur Rute, Tata Letak Proporsional & Perbaikan Siklus Update
 
-#### 🛣️ 1. Badge Nama Jalan saat Transisi Rute (Replay & Video MP4)
+#### 🛣️ 1. Animasi Nama Jalan Tepat di Atas Jalur Lintasan Rute GPS
+- **On-Track Waypoint Marker (`_buildRoadTrackPin`):**
+  - Animasi nama ruas jalan kini muncul langsung di atas koordinat aspal lintasan rute GPS (*on-track marker pin*) saat atlet memasuki jalan baru.
+  - Menggunakan animasi transisi `AnimatedScale` (`Curves.easeOutBack`) dan `AnimatedOpacity`, dilengkapi suar titik bercahaya (*glowing ground beacon*) tepat di atas garis rute dan kapsul nama jalan *dark-glass* beraksen neon cyan.
+  - Pin membesar halus (`scale: 1.08`) dengan efek pendaran halo saat atlet berada di titik transisi jalan, lalu menyusut rapi (`scale: 0.88`, `opacity: 0.75`) sebagai penanda rute yang telah dilalui.
 - **Deteksi Transisi Ruas Jalan Otomatis (`RoadGeocodingService`):**
-  - Mengimplementasikan reverse-geocoding cerdas dengan basis data offline jalur olahraga populer (Pontianak, Jakarta, Bandung, Surabaya, Bali) untuk respons instan (0 ms tanpa kuota data).
-  - Reverse geocoding online cadangan OpenStreetMap Nominatim level jalan (`zoom=18`) dengan in-memory cache untuk performa maksimal.
-  - Deteksi tikungan tajam (> 28°) dan interval jarak rute (~300 meter) untuk mendeteksi perpindahan nama jalan secara tepat waktu.
-- **Badge Sinematik Sinematik (`RUAS JALAN • Jl. ...`):**
-  - Desain dark glass elegan beraksen neon cyan dengan ikon penunjuk arah jalan, melayang di atas panel statistik saat atlet memasuki ruas jalan baru.
-- **Pengaturan Seleksi Sebelum Render Video:**
-  - Pengguna dapat memilih untuk mengaktifkan atau menonaktifkan badge nama jalan secara bebas sebelum proses render video dimulai melalui toggle switch interaktif di lembar opsi ekspor.
+  - Basis data *offline* instan jalur olahraga utama (Pontianak, Jakarta, Bandung, Surabaya, Bali) untuk waktu respons 0 ms tanpa konsumsi kuota data.
+  - Dukungan *reverse geocoding* daring OpenStreetMap Nominatim level jalan (`zoom=18`) dengan *in-memory cache*.
+- **Kendali Sebelum Render:**
+  - Opsi "Nama Jalan di Jalur" dapat diaktifkan atau dinonaktifkan secara bebas sebelum proses render video dimulai melalui lembar opsi ekspor.
 
-#### 📱 2. Zona Aman Media Sosial (Anti-Terpotong Kolom Balas WhatsApp & Instagram)
-- **Elevasi Posisi HUD Statistik (`_enableSocialSafeZone`):**
-  - Mengangkat posisi panel statistik berjalan (Jarak, Speed/Pace, Elevasi, Gain, Waktu) serta badge nama jalan dari dasar layar (`bottom: 88 dp` dan `bottom: 152 dp`).
-  - Menjamin statistik tetap 100% terlihat jelas dan tidak tertutup oleh kolom input pesan "Balas..." bawaan WhatsApp Status maupun kolom "Kirim Pesan" dan metadata akun Instagram Stories / Reels.
-  - Menyelaraskan padding atas watermark Velora dan nama atlet agar bebas dari garis status bar dan progress bar Instagram/WhatsApp.
-- **Toggle Interaktif Zona Aman:**
-  - Opsi "Zona Aman IG & WA (Anti-Terpotong)" tersedia langsung di menu bagikan video (aktif secara default).
+#### 📐 2. Tata Letak Proporsional & Bahasa Antarmuka Non-Teknis
+- **Tata Letak Proporsional Video (`_enableSocialSafeZone`):**
+  - Mengangkat posisi panel statistik berjalan (Jarak, Speed/Pace, Elevasi, Gain, Waktu) serta watermark agar selalu terlihat proporsional, rapi, dan tidak tertutup saat dibagikan ke platform lain.
+- **Bahasa Menu Ringkas, Padat, dan Profesional:**
+  - Seluruh teks opsi ekspor video telah disederhanakan dari istilah teknis menjadi bahasa fungsional yang elegan:
+    - *"PENGATURAN TAMPILAN"* (sebelumnya *"PENGATURAN TAMPILAN VIDEO"*)
+    - *"Tata Letak Proporsional"* & *"Menyesuaikan posisi statistik agar selalu terlihat rapi saat dibagikan."*
+    - *"Nama Jalan di Jalur"* & *"Menampilkan animasi nama jalan di sepanjang rute."*
+    - *"Ekspor Video Full HD"* (1080p jernih dan tajam) & *"Ekspor Video Ultra HD"* (4K sinematik)
+    - *"Mode Rekam Layar"* & *"Bagikan Berkas Video"*
 
-#### 🛡️ 3. Perbaikan Responsif Tampilan Sheet Ekspor Video
-- **Pemberian `Expanded` & `FittedBox`:**
-  - Mengeliminasi potensi `RenderFlex overflow` pada judul dan badge resolusi lembar ekspor video saat diakses pada ponsel beresolusi lebar 360dp atau dengan text scale factor tinggi.
-- **Pengujian Komprehensif:**
-  - Seluruh 116 pengujian unit dan widget (`flutter test`) berhasil lulus 100%, serta 0 isu pada `flutter analyze`.
+#### 🔄 3. Perbaikan Siklus Pembaruan Berulang Android (*Infinite Update Loop*)
+- **Penyelarasan `versionCode` dan `versionName`:**
+  - Mengubah konfigurasi `android/app/build.gradle.kts` ke `versionCode = 32` dan `versionName = "1.0.5.9"`.
+  - Mengatasi penolakan instalasi paket Android (*package replacement rejected*) yang menyebabkan aplikasi terus meminta pembaruan meskipun APK baru telah diunduh.
+
+#### 🛡️ 4. Pengujian & Kualitas Kode
+- Seluruh pengujian unit dan widget (`flutter test`) berhasil lulus 100%, serta 0 isu pada `flutter analyze`.
 
 ## [v1.0.5.8] - 2026-10-20
 

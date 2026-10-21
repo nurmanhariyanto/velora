@@ -976,16 +976,6 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               child: _buildRegencyBorderBanner(_activeBorderEvent!),
             ),
 
-          // 3c. Pop-up Badge Nama Jalan Saat Berpindah ke Ruas Baru (Tampil di Replay & Video MP4)
-          if (_showRoadNameBadge && _activeRoadEvent != null)
-            Positioned(
-              bottom: _cleanRecordMode
-                  ? (_enableSocialSafeZone ? 152 : 100)
-                  : 148,
-              left: 20,
-              right: 20,
-              child: _buildRoadNameBadge(_activeRoadEvent!),
-            ),
 
           // 4. Panel HUD Statistik Berjalan & Pengontrol Pemutaran Bawah
           Positioned(
@@ -1501,6 +1491,29 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               );
             }),
 
+            // Animasi Nama Ruas Jalan Tepat di Atas Jalur Rute GPS
+            if (_showRoadNameBadge)
+              ..._roadTransitions.map((road) {
+                final distDiff = currentDistanceM - road.distanceMeters;
+                // Hanya tampilkan jika sudah tercapai dan dalam batas wajar visualisasi lintasan
+                if (distDiff < 0 || distDiff > 1200) return null;
+
+                final isActive = _activeRoadEvent == road || (distDiff >= 0 && distDiff <= 250);
+                final isPassed = distDiff > 250;
+
+                return Marker(
+                  point: LatLng(road.latitude, road.longitude),
+                  width: 200,
+                  height: 64,
+                  alignment: Alignment.bottomCenter,
+                  child: _buildRoadTrackPin(
+                    road: road,
+                    isActive: isActive,
+                    isPassed: isPassed,
+                  ),
+                );
+              }).whereType<Marker>(),
+
             // Penunjuk Avatar Atlet yang Sedang Bergerak Maju
             Marker(
               point: currentInterpPos,
@@ -1706,73 +1719,111 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     );
   }
 
-  Widget _buildRoadNameBadge(RoadTransitionEvent roadEvent) {
-    return Center(
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width - 40,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F172A).withAlpha(240),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.neonCyan.withAlpha(200), width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.neonCyan.withAlpha(70),
-              blurRadius: 16,
-              spreadRadius: 1,
-              offset: const Offset(0, 3),
-            ),
-            const BoxShadow(
-              color: Colors.black54,
-              blurRadius: 10,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
+  Widget _buildRoadTrackPin({
+    required RoadTransitionEvent road,
+    required bool isActive,
+    required bool isPassed,
+  }) {
+    final accentColor = isActive ? AppColors.neonCyan : const Color(0xFF38BDF8);
+
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutBack,
+      scale: isActive ? 1.08 : (isPassed ? 0.88 : 0.0),
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 250),
+        opacity: isActive ? 1.0 : (isPassed ? 0.75 : 0.0),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // 1. Badge Kapsul Nama Jalan (Floating Dark-Glass with Neon Border)
             Container(
-              padding: const EdgeInsets.all(5),
+              constraints: const BoxConstraints(maxWidth: 180),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.neonCyan.withAlpha(40),
-                shape: BoxShape.circle,
-                border: Border.all(color: AppColors.neonCyan.withAlpha(160), width: 1),
+                color: const Color(0xFF0F172A).withAlpha(isActive ? 245 : 210),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isActive ? accentColor : accentColor.withAlpha(120),
+                  width: isActive ? 1.8 : 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: isActive
+                        ? accentColor.withAlpha(160)
+                        : accentColor.withAlpha(50),
+                    blurRadius: isActive ? 12 : 6,
+                    spreadRadius: isActive ? 2 : 0,
+                    offset: const Offset(0, 2),
+                  ),
+                  const BoxShadow(
+                    color: Colors.black45,
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
+                  ),
+                ],
               ),
-              child: const Icon(
-                Icons.alt_route_rounded,
-                color: AppColors.neonCyan,
-                size: 16,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Column(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'RUAS JALAN',
-                    style: TextStyle(
-                      color: AppColors.neonCyan,
-                      fontSize: 9.0,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: accentColor.withAlpha(isActive ? 50 : 30),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.alt_route_rounded,
+                      size: 11,
+                      color: accentColor,
                     ),
                   ),
-                  const SizedBox(height: 1),
-                  Text(
-                    roadEvent.roadName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.2,
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      road.roadName,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: isActive ? 11.0 : 10.0,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.3,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+
+            // 2. Tiang Penunjuk Vertikal ke Lintasan Aspal
+            Container(
+              width: 2,
+              height: 8,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    accentColor,
+                    accentColor.withAlpha(80),
+                  ],
+                ),
+              ),
+            ),
+
+            // 3. Titik Suar Bercahaya di Atas Garis Rute (Ground Beacon)
+            Container(
+              width: isActive ? 8 : 6,
+              height: isActive ? 8 : 6,
+              decoration: BoxDecoration(
+                color: isActive ? Colors.white : accentColor,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: accentColor,
+                    blurRadius: isActive ? 8 : 4,
+                    spreadRadius: isActive ? 2 : 1,
                   ),
                 ],
               ),
@@ -3434,7 +3485,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Bagikan Video Flyover Rute',
+                                'Bagikan Video Rute',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 18,
@@ -3443,7 +3494,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                               ),
                               SizedBox(height: 2),
                               Text(
-                                'Instagram Reels, TikTok, YouTube Shorts & WhatsApp',
+                                'Animasi sinematik perjalanan Anda',
                                 style: TextStyle(
                                   color: AppColors.textSecondary,
                                   fontSize: 12,
@@ -3456,7 +3507,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     ),
                     const SizedBox(height: 16),
 
-                    // Pengaturan Tampilan & Format Video (Nama Jalan & Safe Zone IG/WA)
+                    // Pengaturan Tampilan & Format Video
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                       decoration: BoxDecoration(
@@ -3480,7 +3531,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                                   fit: BoxFit.scaleDown,
                                   alignment: Alignment.centerLeft,
                                   child: Text(
-                                    'PENGATURAN TAMPILAN VIDEO',
+                                    'PENGATURAN TAMPILAN',
                                     style: TextStyle(
                                       color: AppColors.electricAmber,
                                       fontSize: 11,
@@ -3494,7 +3545,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                           ),
                           const SizedBox(height: 10),
 
-                          // Toggle 1: Safe Zone IG & WA Status (Anti-Terpotong)
+                          // Toggle 1: Tata Letak Proporsional
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -3520,7 +3571,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Zona Aman IG & WA (Anti-Terpotong)',
+                                      'Tata Letak Proporsional',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 13,
@@ -3529,7 +3580,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                                     ),
                                     SizedBox(height: 2),
                                     Text(
-                                      'Angkat panel statistik agar tidak tertutup kolom "Balas" WhatsApp atau Stories/Reels.',
+                                      'Menyesuaikan posisi statistik agar selalu terlihat rapi saat dibagikan.',
                                       style: TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 11,
@@ -3555,7 +3606,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                           ),
                           const Divider(color: Colors.white12, height: 16),
 
-                          // Toggle 2: Badge Nama Jalan di Video
+                          // Toggle 2: Nama Jalan di Jalur
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.center,
                             children: [
@@ -3581,7 +3632,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Badge Nama Jalan di Video',
+                                      'Nama Jalan di Jalur',
                                       style: TextStyle(
                                         color: Colors.white,
                                         fontSize: 13,
@@ -3590,7 +3641,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                                     ),
                                     SizedBox(height: 2),
                                     Text(
-                                      'Tampilkan nama ruas jalan saat berbelok/berpindah jalan di rute.',
+                                      'Menampilkan animasi nama jalan di sepanjang rute.',
                                       style: TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 11,
@@ -3619,14 +3670,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     ),
                     const SizedBox(height: 16),
 
-                    // Opsi 1: Ekspor Video Flyover MP4 Full HD (Layar Penuh Utuh)
+                    // Opsi 1: Ekspor Video Flyover MP4 Full HD
                     _buildShareActionTile(
                       icon: Icons.movie_creation_rounded,
                       iconColor: AppColors.primaryOrange,
-                      title: 'Ekspor Video Full HD (HD Bebas Blur & Latar Belakang)',
+                      title: 'Ekspor Video Full HD',
                       subtitle:
-                          'Animasi 18 detik Full HD 1080p (25 Mbps) tajam retina bebas blur, bisa berjalan di latar belakang sambil melakukan hal lain, otomatis tersimpan ke Galeri.',
-                      badge: 'FULL HD 1080P',
+                          'Animasi 1080p jernih dan tajam, otomatis tersimpan ke Galeri.',
+                      badge: '1080P',
                       badgeColor: AppColors.neonGreen,
                       enabled: !isActionBusy,
                       isLoading: isActionBusy && busyActionId == 'fhd',
@@ -3650,10 +3701,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     _buildShareActionTile(
                       icon: Icons.hd_rounded,
                       iconColor: AppColors.electricAmber,
-                      title: 'Ekspor Video 4K Ultra HD (2160p & Latar Belakang)',
+                      title: 'Ekspor Video Ultra HD',
                       subtitle:
-                          'Resolusi ultra jernih 4K (45 Mbps) kualitas sinematik maksimal tajam kristal, bisa berjalan di latar belakang sambil melakukan hal lain, otomatis ke Galeri.',
-                      badge: '4K ULTRA HD',
+                          'Resolusi 4K dengan kualitas sinematik maksimal, otomatis tersimpan ke Galeri.',
+                      badge: '4K UHD',
                       badgeColor: AppColors.electricAmber,
                       enabled: !isActionBusy,
                       isLoading: isActionBusy && busyActionId == '4k',
@@ -3673,13 +3724,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     ),
                     const SizedBox(height: 10),
 
-                    // Opsi 3: Mode Rekam Layar Bersih
+                    // Opsi 3: Mode Rekam Layar
                     _buildShareActionTile(
                       icon: Icons.fiber_smart_record_rounded,
                       iconColor: AppColors.neonCyan,
-                      title: 'Mulai Mode Rekam Layar Bersih',
+                      title: 'Mode Rekam Layar',
                       subtitle:
-                          'Sembunyikan tombol antarmuka dan putar rute dari KM 0 untuk direkam dengan Perekam Layar bawaan HP.',
+                          'Menampilkan rute tanpa tombol antarmuka untuk direkam secara manual.',
                       enabled: !isActionBusy,
                       isLoading: isActionBusy && busyActionId == 'clean_record',
                       onTap: () {
@@ -3698,13 +3749,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     ),
                     const SizedBox(height: 10),
 
-                    // Opsi 4: Bagikan Video dari Galeri
+                    // Opsi 4: Bagikan Berkas Video dari Galeri
                     _buildShareActionTile(
                       icon: Icons.upload_file_rounded,
                       iconColor: AppColors.neonCyan,
-                      title: 'Bagikan Berkas Video dari Galeri',
+                      title: 'Bagikan Berkas Video',
                       subtitle:
-                          'Kirim langsung hasil rekaman layar ke WhatsApp, Instagram Reels, TikTok, atau aplikasi lainnya.',
+                          'Kirim video yang telah tersimpan di Galeri ke aplikasi lain.',
                       enabled: !isActionBusy,
                       isLoading: isActionBusy && busyActionId == 'gallery',
                       onTap: () async {
@@ -3721,13 +3772,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     ),
                     const SizedBox(height: 10),
 
-                    // Opsi 5: Bagikan Kartu Ringkasan (Foto & Peta HD)
+                    // Opsi 5: Bagikan Kartu Ringkasan
                     _buildShareActionTile(
                       icon: Icons.photo_library_rounded,
                       iconColor: AppColors.electricAmber,
-                      title: 'Bagikan Kartu Ringkasan (Foto & Peta HD)',
+                      title: 'Bagikan Kartu Ringkasan',
                       subtitle:
-                          'Buat gambar poster statistik Full HD rasio 9:16 untuk Instagram Story atau Status WA.',
+                          'Buat poster statistik beresolusi tinggi rasio vertikal siap dibagikan.',
                       enabled: !isActionBusy,
                       isLoading: isActionBusy && busyActionId == 'summary_card',
                       onTap: () {

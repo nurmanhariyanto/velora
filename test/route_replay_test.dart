@@ -195,14 +195,14 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verifikasi isi bottom sheet
-      expect(find.text('Bagikan Video Flyover Rute'), findsOneWidget);
-      expect(find.text('Mulai Mode Rekam Layar Bersih'), findsOneWidget);
-      expect(find.text('Bagikan Berkas Video dari Galeri'), findsOneWidget);
-      expect(find.text('Bagikan Kartu Ringkasan (Foto & Peta HD)'), findsOneWidget);
+      expect(find.text('Bagikan Video Rute'), findsOneWidget);
+      expect(find.text('Mode Rekam Layar'), findsOneWidget);
+      expect(find.text('Bagikan Berkas Video'), findsOneWidget);
+      expect(find.text('Bagikan Kartu Ringkasan'), findsOneWidget);
 
-      // Ketuk opsi Mode Rekam Layar Bersih
-      await tester.ensureVisible(find.text('Mulai Mode Rekam Layar Bersih'));
-      await tester.tap(find.text('Mulai Mode Rekam Layar Bersih'));
+      // Ketuk opsi Mode Rekam Layar
+      await tester.ensureVisible(find.text('Mode Rekam Layar'));
+      await tester.tap(find.text('Mode Rekam Layar'));
       await tester.pumpAndSettle();
 
       // Dialog konfirmasi petunjuk rekam layar
@@ -254,7 +254,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Temukan opsi ekspor video Full HD
-      final exportTile = find.text('Ekspor Video Full HD (HD Bebas Blur & Latar Belakang)');
+      final exportTile = find.text('Ekspor Video Full HD');
       expect(exportTile, findsOneWidget);
 
       await tester.tap(exportTile);
