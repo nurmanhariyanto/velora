@@ -64,6 +64,8 @@ void main() {
       expect(AppUpdateInfo.isNewerVersion('1.0.5.9', '1.0.6'), isTrue);
       expect(AppUpdateInfo.isNewerVersion('1.0.5', '1.0.6'), isTrue);
       expect(AppUpdateInfo.isNewerVersion('1.0.6', '1.0.6'), isFalse);
+      expect(AppUpdateInfo.isNewerVersion('1.0.6', '1.0.7'), isTrue);
+      expect(AppUpdateInfo.isNewerVersion('1.0.7', '1.0.7'), isFalse);
     });
   });
 }

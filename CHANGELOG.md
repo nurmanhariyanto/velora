@@ -2,6 +2,22 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.7] - 2026-10-22
+
+### 🛣️ Animasi Kemunculan 3D Pin Jalan, Persistensi Permanen di Lintasan & Deduplikasi Tunggal
+
+#### 🛣️ 1. Animasi 3D Kemunculan & Persistensi Permanen di Jalur
+- **Animasi 3D Pop-Up Saat Memasuki Jalan:**
+  - Penanda nama jalan kini muncul dengan animasi 3D hidup (`scale: 1.18`, elevasi mengambang 3D `-8px`, dan pendaran aura biru menyala) tepat saat atlet melintasi titik masuk jalan tersebut.
+- **Persistensi Permanen Tanpa Hilang:**
+  - Setelah dilewati oleh atlet, pin nama jalan **tidak pernah hilang** dan tetap tertancap rapi di atas aspal rute (`scale: 0.88`, `opacity: 0.88`) hingga akhir flyover perjalanan.
+- **Deduplikasi Tunggal (Cukup 1 Kali Kemunculan):**
+  - Mengimplementasikan sistem pelacak `seenRoadNames` sehingga setiap nama jalan yang sama hanya muncul tepat **1 kali** di sepanjang rute latihan, tanpa pengulangan atau penumpukan nama jalan yang sama.
+- **Arsitektur Billboard 3D Berdiri Tegak Lurus:**
+  - Menggunakan matriks counter-tilt `rotateX(0.70)` yang meniadakan kemiringan kanvas satelit sehingga pin berdiri tegak lurus sempurna (billboard 3D) menghadap kamera, lengkap dengan tiang penanda vertikal 3D, suar bercahaya, dan bayangan elips di atas aspal.
+- **Multi-Source Geocoding:**
+  - Integrasi cerdas OpenStreetMap Nominatim dan Photon API dengan penanganan menyeluruh untuk jalan, perumahan, pedesaan, kecamatan, dan landmark daerah.
+
 ## [v1.0.6] - 2026-10-22
 
 ### 🛣️ Penanda Nama Jalan Biru Solid di Jalur, Stabilisasi Peta Bebas Kotak Hitam & Pembaruan Sistem

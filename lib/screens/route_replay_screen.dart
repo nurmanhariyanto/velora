@@ -1488,20 +1488,23 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               );
             }),
 
-            // Animasi Nama Ruas Jalan Tepat di Atas Jalur Rute GPS
+            // Animasi Penanda Nama Ruas Jalan 3D di Atas Jalur Rute GPS (3D Billboard Pin)
+            // Muncul saat dilewati dengan animasi 3D, dan TETAP BERADA DI TEMPATNYA (tidak hilang setelah dilalui)
             if (_showRoadNameBadge)
               ..._roadTransitions.map((road) {
                 final distDiff = currentDistanceM - road.distanceMeters;
-                // Hanya tampilkan jika sudah tercapai dan dalam batas wajar visualisasi lintasan
-                if (distDiff < 0 || distDiff > 1200) return null;
+                // Belum dilalui: jangan tampilkan terlebih dahulu agar muncul dengan animasi saat dilewati
+                if (distDiff < 0) return null;
 
-                final isActive = _activeRoadEvent == road || (distDiff >= 0 && distDiff <= 250);
-                final isPassed = distDiff > 250;
+                // Saat atlet melintasi titik masuk jalan (0 s/d 220 meter): Animasi 3D Aktif (Pop-up, Elevasi Naik, Pendaran Cahaya)
+                final isActive = _activeRoadEvent == road || (distDiff >= 0 && distDiff <= 220);
+                // Setelah dilalui: TETAP TAMPIL PERMANEN di atas jalur peta (TIDAK PERNAH HILANG)
+                final isPassed = distDiff > 220;
 
                 return Marker(
                   point: LatLng(road.latitude, road.longitude),
-                  width: 200,
-                  height: 64,
+                  width: 220,
+                  height: 76,
                   alignment: Alignment.bottomCenter,
                   child: _buildRoadTrackPin(
                     road: road,
@@ -1723,113 +1726,179 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   }) {
     // Warna biru elektrik cerah seperti pada video referensi 3D Map
     const primaryBlue = Color(0xFF0284C7);
-    const brightBlue = Color(0xFF0EA5E9);
+    const brightBlue = Color(0xFF38BDF8);
     const deepBlue = Color(0xFF0369A1);
 
-    return AnimatedScale(
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutBack,
-      scale: isActive ? 1.10 : (isPassed ? 0.90 : 0.0),
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 250),
-        opacity: isActive ? 1.0 : (isPassed ? 0.85 : 0.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 1. Badge Kotak/Kapsul Warna Biru Solid Seperti di Video Referensi
-            Container(
-              constraints: const BoxConstraints(maxWidth: 190),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: isActive
-                      ? const [brightBlue, primaryBlue]
-                      : const [primaryBlue, deepBlue],
+    // Hitung status visual & animasi 3D:
+    // - Memasuki/melintasi ruas jalan (isActive): membesar (scale 1.18), mengambang naik, dan memancarkan pendaran 3D
+    // - Sudah dilewati (isPassed): tetap tersemat rapi di peta (scale 0.88), tidak pernah hilang sepanjang rute
+    final scale = isActive ? 1.18 : (isPassed ? 0.88 : 0.0);
+    final opacity = isActive ? 1.0 : (isPassed ? 0.88 : 0.0);
+
+    return Transform(
+      alignment: Alignment.bottomCenter,
+      transform: Matrix4.identity()
+        ..setEntry(3, 2, 0.0015)
+        ..rotateX(_isSatelliteMode ? 0.70 : 0.0), // Melawan kemiringan kanvas 3D (-0.70) agar pin berdiri tegak lurus (billboard 3D) menghadap kamera
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutBack,
+        scale: scale,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 250),
+          opacity: opacity,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. Badge Kapsul Kotak Warna Biru Solid 3D (Mengambang di Atas Tiang)
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOutBack,
+                transform: Matrix4.translationValues(0, isActive ? -8.0 : 0.0, 0),
+                constraints: const BoxConstraints(maxWidth: 200),
+                padding: EdgeInsets.symmetric(
+                  horizontal: isActive ? 11 : 9,
+                  vertical: isActive ? 5.5 : 4.5,
                 ),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: Colors.white.withAlpha(isActive ? 240 : 160),
-                  width: isActive ? 1.4 : 1.0,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: primaryBlue.withAlpha(isActive ? 180 : 100),
-                    blurRadius: isActive ? 14 : 8,
-                    spreadRadius: isActive ? 2 : 0,
-                    offset: const Offset(0, 3),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: isActive
+                        ? const [brightBlue, primaryBlue]
+                        : const [primaryBlue, deepBlue],
                   ),
-                  const BoxShadow(
-                    color: Colors.black45,
-                    blurRadius: 6,
-                    offset: Offset(0, 3),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.alt_route_rounded,
-                    size: 13,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
                     color: Colors.white,
+                    width: isActive ? 1.6 : 1.2,
                   ),
-                  const SizedBox(width: 5),
-                  Flexible(
-                    child: Text(
-                      road.roadName,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: isActive ? 11.5 : 10.5,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.3,
-                        shadows: const [
-                          Shadow(
-                            color: Colors.black38,
-                            blurRadius: 4,
-                            offset: Offset(0, 1),
-                          ),
-                        ],
+                  boxShadow: [
+                    BoxShadow(
+                      color: primaryBlue.withAlpha(isActive ? 220 : 130),
+                      blurRadius: isActive ? 16 : 8,
+                      spreadRadius: isActive ? 3 : 0,
+                      offset: const Offset(0, 3),
+                    ),
+                    const BoxShadow(
+                      color: Colors.black45,
+                      blurRadius: 6,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isActive ? Icons.navigation_rounded : Icons.alt_route_rounded,
+                      size: isActive ? 13 : 11,
+                      color: Colors.white,
+                    ),
+                    const SizedBox(width: 5),
+                    Flexible(
+                      child: Text(
+                        road.roadName,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: isActive ? 12 : 10.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.3,
+                          shadows: const [
+                            Shadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+
+              // 2. Segitiga Penunjuk Biru ke Aspal Lintasan
+              Transform.translate(
+                offset: const Offset(0, -3),
+                child: Transform.rotate(
+                  angle: math.pi / 4,
+                  child: Container(
+                    width: 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: isActive ? primaryBlue : deepBlue,
+                      border: const Border(
+                        bottom: BorderSide(color: Colors.white, width: 0.8),
+                        right: BorderSide(color: Colors.white, width: 0.8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // 3. Tiang Penanda Vertikal 3D (Menghubungkan Pin Mengambang ke Aspal Rute)
+              Container(
+                width: 2.0,
+                height: isActive ? 16.0 : 11.0,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.white,
+                      Color(0xFF38BDF8),
+                      Color(0xFF0284C7),
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFF0284C7).withAlpha(160),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+
+              // 4. Titik Pendaran Tanah & Bayangan 3D di Permukaan Aspal (Ground Anchor)
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Bayangan elips di permukaan aspal
+                  Container(
+                    width: 14,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  // Titik Suar Ground Beacon
+                  Container(
+                    width: isActive ? 8 : 6,
+                    height: isActive ? 8 : 6,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFF0284C7),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF38BDF8),
+                          blurRadius: isActive ? 10 : 5,
+                          spreadRadius: isActive ? 3 : 1,
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
-
-            // 2. Penunjuk Segitiga Biru ke Aspal Lintasan
-            Transform.translate(
-              offset: const Offset(0, -3),
-              child: Transform.rotate(
-                angle: math.pi / 4,
-                child: Container(
-                  width: 7,
-                  height: 7,
-                  color: isActive ? primaryBlue : deepBlue,
-                ),
-              ),
-            ),
-
-            // 3. Titik Suar Bercahaya di Atas Garis Rute (Ground Beacon)
-            Container(
-              width: isActive ? 7 : 5,
-              height: isActive ? 7 : 5,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: brightBlue,
-                    blurRadius: isActive ? 8 : 4,
-                    spreadRadius: isActive ? 2 : 1,
-                  ),
-                ],
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

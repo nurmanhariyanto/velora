@@ -90,5 +90,25 @@ void main() {
       expect(transitions.isNotEmpty, isTrue);
       expect(transitions.first.roadName, contains('Sudirman'));
     });
+
+    test('detectRoadTransitions mendeduplikasi nama jalan sehingga nama yang sama hanya muncul tepat 1 kali', () async {
+      final coords = [
+        const CoordinatePoint(activityId: 'a1', latitude: -6.215, longitude: 106.822, elevation: 12, timestamp: 0), // Sudirman
+        const CoordinatePoint(activityId: 'a1', latitude: -6.185, longitude: 106.824, elevation: 14, timestamp: 60), // Thamrin
+        const CoordinatePoint(activityId: 'a1', latitude: -6.216, longitude: 106.821, elevation: 12, timestamp: 120), // Sudirman lagi (kembali)
+      ];
+      final distances = [0.0, 2500.0, 5000.0];
+
+      final transitions = await RoadGeocodingService.detectRoadTransitions(
+        coordinates: coords,
+        cumulativeDistances: distances,
+      );
+
+      // Sudirman hanya boleh muncul 1 kali, Thamrin 1 kali
+      final sudirmanCount = transitions.where((t) => t.roadName.contains('Sudirman')).length;
+      expect(sudirmanCount, 1);
+      final thamrinCount = transitions.where((t) => t.roadName.contains('Thamrin')).length;
+      expect(thamrinCount, 1);
+    });
   });
 }

@@ -94,12 +94,11 @@ class RoadGeocodingService {
     if (coordinates.length < 2) return const [];
 
     final transitions = <RoadTransitionEvent>[];
-    String? currentRoad;
 
     // 1. Kumpulkan indeks titik rute yang relevan untuk diperiksa:
     // - Titik awal rute (KM 0)
-    // - Titik dengan belokan signifikan (perubahan bearing > 28 derajat)
-    // - Titik reguler setiap interval jarak (~250-400 meter)
+    // - Titik dengan belokan tikungan nyata (perubahan bearing > 18 derajat)
+    // - Titik reguler setiap interval jarak (~200-300 meter)
     final sampleIndices = <int>{0};
 
     double lastSampleDist = 0.0;
@@ -116,29 +115,46 @@ class RoadGeocodingService {
       var angleDiff = (bearing2 - bearing1).abs();
       if (angleDiff > 180) angleDiff = 360 - angleDiff;
 
-      final isSharpTurn = angleDiff >= 28.0;
-      final isDistanceInterval = (dist - lastSampleDist) >= 300.0;
+      final isSharpTurn = angleDiff >= 18.0;
+      final isDistanceInterval = (dist - lastSampleDist) >= 200.0;
 
       if (isSharpTurn || isDistanceInterval) {
         sampleIndices.add(i);
         lastSampleDist = dist;
       }
 
-      // Batasi maksimal 45 titik sampel untuk menjaga performa optimal
-      if (sampleIndices.length >= 45) break;
+      // Batasi maksimal 70 titik sampel untuk menjaga performa optimal
+      if (sampleIndices.length >= 70) break;
     }
     sampleIndices.add(coordinates.length - 1);
 
     final sortedIndices = sampleIndices.toList()..sort();
 
+    // Himpunan nama jalan yang sudah pernah muncul untuk menjamin deduplikasi:
+    // Setiap nama jalan HANYA MUNCUL TEPAT 1 KALI di sepanjang rute latihan
+    final seenRoadNames = <String>{};
+
     // 2. Query nama jalan untuk setiap titik sampel
     for (final idx in sortedIndices) {
       final pt = coordinates[idx];
-      final road = await getRoadName(pt.latitude, pt.longitude, client: client);
+      var road = await getRoadName(pt.latitude, pt.longitude, client: client);
+
+      // Fallback cerdas jika titik awal atau akhir belum ter-geocoding
+      if (road == null || road.isEmpty) {
+        if (transitions.isEmpty) {
+          road = 'Titik Awal Rute';
+        } else if (idx == coordinates.length - 1 && transitions.length < 3) {
+          road = 'Garis Akhir (Finish)';
+        }
+      }
+
       if (road == null || road.isEmpty) continue;
 
-      if (currentRoad == null) {
-        currentRoad = road;
+      // Normalisasi nama jalan untuk deduplikasi (hapus awalan variatif seperti Jl., Jalan, Gang, dll)
+      final normName = road.toLowerCase().replaceAll(RegExp(r'^(jl\.|jalan|gg\.|gang|lr\.|lorong|blvd\.|boulevard)\s*'), '').trim();
+
+      if (!seenRoadNames.contains(normName)) {
+        seenRoadNames.add(normName);
         final dist = idx < cumulativeDistances.length ? cumulativeDistances[idx] : 0.0;
         transitions.add(
           RoadTransitionEvent(
@@ -149,19 +165,34 @@ class RoadGeocodingService {
             pointIndex: idx,
           ),
         );
-      } else if (road.toLowerCase() != currentRoad.toLowerCase()) {
-        final dist = idx < cumulativeDistances.length ? cumulativeDistances[idx] : 0.0;
-        transitions.add(
-          RoadTransitionEvent(
-            roadName: road,
-            latitude: pt.latitude,
-            longitude: pt.longitude,
-            distanceMeters: dist,
-            pointIndex: idx,
-          ),
-        );
-        currentRoad = road;
       }
+    }
+
+    // 3. Jaminan Visualisasi Rute: Jika transisi yang terdeteksi masih < 2 pada rute panjang (> 800 meter),
+    // tambahkan waypoint rute di titik belokan utama agar peta 3D selalu kaya informasi
+    if (transitions.length < 2 && cumulativeDistances.isNotEmpty && cumulativeDistances.last > 800.0) {
+      for (final idx in sortedIndices) {
+        final dist = idx < cumulativeDistances.length ? cumulativeDistances[idx] : 0.0;
+        final milestoneName = 'Lintasan ${(dist / 1000).toStringAsFixed(1)} KM';
+        final normMilestone = milestoneName.toLowerCase().trim();
+
+        if (dist > 400.0 &&
+            !seenRoadNames.contains(normMilestone) &&
+            !transitions.any((t) => (t.distanceMeters - dist).abs() < 500.0)) {
+          seenRoadNames.add(normMilestone);
+          final pt = coordinates[idx];
+          transitions.add(
+            RoadTransitionEvent(
+              roadName: milestoneName,
+              latitude: pt.latitude,
+              longitude: pt.longitude,
+              distanceMeters: dist,
+              pointIndex: idx,
+            ),
+          );
+        }
+      }
+      transitions.sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
     }
 
     return transitions;
@@ -289,47 +320,110 @@ class RoadGeocodingService {
       return 'Jl. Bypass Ngurah Rai';
     }
 
+    // -------------------------------------------------------------------------
+    // 6. REFERENSI INTERNASIONAL (CONTOH: BANDIPORA, JAMMU & KASHMIR)
+    // -------------------------------------------------------------------------
+    if (lat >= 34.35 && lat <= 34.50 && lon >= 74.55 && lon <= 74.75) {
+      return 'Bandipora Bypass';
+    }
+
     return null;
   }
 
   /// Reverse geocoding online menggunakan OpenStreetMap Nominatim level jalan (zoom=18)
+  /// dan fallback otomatis ke Photon OSM jika Nominatim time-out atau tidak mengembalikan nama.
   static Future<String?> reverseGeocodeRoadOnline(
     double lat,
     double lon, {
     http.Client? client,
   }) async {
-    final uri = Uri.parse(
-      'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1',
-    );
-
     final httpClient = client ?? http.Client();
-    final response = await httpClient
-        .get(uri, headers: const {'User-Agent': userAgent})
-        .timeout(const Duration(milliseconds: 2500));
 
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body) as Map<String, dynamic>;
-      final address = data['address'] as Map<String, dynamic>?;
-      if (address != null) {
-        final road = address['road'] as String?;
-        final pedestrian = address['pedestrian'] as String?;
-        final cycleway = address['cycleway'] as String?;
-        final footway = address['footway'] as String?;
-        final path = address['path'] as String?;
-        final residential = address['residential'] as String?;
+    // 1. Coba OpenStreetMap Nominatim terlebih dahulu (zoom=18 level jalan & alamat detail)
+    try {
+      final uri = Uri.parse(
+        'https://nominatim.openstreetmap.org/reverse?format=json&lat=$lat&lon=$lon&zoom=18&addressdetails=1',
+      );
 
-        final candidate = road ?? pedestrian ?? cycleway ?? footway ?? path ?? residential;
-        if (candidate != null && candidate.isNotEmpty) {
-          return candidate;
+      final response = await httpClient
+          .get(uri, headers: const {'User-Agent': 'VeloraApp/1.0 (online.nurmancloud.velora)'})
+          .timeout(const Duration(milliseconds: 2500));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final address = data['address'] as Map<String, dynamic>?;
+        if (address != null) {
+          final road = address['road'] as String?;
+          final pedestrian = address['pedestrian'] as String?;
+          final cycleway = address['cycleway'] as String?;
+          final footway = address['footway'] as String?;
+          final path = address['path'] as String?;
+          final residential = address['residential'] as String?;
+          final highway = address['highway'] as String?;
+          final neighbourhood = address['neighbourhood'] as String?;
+          final suburb = address['suburb'] as String?;
+          final village = address['village'] as String?;
+          final town = address['town'] as String?;
+          final cityDistrict = address['city_district'] as String?;
+          final hamlet = address['hamlet'] as String?;
+          final city = address['city'] as String?;
+
+          final candidate = road ??
+              pedestrian ??
+              cycleway ??
+              footway ??
+              path ??
+              residential ??
+              highway ??
+              neighbourhood ??
+              suburb ??
+              village ??
+              town ??
+              cityDistrict ??
+              hamlet ??
+              city;
+
+          if (candidate != null && candidate.isNotEmpty) {
+            return candidate;
+          }
+        }
+
+        // Fallback ke field name jika spesifik
+        final name = data['name'] as String?;
+        if (name != null && name.isNotEmpty && name.length > 2) {
+          return name;
         }
       }
+    } catch (_) {}
 
-      // Fallback ke field name jika spesifik
-      final name = data['name'] as String?;
-      if (name != null && name.isNotEmpty && name.length > 2) {
-        return name;
+    // 2. Fallback cepat ke Photon OSM jika Nominatim tidak mengembalikan nama atau gagal
+    try {
+      final photonUri = Uri.parse('https://photon.komoot.io/reverse?lat=$lat&lon=$lon');
+      final response = await httpClient
+          .get(photonUri, headers: const {'User-Agent': 'VeloraApp/1.0'})
+          .timeout(const Duration(milliseconds: 2000));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final features = data['features'] as List<dynamic>?;
+        if (features != null && features.isNotEmpty) {
+          final props = features[0]['properties'] as Map<String, dynamic>?;
+          if (props != null) {
+            final street = props['street'] as String?;
+            final name = props['name'] as String?;
+            final district = props['district'] as String?;
+            final locality = props['locality'] as String?;
+            final city = props['city'] as String?;
+
+            final candidate = street ?? name ?? district ?? locality ?? city;
+            if (candidate != null && candidate.isNotEmpty) {
+              return candidate;
+            }
+          }
+        }
       }
-    }
+    } catch (_) {}
+
     return null;
   }
 
