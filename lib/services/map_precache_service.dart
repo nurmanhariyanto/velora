@@ -55,23 +55,20 @@ class MapPrecacheService {
     List<CoordinatePoint> coordinates, {
     int zoom = 16,
     bool includeNeighbors = true,
-    int maxTiles = 800,
+    int neighborRadius = 1,
+    int maxTiles = 2500,
   }) {
     if (coordinates.isEmpty) return {};
 
     final tiles = <TileCoord>{};
     final maxCoord = (math.pow(2.0, zoom) - 1).toInt();
 
-    // 1. Ekstrak ubin dasar di sepanjang 100% rute secara merata (tidak memotong di tengah jalan)
+    // 1. Ekstrak ubin dasar di sepanjang 100% rute secara menyeluruh tanpa melompati titik
     final baseTiles = <TileCoord>{};
-    final step = coordinates.length > 250 ? (coordinates.length / 250).ceil() : 1;
-
-    for (int i = 0; i < coordinates.length; i += step) {
+    for (int i = 0; i < coordinates.length; i++) {
       final pt = coordinates[i];
       baseTiles.add(latLonToTile(pt.latitude, pt.longitude, zoom));
     }
-    // Titik akhir rute wajib ada
-    baseTiles.add(latLonToTile(coordinates.last.latitude, coordinates.last.longitude, zoom));
 
     // Masukkan seluruh ubin rute utama terlebih dahulu
     for (final base in baseTiles) {
@@ -79,11 +76,11 @@ class MapPrecacheService {
       if (tiles.length >= maxTiles) break;
     }
 
-    // 2. Tambahkan ubin tetangga (ring 1) di sekitar koridor rute agar saat kamera miring / meluncur tidak ada kotak hitam
+    // 2. Tambahkan ubin tetangga di sekitar koridor rute agar saat kamera miring / meluncur tidak ada kotak hitam
     if (includeNeighbors && tiles.length < maxTiles) {
       for (final base in baseTiles) {
-        for (int dx = -1; dx <= 1; dx++) {
-          for (int dy = -1; dy <= 1; dy++) {
+        for (int dx = -neighborRadius; dx <= neighborRadius; dx++) {
+          for (int dy = -neighborRadius; dy <= neighborRadius; dy++) {
             if (dx == 0 && dy == 0) continue;
             final nx = (base.x + dx).clamp(0, maxCoord);
             final ny = (base.y + dy).clamp(0, maxCoord);
@@ -109,7 +106,7 @@ class MapPrecacheService {
     required String providerType,
     String urlTemplate = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     void Function(double progress, int loaded, int total)? onProgress,
-    Duration timeout = const Duration(seconds: 60),
+    Duration timeout = const Duration(seconds: 120),
     bool Function()? isCancelled,
   }) async {
     final dir = Directory(cacheDir);
@@ -117,23 +114,34 @@ class MapPrecacheService {
       dir.createSync(recursive: true);
     }
 
-    // 1. Ekstrak seluruh ubin zoom 17 di sepanjang rute + ubin tetangga (Resolusi Tinggi HD / Retina)
+    // 1. Ekstrak seluruh ubin zoom 16 di sepanjang rute + ubin tetangga radius 2 (Resolusi Utama Kamera Flyover)
+    final tilesZ16 = calculateRouteTiles(
+      coordinates,
+      zoom: 16,
+      includeNeighbors: true,
+      neighborRadius: 2,
+      maxTiles: 2000,
+    );
+
+    // 2. Ekstrak seluruh ubin zoom 17 di sepanjang rute untuk detail tajam saat kamera mendekat
     final tilesZ17 = calculateRouteTiles(
       coordinates,
       zoom: 17,
       includeNeighbors: true,
-      maxTiles: 1200,
+      neighborRadius: 1,
+      maxTiles: 2500,
     );
 
-    // 2. Ekstrak ubin zoom 16 untuk horizon cakrawala perspektif 3D & transisi
-    final tilesZ16 = calculateRouteTiles(
+    // 3. Ekstrak ubin zoom 15 untuk cakrawala horizon 3D & transisi
+    final tilesZ15 = calculateRouteTiles(
       coordinates,
-      zoom: 16,
-      includeNeighbors: false,
-      maxTiles: 200,
+      zoom: 15,
+      includeNeighbors: true,
+      neighborRadius: 1,
+      maxTiles: 800,
     );
 
-    final allTiles = <TileCoord>{...tilesZ17, ...tilesZ16}.toList();
+    final allTiles = <TileCoord>{...tilesZ16, ...tilesZ17, ...tilesZ15}.toList();
     final total = allTiles.length;
     if (total == 0) {
       onProgress?.call(1.0, 0, 0);
@@ -142,7 +150,7 @@ class MapPrecacheService {
 
     int loaded = 0;
     int nextIdx = 0;
-    final workerCount = math.min(10, allTiles.length);
+    final workerCount = math.min(12, allTiles.length);
     final completer = Completer<void>();
 
     final timer = Timer(timeout, () {

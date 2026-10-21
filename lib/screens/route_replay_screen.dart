@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -141,14 +142,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       userAgentPackageName: 'online.nurmancloud.velora',
       tileProvider: tileProvider,
-      panBuffer: 6,
-      keepBuffer: 32,
-      tileDisplay: _isRenderingVideo
-          ? const TileDisplay.instantaneous()
-          : const TileDisplay.fadeIn(
-              duration: Duration(milliseconds: 100),
-            ),
-      retinaMode: true,
+      panBuffer: 8,
+      keepBuffer: 64,
+      tileDisplay: const TileDisplay.instantaneous(),
+      retinaMode: false,
       maxNativeZoom: 19,
       tileBuilder: (!_isSatelliteMode && _mapDarkTheme)
           ? (context, tileWidget, tile) {
@@ -1724,41 +1721,48 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     required bool isActive,
     required bool isPassed,
   }) {
-    final accentColor = isActive ? AppColors.neonCyan : const Color(0xFF38BDF8);
+    // Warna biru elektrik cerah seperti pada video referensi 3D Map
+    const primaryBlue = Color(0xFF0284C7);
+    const brightBlue = Color(0xFF0EA5E9);
+    const deepBlue = Color(0xFF0369A1);
 
     return AnimatedScale(
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeOutBack,
-      scale: isActive ? 1.08 : (isPassed ? 0.88 : 0.0),
+      scale: isActive ? 1.10 : (isPassed ? 0.90 : 0.0),
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 250),
-        opacity: isActive ? 1.0 : (isPassed ? 0.75 : 0.0),
+        opacity: isActive ? 1.0 : (isPassed ? 0.85 : 0.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 1. Badge Kapsul Nama Jalan (Floating Dark-Glass with Neon Border)
+            // 1. Badge Kotak/Kapsul Warna Biru Solid Seperti di Video Referensi
             Container(
-              constraints: const BoxConstraints(maxWidth: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              constraints: const BoxConstraints(maxWidth: 190),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: const Color(0xFF0F172A).withAlpha(isActive ? 245 : 210),
-                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isActive
+                      ? const [brightBlue, primaryBlue]
+                      : const [primaryBlue, deepBlue],
+                ),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: isActive ? accentColor : accentColor.withAlpha(120),
-                  width: isActive ? 1.8 : 1.2,
+                  color: Colors.white.withAlpha(isActive ? 240 : 160),
+                  width: isActive ? 1.4 : 1.0,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: isActive
-                        ? accentColor.withAlpha(160)
-                        : accentColor.withAlpha(50),
-                    blurRadius: isActive ? 12 : 6,
+                    color: primaryBlue.withAlpha(isActive ? 180 : 100),
+                    blurRadius: isActive ? 14 : 8,
                     spreadRadius: isActive ? 2 : 0,
-                    offset: const Offset(0, 2),
+                    offset: const Offset(0, 3),
                   ),
                   const BoxShadow(
                     color: Colors.black45,
-                    blurRadius: 8,
+                    blurRadius: 6,
                     offset: Offset(0, 3),
                   ),
                 ],
@@ -1766,17 +1770,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      color: accentColor.withAlpha(isActive ? 50 : 30),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.alt_route_rounded,
-                      size: 11,
-                      color: accentColor,
-                    ),
+                  const Icon(
+                    Icons.alt_route_rounded,
+                    size: 13,
+                    color: Colors.white,
                   ),
                   const SizedBox(width: 5),
                   Flexible(
@@ -1784,9 +1781,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                       road.roadName,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: isActive ? 11.0 : 10.0,
+                        fontSize: isActive ? 11.5 : 10.5,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.3,
+                        shadows: const [
+                          Shadow(
+                            color: Colors.black38,
+                            blurRadius: 4,
+                            offset: Offset(0, 1),
+                          ),
+                        ],
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -1796,32 +1800,29 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               ),
             ),
 
-            // 2. Tiang Penunjuk Vertikal ke Lintasan Aspal
-            Container(
-              width: 2,
-              height: 8,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    accentColor,
-                    accentColor.withAlpha(80),
-                  ],
+            // 2. Penunjuk Segitiga Biru ke Aspal Lintasan
+            Transform.translate(
+              offset: const Offset(0, -3),
+              child: Transform.rotate(
+                angle: math.pi / 4,
+                child: Container(
+                  width: 7,
+                  height: 7,
+                  color: isActive ? primaryBlue : deepBlue,
                 ),
               ),
             ),
 
             // 3. Titik Suar Bercahaya di Atas Garis Rute (Ground Beacon)
             Container(
-              width: isActive ? 8 : 6,
-              height: isActive ? 8 : 6,
+              width: isActive ? 7 : 5,
+              height: isActive ? 7 : 5,
               decoration: BoxDecoration(
-                color: isActive ? Colors.white : accentColor,
+                color: Colors.white,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: accentColor,
+                    color: brightBlue,
                     blurRadius: isActive ? 8 : 4,
                     spreadRadius: isActive ? 2 : 1,
                   ),
@@ -2739,13 +2740,41 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       customText: 'Memulai penulisan frame ke encoder hardware...',
     );
 
-    // Hangatkan kanvas pada titik awal agar tile awal selesai digambar sebelum perekaman dimulai
+    // Hangatkan kanvas dan pastikan peta pada titik awal ter-render 100% sempurna sebelum perekaman dimulai
     _animController.value = 0.0;
     _lastCameraMoveTime = null;
     _onAnimationTick();
+
+    // Precache & pre-decode ubin di sekitar titik awal langsung ke memori GPU Flutter
+    if (widget.session.coordinates.isNotEmpty && _cacheDir != null) {
+      final startPt = widget.session.coordinates.first;
+      _mapController.move(LatLng(startPt.latitude, startPt.longitude), 16.0);
+      final startZ16 = MapPrecacheService.latLonToTile(startPt.latitude, startPt.longitude, 16);
+      final startZ17 = MapPrecacheService.latLonToTile(startPt.latitude, startPt.longitude, 17);
+      for (final zoomTile in [startZ16, startZ17]) {
+        for (int dx = -2; dx <= 2; dx++) {
+          for (int dy = -2; dy <= 2; dy++) {
+            final fPath = VeloraTileProvider.getTileFilePath(
+              _cacheDir!,
+              _isSatelliteMode ? 'satellite' : 'osm',
+              zoomTile.z,
+              zoomTile.x + dx,
+              zoomTile.y + dy,
+            );
+            final f = File(fPath);
+            if (mounted && f.existsSync() && f.lengthSync() > 100) {
+              precacheImage(FileImage(f), context).catchError((_) {});
+            }
+          }
+        }
+      }
+    }
+
     if (mounted) setState(() {});
     await WidgetsBinding.instance.endOfFrame;
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Beri jeda 2 detik agar GPU dan flutter_map selesai melukis seluruh ubin pada titik awal secara sempurna
+    await Future.delayed(const Duration(milliseconds: 2000));
+    await WidgetsBinding.instance.endOfFrame;
 
     // 4. Jalankan loop render frame-by-frame
     String? exportedVideoPath;
@@ -2765,7 +2794,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           if (mounted) setState(() {});
           await WidgetsBinding.instance.endOfFrame;
           // Memberi waktu yang cukup bagi GPU dan flutter_map untuk merender tile secara sempurna
-          await Future.delayed(const Duration(milliseconds: 65));
+          await Future.delayed(const Duration(milliseconds: 85));
         },
         onProgress: (progress, currentFrame, total) {
           _renderProgress = progress;
@@ -3613,16 +3642,16 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                               Container(
                                 padding: const EdgeInsets.all(7),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primaryOrange.withAlpha(25),
+                                  color: const Color(0xFF0284C7).withAlpha(30),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
-                                    color: AppColors.primaryOrange.withAlpha(90),
+                                    color: const Color(0xFF0284C7).withAlpha(120),
                                     width: 1,
                                   ),
                                 ),
                                 child: const Icon(
-                                  Icons.signpost_rounded,
-                                  color: AppColors.primaryOrange,
+                                  Icons.alt_route_rounded,
+                                  color: Color(0xFF0284C7),
                                   size: 18,
                                 ),
                               ),
@@ -3641,7 +3670,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                                     ),
                                     SizedBox(height: 2),
                                     Text(
-                                      'Menampilkan animasi nama jalan di sepanjang rute.',
+                                      'Menampilkan penanda nama jalan berwarna biru di rute.',
                                       style: TextStyle(
                                         color: AppColors.textSecondary,
                                         fontSize: 11,
@@ -3652,8 +3681,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                               ),
                               Switch.adaptive(
                                 value: _showRoadNameBadge,
-                                activeThumbColor: AppColors.primaryOrange,
-                                activeTrackColor: AppColors.primaryOrange.withAlpha(140),
+                                activeThumbColor: const Color(0xFF0284C7),
+                                activeTrackColor: const Color(0xFF0284C7).withAlpha(140),
                                 onChanged: isActionBusy
                                     ? null
                                     : (val) {
@@ -4194,3 +4223,4 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     );
   }
 }
+

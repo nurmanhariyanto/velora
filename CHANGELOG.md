@@ -7,10 +7,13 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 ### 🛣️ Animasi Nama Jalan di Jalur Rute, Tata Letak Proporsional & Perbaikan Siklus Update
 
 #### 🛣️ 1. Animasi Nama Jalan Tepat di Atas Jalur Lintasan Rute GPS
-- **On-Track Waypoint Marker (`_buildRoadTrackPin`):**
-  - Animasi nama ruas jalan kini muncul langsung di atas koordinat aspal lintasan rute GPS (*on-track marker pin*) saat atlet memasuki jalan baru.
-  - Menggunakan animasi transisi `AnimatedScale` (`Curves.easeOutBack`) dan `AnimatedOpacity`, dilengkapi suar titik bercahaya (*glowing ground beacon*) tepat di atas garis rute dan kapsul nama jalan *dark-glass* beraksen neon cyan.
-  - Pin membesar halus (`scale: 1.08`) dengan efek pendaran halo saat atlet berada di titik transisi jalan, lalu menyusut rapi (`scale: 0.88`, `opacity: 0.75`) sebagai penanda rute yang telah dilalui.
+- **Badge Warna Biru Solid Seperti Video Referensi (`_buildRoadTrackPin`):**
+  - Mengimplementasikan badge nama ruas jalan berbentuk kotak kapsul **warna biru solid** (`Color(0xFF0284C7)` hingga `Color(0xFF0EA5E9)`) dengan teks putih tebal bersih (*bold white sans-serif*), segitiga penunjuk arah biru ke aspal lintasan, dan titik suar bercahaya (*ground beacon*) persis seperti pada video referensi 3D Map Relive.
+  - Pin membesar anggun (`scale: 1.10`) dengan pendaran cahaya biru saat atlet memasuki ruas jalan baru, lalu tetap tersemat rapi di peta (`scale: 0.90`, `opacity: 0.85`) sebagai *waypoint landmark*.
+- **Pemuatan Peta Sempurna Bebas Kotak Hitam (*Zero Black Tiles Guarantee*):**
+  - **Zero-Gap Corridor Pre-Caching:** `calculateRouteTiles` kini memeriksa 100% titik GPS tanpa melompati titik (*step = 1*), serta menambahkan radius tetangga 2 ubin (5x5 grid) pada Zoom 15, 16, dan 17 untuk menjamin seluruh layar rasio 9:16 ter-cover ubin offline.
+  - **Pre-Decode GPU Warmup:** Sebelum proses perekaman dimulai, seluruh ubin di sekitar titik awal (KM 0) di-decode langsung ke memori tekstur GPU Flutter (`precacheImage`) dengan jeda stabilisasi 2 detik untuk menjamin kanvas telah terisi 100% gambar satelit sebelum frame pertama ditulis.
+  - **Perpanjangan Jeda Frame Step:** Mengalokasikan 85 ms per frame render (dari sebelumnya 65 ms) agar GPU dan *pipeline* tekstur memiliki waktu yang melimpah untuk me-render ubin tanpa pernah memunculkan kotak hitam.
 - **Deteksi Transisi Ruas Jalan Otomatis (`RoadGeocodingService`):**
   - Basis data *offline* instan jalur olahraga utama (Pontianak, Jakarta, Bandung, Surabaya, Bali) untuk waktu respons 0 ms tanpa konsumsi kuota data.
   - Dukungan *reverse geocoding* daring OpenStreetMap Nominatim level jalan (`zoom=18`) dengan *in-memory cache*.
