@@ -2,16 +2,16 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
-## [v1.0.5.9] - 2026-10-21
+## [v1.0.6] - 2026-10-22
 
-### 🛣️ Animasi Nama Jalan di Jalur Rute, Tata Letak Proporsional & Perbaikan Siklus Update
+### 🛣️ Penanda Nama Jalan Biru Solid di Jalur, Stabilisasi Peta Bebas Kotak Hitam & Pembaruan Sistem
 
-#### 🛣️ 1. Animasi Nama Jalan Tepat di Atas Jalur Lintasan Rute GPS
-- **Badge Warna Biru Solid Seperti Video Referensi (`_buildRoadTrackPin`):**
-  - Mengimplementasikan badge nama ruas jalan berbentuk kotak kapsul **warna biru solid** (`Color(0xFF0284C7)` hingga `Color(0xFF0EA5E9)`) dengan teks putih tebal bersih (*bold white sans-serif*), segitiga penunjuk arah biru ke aspal lintasan, dan titik suar bercahaya (*ground beacon*) persis seperti pada video referensi 3D Map Relive.
+#### 🛣️ 1. Penanda Nama Jalan Berwarna Biru di Atas Jalur Lintasan GPS
+- **Badge Warna Biru Solid Sesuai Video Referensi (`_buildRoadTrackPin`):**
+  - Mengimplementasikan badge nama ruas jalan berbentuk kotak kapsul **warna biru solid** (`Color(0xFF0284C7)` hingga `Color(0xFF0EA5E9)`) dengan teks putih tebal bersih (*bold white sans-serif*), segitiga penunjuk arah biru ke aspal lintasan, dan titik suar bercahaya (*ground beacon*) persis seperti pada video referensi 3D Map.
   - Pin membesar anggun (`scale: 1.10`) dengan pendaran cahaya biru saat atlet memasuki ruas jalan baru, lalu tetap tersemat rapi di peta (`scale: 0.90`, `opacity: 0.85`) sebagai *waypoint landmark*.
 - **Pemuatan Peta Sempurna Bebas Kotak Hitam (*Zero Black Tiles Guarantee*):**
-  - **Zero-Gap Corridor Pre-Caching:** `calculateRouteTiles` kini memeriksa 100% titik GPS tanpa melompati titik (*step = 1*), serta menambahkan radius tetangga 2 ubin (5x5 grid) pada Zoom 15, 16, dan 17 untuk menjamin seluruh layar rasio 9:16 ter-cover ubin offline.
+  - **Zero-Gap Corridor Pre-Caching:** `calculateRouteTiles` kini memeriksa 100% titik GPS tanpa melompati titik (*step = 1*), serta menambahkan radius tetangga 2 ubin (5x5 grid) pada Zoom 15, 16, dan 17 untuk menjamin seluruh layar rasio 9:16 terisi ubin offline tanpa sela.
   - **Pre-Decode GPU Warmup:** Sebelum proses perekaman dimulai, seluruh ubin di sekitar titik awal (KM 0) di-decode langsung ke memori tekstur GPU Flutter (`precacheImage`) dengan jeda stabilisasi 2 detik untuk menjamin kanvas telah terisi 100% gambar satelit sebelum frame pertama ditulis.
   - **Perpanjangan Jeda Frame Step:** Mengalokasikan 85 ms per frame render (dari sebelumnya 65 ms) agar GPU dan *pipeline* tekstur memiliki waktu yang melimpah untuk me-render ubin tanpa pernah memunculkan kotak hitam.
 - **Deteksi Transisi Ruas Jalan Otomatis (`RoadGeocodingService`):**
@@ -22,19 +22,19 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 
 #### 📐 2. Tata Letak Proporsional & Bahasa Antarmuka Non-Teknis
 - **Tata Letak Proporsional Video (`_enableSocialSafeZone`):**
-  - Mengangkat posisi panel statistik berjalan (Jarak, Speed/Pace, Elevasi, Gain, Waktu) serta watermark agar selalu terlihat proporsional, rapi, dan tidak tertutup saat dibagikan ke platform lain.
+  - Menyesuaikan posisi panel statistik berjalan (Jarak, Speed/Pace, Elevasi, Gain, Waktu) serta watermark agar selalu terlihat proporsional, rapi, dan tidak tertutup saat dibagikan ke media sosial.
 - **Bahasa Menu Ringkas, Padat, dan Profesional:**
   - Seluruh teks opsi ekspor video telah disederhanakan dari istilah teknis menjadi bahasa fungsional yang elegan:
-    - *"PENGATURAN TAMPILAN"* (sebelumnya *"PENGATURAN TAMPILAN VIDEO"*)
+    - *"PENGATURAN TAMPILAN"*
     - *"Tata Letak Proporsional"* & *"Menyesuaikan posisi statistik agar selalu terlihat rapi saat dibagikan."*
-    - *"Nama Jalan di Jalur"* & *"Menampilkan animasi nama jalan di sepanjang rute."*
+    - *"Nama Jalan di Jalur"* & *"Menampilkan penanda nama jalan berwarna biru di rute."*
     - *"Ekspor Video Full HD"* (1080p jernih dan tajam) & *"Ekspor Video Ultra HD"* (4K sinematik)
     - *"Mode Rekam Layar"* & *"Bagikan Berkas Video"*
 
-#### 🔄 3. Perbaikan Siklus Pembaruan Berulang Android (*Infinite Update Loop*)
+#### 🔄 3. Perbaikan Siklus Pembaruan Aplikasi Android
 - **Penyelarasan `versionCode` dan `versionName`:**
-  - Mengubah konfigurasi `android/app/build.gradle.kts` ke `versionCode = 32` dan `versionName = "1.0.5.9"`.
-  - Mengatasi penolakan instalasi paket Android (*package replacement rejected*) yang menyebabkan aplikasi terus meminta pembaruan meskipun APK baru telah diunduh.
+  - Memperbarui konfigurasi ke `versionCode = 33` dan `versionName = "1.0.6"` pada `pubspec.yaml` dan `android/app/build.gradle.kts`.
+  - Mengatasi kendala pembaruan berulang (*infinite update loop*) sehingga aplikasi langsung mengenali versi terbaru secara tepat tanpa meminta pembaruan kembali setelah dipasang.
 
 #### 🛡️ 4. Pengujian & Kualitas Kode
 - Seluruh pengujian unit dan widget (`flutter test`) berhasil lulus 100%, serta 0 isu pada `flutter analyze`.
