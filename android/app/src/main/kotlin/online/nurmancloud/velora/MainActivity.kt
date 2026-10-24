@@ -13,6 +13,7 @@ class MainActivity : FlutterActivity() {
     private val SHARE_CHANNEL = "online.nurmancloud.velora/social_share"
     private val MEDIA_CHANNEL = "online.nurmancloud.velora/media_store"
     private val WAKELOCK_CHANNEL = "online.nurmancloud.velora/wakelock"
+    private val PROFILE_CHANNEL = "online.nurmancloud.velora/native_profile"
     private var renderWakeLock: android.os.PowerManager.WakeLock? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -48,6 +49,57 @@ class MainActivity : FlutterActivity() {
                             result.error("WAKELOCK_ERROR", e.message, null)
                         }
                     }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        // Channel untuk Persistensi Profil Atlet Native (Tahan Update & Kebal R8/Plugin Flutter)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PROFILE_CHANNEL).setMethodCallHandler { call, result ->
+            val prefs = context.getSharedPreferences("velora_native_profile", android.content.Context.MODE_PRIVATE)
+            when (call.method) {
+                "saveAthleteName" -> {
+                    val name = call.argument<String>("name") ?: ""
+                    // 1. Simpan sinkron ke SharedPreferences bawaan OS Android (commit flush disk)
+                    prefs.edit().putString("athlete_name", name).commit()
+
+                    // 2. Simpan cadangan ke direktori penyimpanan eksternal aplikasi (kebal update)
+                    try {
+                        val extDir = context.getExternalFilesDir(null)
+                        if (extDir != null) {
+                            val backupFile = File(extDir, "velora_profile.json")
+                            backupFile.writeText("""{"athlete_name":"$name","timestamp":${System.currentTimeMillis()}}""")
+                        }
+                    } catch (_: Exception) {}
+
+                    result.success(true)
+                }
+                "getAthleteName" -> {
+                    // 1. Cek SharedPreferences bawaan OS Android
+                    var name = prefs.getString("athlete_name", null)
+
+                    // 2. Jika kosong atau default, coba pulihkan dari berkas cadangan eksternal
+                    if (name.isNullOrBlank() || name == "Velora Athlete") {
+                        try {
+                            val extDir = context.getExternalFilesDir(null)
+                            if (extDir != null) {
+                                val backupFile = File(extDir, "velora_profile.json")
+                                if (backupFile.exists()) {
+                                    val content = backupFile.readText()
+                                    val regex = """"athlete_name"\s*:\s*"([^"]+)"""".toRegex()
+                                    val match = regex.find(content)
+                                    if (match != null) {
+                                        val parsed = match.groupValues[1].trim()
+                                        if (parsed.isNotBlank() && parsed != "Velora Athlete") {
+                                            name = parsed
+                                            prefs.edit().putString("athlete_name", parsed).commit()
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+                    result.success(name)
                 }
                 else -> result.notImplemented()
             }

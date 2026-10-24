@@ -2,6 +2,22 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.11] - 2026-10-25
+
+### 🛡️ Hepta-Layer Profile Engine, Native Android Channel & Resolusi Migrasi APK Lama
+
+#### 🛡️ 1. Resolusi Total Masalah Profil Kembali Default Saat Pembaruan APK
+- **Penanganan Bug Obfuscation R8:**
+  - Memperbarui komponen penyimpanan ke versi stabil (v2.5.3) dan menambahkan aturan ProGuard Keep Rules untuk kelas Kotlin coroutines, mencegah pengecualian runtime saat build rilis.
+- **Penyimpanan Terisolasi Mandiri (*Decoupled Resilience Pipeline*):**
+  - Mengubah alur penyimpanan menjadi pipeline terisolasi penuh; jika salah satu lapisan mengalami kendala, penyimpanan berkas fisik dokumen dan basis data tetap dieksekusi 100%.
+- **Persistensi Native OS Android (*Native Android SharedPreferences*):**
+  - Mengintegrasikan lapisan ke-7 penyimpanan langsung ke API sistem operasi Android via Platform Channel dengan *synchronous disk commit*, kebal terhadap status memori dan pembaruan paket.
+- **Penyimpanan Berkas Eksternal Aplikasi (`getExternalFilesDir`):**
+  - Menambahkan cadangan berkas di direktori berkas eksternal aplikasi yang kebal pembaruan paket tanpa membutuhkan izin penyimpanan tambahan.
+- **Rangkaian Uji Simulasi Migrasi APK Lama (100% Lulus):**
+  - Menambahkan pengujian simulasi komprehensif yang memverifikasi pembacaan dan pemulihan otomatis data profil atlet dari seluruh versi aplikasi lama (v1.0.3.6 hingga v1.0.9).
+
 ## [v1.0.10] - 2026-10-24
 
 ### 👤 Mesin Permanensi Profil Multi-Lapis & Penanda Puncak Tertinggi 3D Aktif

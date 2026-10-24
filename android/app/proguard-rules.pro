@@ -18,3 +18,12 @@
 
 # Suppress Play Store Core warnings (Velora is standalone offline)
 -dontwarn com.google.android.play.core.**
+
+# Workaround for shared_preferences_android R8 / NoSuchMethodError crash
+-keep class kotlin.Unit { *; }
+-keep class kotlin.coroutines.Continuation { *; }
+-keep class kotlin.Result { *; }
+-keep class kotlin.Result$Failure { *; }
+-keep class kotlin.coroutines.intrinsics.CoroutineSingletons { *; }
+-keep class kotlin.coroutines.intrinsics.IntrinsicsKt { *; }
+-keep class io.flutter.plugins.sharedpreferences.** { *; }
