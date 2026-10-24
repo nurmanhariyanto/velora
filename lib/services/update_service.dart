@@ -22,6 +22,9 @@ class UpdateService {
   static const MethodChannel _installerChannel =
       MethodChannel('online.nurmancloud.velora/app_installer');
 
+  static const String appVersionFallback = '1.0.10';
+  static bool _hasCheckedAutoUpdateThisSession = false;
+
   /// Membersihkan sisa file APK lama di direktori temporary
   static Future<void> cleanOldApks() async {
     try {
@@ -47,12 +50,12 @@ class UpdateService {
         return PackageInfo(
           appName: 'Velora',
           packageName: 'online.nurmancloud.velora',
-          version: '1.0.0',
-          buildNumber: '1',
+          version: appVersionFallback,
+          buildNumber: '37',
         );
       });
 
-      final currentVersion = packageInfo.version;
+      final currentVersion = packageInfo.version.isNotEmpty ? packageInfo.version : appVersionFallback;
 
       final checkUri = Uri.parse(
         '$latestReleaseApiUrl?t=${DateTime.now().millisecondsSinceEpoch}',
@@ -205,6 +208,11 @@ class UpdateService {
     BuildContext context, {
     bool silent = false,
   }) async {
+    if (silent && _hasCheckedAutoUpdateThisSession) return;
+    if (silent) {
+      _hasCheckedAutoUpdateThisSession = true;
+    }
+
     final updateInfo = await checkLatestRelease();
 
     if (!context.mounted) return;
