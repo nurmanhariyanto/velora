@@ -28,7 +28,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
   bool _mapDarkTheme = true;
   bool _isSharing = false;
   ShareDestination? _activeDestination;
-  String _athleteName = UserProfileService.defaultAthleteName;
+  String _athleteName = UserProfileService.currentAthleteName;
 
   @override
   void initState() {

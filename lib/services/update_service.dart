@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_colors.dart';
 import '../models/app_update_info.dart';
 import '../widgets/update_dialog.dart';
+import 'user_profile_service.dart';
 
 /// Layanan pemeriksaan dan pembaruan otomatis aplikasi langsung dari GitHub Releases
 class UpdateService {
@@ -183,6 +184,9 @@ class UpdateService {
   /// Membuka pemasang paket Android (Package Installer) untuk menginstal APK
   static Future<bool> installApk(String filePath) async {
     try {
+      // Pastikan seluruh lapisan profil tersimpan dan ter-flush ke disk sebelum installer dipanggil
+      await UserProfileService.flushBeforeUpdate();
+
       if (Platform.isAndroid) {
         final result = await _installerChannel.invokeMethod<bool>(
           'installApk',

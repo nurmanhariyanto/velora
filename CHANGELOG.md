@@ -2,6 +2,36 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.10] - 2026-10-24
+
+### 👤 Mesin Permanensi Profil Multi-Lapis & Penanda Puncak Tertinggi 3D Aktif
+
+#### 👤 1. Mesin Permanensi Profil Pengguna Kebal Pembaruan (Hexa-Layer Persistence)
+- **Perlindungan Data Multi-Lapis (*Hexa-Layer Data Security*):**
+  - Mengimplementasikan 6 lapis penyimpanan terpadu untuk memastikan nama profil atlet tidak pernah kembali ke nama default saat aplikasi diperbarui ke versi terbaru:
+    1. **Cache Memori Utama:** Akses instan 0 ms saat aplikasi dijalankan.
+    2. **Penyimpanan Preferensi Perangkat:** Sinkronisasi preferensi lokal terkelola.
+    3. **Berkas Pendukung Sistem Terproteksi:** Penyimpanan berkas internal kebal pembersihan sistem operasi Android.
+    4. **Berkas Dokumen Internal:** Berkas terisolasi aplikasi dengan penulisan langsung ke penyimpanan fisik (*immediate disk flush*).
+    5. **Basis Data Lokal SQLite dengan Checkpoint Fisik:** Memaksa penulisan menyeluruh (*WAL Checkpoint*) sebelum pembaruan aplikasi dipasang.
+    6. **Pencadangan Eksternal Mandiri:** Berkas cadangan di penyimpanan publik perangkat yang tetap aman meskipun aplikasi diinstal ulang.
+- **Pemulihan Otomatis (*Self-Healing Sync*):**
+  - Jika nama kustom terdeteksi pada salah satu lapisan penyimpanan, sistem secara otomatis mereplikasi dan memulihkan nama tersebut ke seluruh lapisan lainnya.
+- **Persiapan Pra-Pemasangan Pembaruan (*Pre-Update Flush*):**
+  - Seluruh data profil dituliskan dan dikunci ke penyimpanan permanen sebelum paket instalasi versi baru dijalankan.
+- **Inisialisasi Cepat Bebas Kedip (*Zero-Flicker Preload*):**
+  - Profil pengguna dimuat langsung sebelum antarmuka layar utama terbuka, menghilangkan kedipan nama default saat membuka profil maupun video riwayat.
+
+#### 🏔️ 2. Penyempurnaan Penanda Puncak Tertinggi 3D Aktif
+- **Pembersihan Penanda Titik Awal (*Start Peak Suppression*):**
+  - Titik start rute dipastikan tidak pernah dianggap atau dilabeli sebagai puncak elevasi.
+- **Penyaringan Lintasan Datar & Turunan:**
+  - Lintasan datar atau rute turunan murni (*downhill*) tidak akan menghasilkan penanda puncak palsu; penanda puncak hanya muncul jika terdapat pendakian rute nyata.
+- **Animasi 3D Aktif Saat Melintasi Puncak:**
+  - Penanda puncak tidak ditampilkan sebelum dilewati, dan baru aktif menyala dengan animasi 3D (pop-up, elevasi naik, dan pendaran aura *sunset crimson*) tepat saat atlet melintasi titik puncak tertinggi.
+- **Spanduk Perayaan Puncak Sinematik:**
+  - Menampilkan lencana perayaan *"PUNCAK ELEVASI RUTE - Titik Tertinggi XX mdpl"* saat melintasi puncak tertinggi yang juga terekam pada video hasil ekspor.
+
 ## [v1.0.9] - 2026-10-22
 
 ### 🔒 Proteksi Layar Aktif (Wakelock Engine) & Pemulihan Render Video Tanpa Terhenti

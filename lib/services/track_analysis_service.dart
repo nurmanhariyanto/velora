@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import '../algorithms/haversine.dart';
 import '../models/coordinate_point.dart';
 import '../models/sports_type.dart';
@@ -31,15 +32,13 @@ class TrackAnalysisService {
       ),
     );
 
+    final distances = List<double>.filled(coordinates.length, 0.0);
     double cumulativeDistance = 0.0;
     int previousKm = 0;
     int prevKmIndex = 0;
 
     CoordinatePoint maxSpeedPt = coordinates.first;
     double maxSpeedDist = 0.0;
-
-    CoordinatePoint peakElevationPt = coordinates.first;
-    double peakElevationDist = 0.0;
 
     for (int i = 1; i < coordinates.length; i++) {
       final prev = coordinates[i - 1];
@@ -52,17 +51,12 @@ class TrackAnalysisService {
         curr.longitude,
       );
       cumulativeDistance += dist;
+      distances[i] = cumulativeDistance;
 
       // Pantau Kecepatan Maksimum (abaikan glitch > 150 km/h)
       if (curr.speedKmh > maxSpeedPt.speedKmh && curr.speedKmh < 150.0) {
         maxSpeedPt = curr;
         maxSpeedDist = cumulativeDistance;
-      }
-
-      // Pantau Ketinggian Tertinggi
-      if (curr.elevation > peakElevationPt.elevation) {
-        peakElevationPt = curr;
-        peakElevationDist = cumulativeDistance;
       }
 
       // Deteksi Pergantian Kilometer (1 km, 2 km, 3 km, dst)
@@ -167,21 +161,54 @@ class TrackAnalysisService {
     }
 
     // 4. Titik Puncak Ketinggian (▲ Titik Tertinggi)
-    if (peakElevationPt.elevation > 0 &&
-        (peakElevationPt.latitude != startPt.latitude ||
-            peakElevationPt.longitude != startPt.longitude)) {
-      milestones.add(
-        TrackMilestone(
-          type: TrackMilestoneType.peakElevation,
-          latitude: peakElevationPt.latitude,
-          longitude: peakElevationPt.longitude,
-          distanceMeters: peakElevationDist,
-          elevation: peakElevationPt.elevation,
-          speedKmh: peakElevationPt.speedKmh,
-          title: 'Titik Tertinggi',
-          description: '${peakElevationPt.elevation.toStringAsFixed(0)} mdpl',
-        ),
-      );
+    // Syarat Puncak Otentik:
+    // a. Start TIDAK PERNAH dikatakan sebagai puncak. Titik puncak wajib berjarak dari start.
+    // b. Buffer awal: minimal 150 meter atau 5% total rute (maksimal buffer 350 meter).
+    // c. Buffer akhir: tidak boleh tepat menempel pada garis finish (jarak <= total rute - 60m).
+    // d. Tanjakan bermakna: elevasi puncak harus lebih tinggi minimal 8 meter dari titik terendah sebelumnya (climb gain >= 8m).
+    //    Rute datar atau rute murni turunan (downhill) tidak akan menghasilkan penanda puncak palsu.
+    final totalDistance = cumulativeDistance;
+    final minDistanceFromStart = math.min(350.0, math.max(150.0, totalDistance * 0.05));
+    final maxDistanceFromFinish = math.max(0.0, totalDistance - 60.0);
+
+    CoordinatePoint? peakElevationPt;
+    double peakElevationDist = 0.0;
+    int peakIndex = -1;
+
+    for (int i = 1; i < coordinates.length; i++) {
+      final d = distances[i];
+      if (d >= minDistanceFromStart && d <= maxDistanceFromFinish) {
+        if (peakElevationPt == null || coordinates[i].elevation > peakElevationPt.elevation) {
+          peakElevationPt = coordinates[i];
+          peakElevationDist = d;
+          peakIndex = i;
+        }
+      }
+    }
+
+    if (peakElevationPt != null && peakIndex > 0) {
+      double minElevBefore = coordinates.first.elevation;
+      for (int i = 0; i < peakIndex; i++) {
+        if (coordinates[i].elevation < minElevBefore) {
+          minElevBefore = coordinates[i].elevation;
+        }
+      }
+      final climbGain = peakElevationPt.elevation - minElevBefore;
+
+      if (climbGain >= 8.0 && peakElevationPt.elevation > 0) {
+        milestones.add(
+          TrackMilestone(
+            type: TrackMilestoneType.peakElevation,
+            latitude: peakElevationPt.latitude,
+            longitude: peakElevationPt.longitude,
+            distanceMeters: peakElevationDist,
+            elevation: peakElevationPt.elevation,
+            speedKmh: peakElevationPt.speedKmh,
+            title: 'Titik Tertinggi',
+            description: '${peakElevationPt.elevation.toStringAsFixed(0)} mdpl',
+          ),
+        );
+      }
     }
 
     // 5. Titik Akhir (Finish Pin 🏁)

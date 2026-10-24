@@ -17,7 +17,7 @@ class ProfileRecordsScreen extends StatefulWidget {
 }
 
 class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
-  String _athleteName = UserProfileService.defaultAthleteName;
+  String _athleteName = UserProfileService.currentAthleteName;
 
   @override
   void initState() {

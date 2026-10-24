@@ -50,7 +50,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   late final List<TrackMilestone> _milestones;
   late final List<double> _cumulativeDistances;
   late final List<double> _cumulativeElevationGains;
-  String _athleteName = UserProfileService.defaultAthleteName;
+  String _athleteName = UserProfileService.currentAthleteName;
 
   // Status pemutaran animasi
   static const Duration _baseDuration = Duration(seconds: 18);
@@ -120,6 +120,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   Timer? _roadEventTimer;
   final Set<int> _triggeredRoadIndices = <int>{};
   bool _showRoadNameBadge = true;
+
+  // Penanda Puncak Tertinggi & Alert Perayaan Puncak (Summit Alert)
+  TrackMilestone? _activePeakEvent;
+  Timer? _peakAlertTimer;
+  bool _hasTriggeredPeakAlert = false;
 
   // Zona Aman Tampilan Video untuk IG Story/Reels & WA Status (Anti Terpotong Kolom Balas)
   bool _enableSocialSafeZone = true;
@@ -275,6 +280,20 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       if (mounted) {
         setState(() {
           _activeRoadEvent = null;
+        });
+      }
+    });
+  }
+
+  void _triggerPeakSummitAlert(TrackMilestone peak) {
+    _peakAlertTimer?.cancel();
+    setState(() {
+      _activePeakEvent = peak;
+    });
+    _peakAlertTimer = Timer(const Duration(milliseconds: 3600), () {
+      if (mounted) {
+        setState(() {
+          _activePeakEvent = null;
         });
       }
     });
@@ -505,6 +524,33 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       }
     }
 
+    // Pemicu Pop-up Perayaan Puncak saat atlet melewati puncak elevasi tertinggi
+    final peakMilestone = _milestones.where((m) => m.type == TrackMilestoneType.peakElevation).firstOrNull;
+    if (peakMilestone != null) {
+      final peakWindowMeters = math.min(math.max(totalRouteDist * 0.08, 260.0), totalRouteDist * 0.20);
+      final isInsidePeakZone = _isRenderingVideo
+          ? (currentDistMeters >= peakMilestone.distanceMeters &&
+              currentDistMeters <= peakMilestone.distanceMeters + peakWindowMeters)
+          : (currentDistMeters >= peakMilestone.distanceMeters);
+
+      if (isInsidePeakZone) {
+        if (!_hasTriggeredPeakAlert) {
+          _hasTriggeredPeakAlert = true;
+          _triggerPeakSummitAlert(peakMilestone);
+        }
+      } else if (_isRenderingVideo && _activePeakEvent == peakMilestone) {
+        _activePeakEvent = null;
+      }
+
+      // Bersihkan pemicu jika posisi animasi di-scrub mundur sebelum puncak
+      if (currentDistMeters < peakMilestone.distanceMeters) {
+        _hasTriggeredPeakAlert = false;
+        if (_activePeakEvent != null) {
+          _activePeakEvent = null;
+        }
+      }
+    }
+
     // Hitung arah hadap kendaraan (bearing) ke titik rute berikutnya
     final rawBearing = Haversine.calculateBearing(
       currentPoint.latitude,
@@ -591,6 +637,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         if (_animController.isCompleted) {
           _animController.reset();
           _lastChimeKm = 0;
+          _hasTriggeredPeakAlert = false;
+          _activePeakEvent = null;
         }
         _animController.forward();
         _isPlaying = true;
@@ -652,6 +700,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _triggeredRoadIndices.clear();
     _activeRoadEvent = null;
     _roadEventTimer?.cancel();
+    _hasTriggeredPeakAlert = false;
+    _activePeakEvent = null;
+    _peakAlertTimer?.cancel();
     if (!_isPlaying) {
       _togglePlayPause();
     } else {
@@ -677,6 +728,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _chimeTimer?.cancel();
     _borderEventTimer?.cancel();
     _roadEventTimer?.cancel();
+    _peakAlertTimer?.cancel();
     _recordTooltipTimer?.cancel();
     _animController.removeListener(_onAnimationTick);
     _animController.dispose();
@@ -1018,6 +1070,15 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               left: 20,
               right: 20,
               child: _buildRegencyBorderBanner(_activeBorderEvent!),
+            ),
+
+          // 3c. Pop-up Perayaan Puncak Tertinggi saat Melewati Puncak Elevasi (Tampil di Replay & Video MP4)
+          if (_activePeakEvent != null)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + (_cleanRecordMode ? (_enableSocialSafeZone ? 66 : 52) : 74),
+              left: 20,
+              right: 20,
+              child: _buildPeakSummitBanner(_activePeakEvent!),
             ),
 
 
@@ -1514,12 +1575,24 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
             ..._milestones.map((m) {
               final isPassed = m.distanceMeters <= currentDistanceM;
               if (m.type == TrackMilestoneType.peakElevation) {
+                final distDiff = currentDistanceM - m.distanceMeters;
+                // Belum dilalui: jangan tampilkan terlebih dahulu agar muncul dengan animasi saat dilewati
+                if (distDiff < 0) return null;
+
+                // Saat atlet melewati puncak (0 s/d 260 meter): Animasi 3D Aktif (Pop-up, Elevasi Naik, Pendaran Cahaya)
+                final isActive = _activePeakEvent == m || (distDiff >= 0 && distDiff <= 260);
+                final passedSummit = distDiff > 260;
+
                 return Marker(
                   point: LatLng(m.latitude, m.longitude),
-                  width: 170,
-                  height: 64,
+                  width: 190,
+                  height: 84,
                   alignment: Alignment.bottomCenter,
-                  child: _buildMountainPeakPin(m, isPassed),
+                  child: _buildMountainPeakPin(
+                    m,
+                    isActive: isActive,
+                    isPassed: passedSummit,
+                  ),
                 );
               }
               return Marker(
@@ -1534,7 +1607,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   ),
                 ),
               );
-            }),
+            }).whereType<Marker>(),
 
             // Penanda Nama Kabupaten/Kota Tepat di Atas Garis Rute (Batas Wilayah)
             ..._regencyBorders.map((b) {
@@ -1779,134 +1852,216 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     );
   }
 
-  Widget _buildMountainPeakPin(TrackMilestone m, bool isPassed) {
+  Widget _buildMountainPeakPin(
+    TrackMilestone m, {
+    required bool isActive,
+    required bool isPassed,
+  }) {
     return Transform(
       alignment: Alignment.bottomCenter,
       transform: Matrix4.identity()
         ..setEntry(3, 2, 0.0015)
         ..rotateX(_isSatelliteMode ? (0.70 - _currentClimbTilt) : 0.0),
-      child: AnimatedScale(
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOutBack,
-        scale: isPassed ? 1.08 : 0.95,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 250),
-          opacity: isPassed ? 1.0 : 0.85,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Badge Puncak Gunung 3D (Sunset Crimson Gradient)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFFFF5722),
-                      Color(0xFFE64A19),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white, width: 1.5),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFF5722).withAlpha(isPassed ? 220 : 130),
-                      blurRadius: isPassed ? 16 : 8,
-                      spreadRadius: isPassed ? 2 : 0,
-                      offset: const Offset(0, 3),
+      child: Transform.translate(
+        offset: Offset(0, isActive ? -10.0 : 0.0),
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeOutBack,
+          scale: isActive ? 1.18 : (isPassed ? 1.0 : 0.92),
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 250),
+            opacity: 1.0,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Badge Puncak Gunung 3D (Sunset Crimson Gradient)
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isActive ? 11 : 9,
+                      vertical: isActive ? 5 : 4,
                     ),
-                    const BoxShadow(
-                      color: Colors.black45,
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('🏔️', style: TextStyle(fontSize: 13)),
-                    const SizedBox(width: 5),
-                    Text(
-                      'PUNCAK ${m.elevation.toStringAsFixed(0)}M',
-                      style: const TextStyle(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isActive
+                            ? const [
+                                Color(0xFFFF3D00),
+                                Color(0xFFFF6E40),
+                                Color(0xFFDD2C00),
+                              ]
+                            : const [
+                                Color(0xFFFF5722),
+                                Color(0xFFE64A19),
+                              ],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
                         color: Colors.white,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.5,
-                        shadows: [
-                          Shadow(
-                            color: Colors.black45,
-                            blurRadius: 4,
-                            offset: Offset(0, 1),
+                        width: isActive ? 2.0 : 1.4,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF5722).withAlpha(isActive ? 255 : 130),
+                          blurRadius: isActive ? 20 : 8,
+                          spreadRadius: isActive ? 4 : 0,
+                          offset: const Offset(0, 3),
+                        ),
+                        const BoxShadow(
+                          color: Colors.black45,
+                          blurRadius: 6,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '🏔️',
+                          style: TextStyle(fontSize: isActive ? 14 : 12.5),
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'PUNCAK ${m.elevation.toStringAsFixed(0)}M',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: isActive ? 11.0 : 10.0,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                            shadows: const [
+                              Shadow(
+                                color: Colors.black45,
+                                blurRadius: 4,
+                                offset: Offset(0, 1),
+                              ),
+                            ],
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Pointer segitiga ke bawah
+                  Transform.translate(
+                    offset: const Offset(0, -2),
+                    child: Transform.rotate(
+                      angle: math.pi / 4,
+                      child: Container(
+                        width: isActive ? 8 : 6,
+                        height: isActive ? 8 : 6,
+                        decoration: BoxDecoration(
+                          color: isActive ? const Color(0xFFDD2C00) : const Color(0xFFE64A19),
+                          border: Border(
+                            bottom: BorderSide(color: Colors.white, width: isActive ? 1.0 : 0.8),
+                            right: BorderSide(color: Colors.white, width: isActive ? 1.0 : 0.8),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Tiang vertikal 3D
+                  Container(
+                    width: isActive ? 2.4 : 1.8,
+                    height: isActive ? 12.0 : 9.0,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.white,
+                          Color(0xFFFF8A65),
+                          Color(0xFFFF5722),
                         ],
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF5722).withAlpha(isActive ? 200 : 130),
+                          blurRadius: isActive ? 6 : 4,
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ),
-              // Pointer segitiga ke bawah
-              Transform.translate(
-                offset: const Offset(0, -2),
-                child: Transform.rotate(
-                  angle: math.pi / 4,
-                  child: Container(
-                    width: 7,
-                    height: 7,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFE64A19),
-                      border: Border(
-                        bottom: BorderSide(color: Colors.white, width: 0.8),
-                        right: BorderSide(color: Colors.white, width: 0.8),
+                  ),
+                  // Ground Anchor
+                  Container(
+                    width: isActive ? 8 : 7,
+                    height: isActive ? 8 : 7,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFFF5722),
+                        width: isActive ? 1.8 : 1.4,
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
-              // Tiang vertikal 3D
-              Container(
-                width: 2.0,
-                height: 12.0,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.white,
-                      Color(0xFFFF8A65),
-                      Color(0xFFFF5722),
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFF5722).withAlpha(160),
-                      blurRadius: 4,
-                    ),
-                  ],
-                ),
-              ),
-              // Ground Anchor
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: const Color(0xFFFF5722),
-                    width: 1.4,
-                  ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0xFFFF5722),
-                      blurRadius: 8,
-                      spreadRadius: 2,
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPeakSummitBanner(TrackMilestone peak) {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F172A).withAlpha(245),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: const Color(0xFFFF5722), width: 1.8),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x99FF5722),
+              blurRadius: 18,
+              spreadRadius: 2,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFF5722).withAlpha(45),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFFF5722).withAlpha(180)),
+              ),
+              child: const Text('🏔️', style: TextStyle(fontSize: 18)),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'PUNCAK ELEVASI RUTE',
+                    style: TextStyle(
+                      color: Color(0xFFFF8A65),
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Titik Tertinggi ${peak.elevation.toStringAsFixed(0)} mdpl',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w900,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );

@@ -89,6 +89,56 @@ void main() {
       expect(peakMilestone.pinLabel, equals('▲'));
     });
 
+    test('Rute turunan (downhill) atau start tidak pernah ditandai sebagai puncak', () {
+      final points = <CoordinatePoint>[];
+      final baseTime = DateTime(2026, 10, 18, 8, 0, 0).millisecondsSinceEpoch;
+      const latStep = 100.0 / 111000.0;
+
+      // Rute menuruni bukit: mulai di 600m dan terus turun ke 400m
+      for (int i = 0; i < 20; i++) {
+        points.add(
+          CoordinatePoint(
+            activityId: 'downhill-test',
+            latitude: -0.026330 + (i * latStep),
+            longitude: 109.342504,
+            elevation: 600.0 - (i * 10.0),
+            speed: 5.0,
+            timestamp: baseTime + (i * 15 * 1000),
+          ),
+        );
+      }
+
+      final milestones = TrackAnalysisService.analyzeTrack(points, SportsType.ride);
+      final peakMilestones = milestones.where((m) => m.type == TrackMilestoneType.peakElevation).toList();
+
+      expect(peakMilestones, isEmpty, reason: 'Start atau rute murni turunan tidak boleh diberi penanda puncak');
+    });
+
+    test('Rute datar tanpa tanjakan bermakna tidak menghasilkan puncak palsu', () {
+      final points = <CoordinatePoint>[];
+      final baseTime = DateTime(2026, 10, 18, 8, 0, 0).millisecondsSinceEpoch;
+      const latStep = 100.0 / 111000.0;
+
+      // Elevasi datar dengan fluktuasi GPS wajar (+/- 1.5m)
+      for (int i = 0; i < 20; i++) {
+        points.add(
+          CoordinatePoint(
+            activityId: 'flat-test',
+            latitude: -0.026330 + (i * latStep),
+            longitude: 109.342504,
+            elevation: 25.0 + ((i % 3) * 1.0),
+            speed: 5.0,
+            timestamp: baseTime + (i * 15 * 1000),
+          ),
+        );
+      }
+
+      final milestones = TrackAnalysisService.analyzeTrack(points, SportsType.run);
+      final peakMilestones = milestones.where((m) => m.type == TrackMilestoneType.peakElevation).toList();
+
+      expect(peakMilestones, isEmpty, reason: 'Rute datar tidak boleh diberi penanda puncak');
+    });
+
     test('Menentukan Kilometer Tercepat (isFastestKm)', () {
       // Buat lintasan di mana KM 2 jauh lebih cepat dari KM 1
       final points = <CoordinatePoint>[];

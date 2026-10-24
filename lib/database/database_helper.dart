@@ -30,6 +30,14 @@ class DatabaseHelper {
       path,
       version: dbVersion,
       onCreate: _onCreate,
+      onOpen: (db) async {
+        await db.execute('''
+          CREATE TABLE IF NOT EXISTS user_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+          )
+        ''');
+      },
     );
   }
 

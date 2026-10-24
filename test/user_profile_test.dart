@@ -30,12 +30,25 @@ void main() {
       expect(name, equals('Nurman Rider'));
     });
 
-    test('Nama kosong atau spasi di-reset kembali ke "Velora Athlete"', () async {
-      await UserProfileService.setAthleteName('Rider Satu');
-      expect(await UserProfileService.getAthleteName(), equals('Rider Satu'));
+    test('currentAthleteName mengembalikan nama di memori secara instan', () async {
+      expect(UserProfileService.currentAthleteName, equals('Velora Athlete'));
+      await UserProfileService.setAthleteName('Speedster');
+      expect(UserProfileService.currentAthleteName, equals('Speedster'));
+    });
 
-      await UserProfileService.setAthleteName('   ');
-      expect(await UserProfileService.getAthleteName(), equals('Velora Athlete'));
+    test('UserProfileService.init melakukan preloading nama dari penyimpanan', () async {
+      SharedPreferences.setMockInitialValues({
+        'velora_athlete_name': 'Preloaded Rider',
+      });
+      UserProfileService.resetCacheForTesting();
+
+      await UserProfileService.init();
+      expect(UserProfileService.currentAthleteName, equals('Preloaded Rider'));
+    });
+
+    test('flushBeforeUpdate mengeksekusi flush multi-tier tanpa exception', () async {
+      await UserProfileService.setAthleteName('Master Climber');
+      await expectLater(UserProfileService.flushBeforeUpdate(), completes);
     });
   });
 

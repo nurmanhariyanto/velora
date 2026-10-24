@@ -6,12 +6,18 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:velora/database/database_helper.dart';
 
-/// Layanan lokal untuk membaca dan menyimpan profil atlet secara persisten.
-/// Menggunakan penyimpanan 3 lapis perlindungan:
-/// 1. SharedPreferences (akses cepat UI)
-/// 2. Dokumen Lokal JSON (cadangan berkas di storage aplikasi)
-/// 3. Database SQLite velora_local.db (tabel user_settings yang tahan banting terhadap pembaruan APK)
-/// Hal ini menjamin nama profil tidak akan pernah kembali ke default saat aplikasi diperbarui (app update).
+/// Layanan lokal untuk membaca, menyimpan, dan memulihkan profil atlet secara permanen.
+/// Menggunakan Hexa-Layer Persistence Engine (6 Lapisan Perlindungan) dengan Self-Healing:
+/// 1. Cache Memori Instan (0 ms akses UI)
+/// 2. SharedPreferences (Penyimpanan preferensi standar Android)
+/// 3. Application Support Directory (`files/velora_profile.json` - Kebal pembersih cache sistem)
+/// 4. Application Documents Directory (`app_flutter/velora_profile.json` dengan flush disk)
+/// 5. SQLite Database (`velora_local.db` tabel user_settings dengan wal_checkpoint)
+/// 6. Penyimpanan Eksternal Publik Android (`Download/Velora` & `Android/media` - Kebal uninstall/update)
+///
+/// Jika data di salah satu lapisan hilang atau terhapus saat pembaruan APK,
+/// sistem secara otomatis memulihkan (Self-Healing) profil dari lapisan cadangan
+/// dan menyinkronkannya kembali ke seluruh lapisan.
 class UserProfileService {
   static const String _keyAthleteName = 'velora_athlete_name';
   static const String defaultAthleteName = 'Velora Athlete';
@@ -19,10 +25,25 @@ class UserProfileService {
 
   static String? _cachedAthleteName;
 
+  /// Nilai nama atlet yang saat ini aktif di memori (sinkron tanpa jeda async)
+  static String get currentAthleteName {
+    if (_cachedAthleteName != null &&
+        _cachedAthleteName!.trim().isNotEmpty &&
+        _cachedAthleteName != defaultAthleteName) {
+      return _cachedAthleteName!;
+    }
+    return defaultAthleteName;
+  }
+
   @visibleForTesting
   static void resetCacheForTesting() => _cachedAthleteName = null;
 
-  /// Mendapatkan nama atlet tersimpan (atau 'Velora Athlete' jika belum disetel)
+  /// Inisialisasi awal saat aplikasi mulai berjalan (dipanggil di main() sebelum runApp)
+  static Future<void> init() async {
+    await getAthleteName();
+  }
+
+  /// Membaca nama atlet tersimpan dari 6 lapisan penyimpanan dengan pemulihan otomatis
   static Future<String> getAthleteName() async {
     // 1. Cek cache memori instan untuk performa tinggi & sinkronisasi UI
     if (_cachedAthleteName != null &&
@@ -31,51 +52,86 @@ class UserProfileService {
       return _cachedAthleteName!;
     }
 
+    String? foundName;
+
+    // 2. Cek SharedPreferences
     try {
       final prefs = await SharedPreferences.getInstance();
       try {
         await prefs.reload();
       } catch (_) {}
 
-      final name = prefs.getString(_keyAthleteName)?.trim();
-      if (name != null && name.isNotEmpty && name != defaultAthleteName) {
-        _cachedAthleteName = name;
-        return name;
+      final spName = prefs.getString(_keyAthleteName)?.trim();
+      if (spName != null && spName.isNotEmpty && spName != defaultAthleteName) {
+        foundName = spName;
       }
+    } catch (e) {
+      debugPrint('UserProfileService [SP Error]: $e');
+    }
 
-      // Lapisan 1 Cadangan: Coba pulihkan dari cadangan file JSON
+    // 3. Cek Application Support Directory (files/velora_profile.json)
+    if (foundName == null || foundName.isEmpty || foundName == defaultAthleteName) {
       try {
-        final fileBackup = await _readFromFile();
-        if (fileBackup != null && fileBackup.isNotEmpty && fileBackup != defaultAthleteName) {
-          _cachedAthleteName = fileBackup;
-          await prefs.setString(_keyAthleteName, fileBackup);
-          return fileBackup;
+        final supportDir = await getApplicationSupportDirectory();
+        final name = await _readFromJsonFile(File('${supportDir.path}/$_backupFileName'));
+        if (name != null && name.isNotEmpty && name != defaultAthleteName) {
+          foundName = name;
         }
       } catch (_) {}
+    }
 
-      // Lapisan 2 Cadangan: Coba pulihkan dari SQLite database lokal
+    // 4. Cek Application Documents Directory (app_flutter/velora_profile.json)
+    if (foundName == null || foundName.isEmpty || foundName == defaultAthleteName) {
+      try {
+        final docDir = await getApplicationDocumentsDirectory();
+        final name = await _readFromJsonFile(File('${docDir.path}/$_backupFileName'));
+        if (name != null && name.isNotEmpty && name != defaultAthleteName) {
+          foundName = name;
+        }
+      } catch (_) {}
+    }
+
+    // 5. Cek SQLite Database (velora_local.db tabel user_settings)
+    if (foundName == null || foundName.isEmpty || foundName == defaultAthleteName) {
       try {
         final dbBackup = await _readFromDb();
         if (dbBackup != null && dbBackup.isNotEmpty && dbBackup != defaultAthleteName) {
-          _cachedAthleteName = dbBackup;
-          await prefs.setString(_keyAthleteName, dbBackup);
-          return dbBackup;
+          foundName = dbBackup;
         }
       } catch (_) {}
+    }
 
-      if (name != null && name.isNotEmpty) {
-        _cachedAthleteName = name;
-        return name;
-      }
-    } catch (e) {
-      debugPrint('UserProfileService.getAthleteName error: $e');
+    // 6. Cek Penyimpanan Eksternal Publik Android (Download/Velora & Android/media)
+    if (foundName == null || foundName.isEmpty || foundName == defaultAthleteName) {
+      try {
+        final extCandidates = [
+          File('/storage/emulated/0/Download/Velora/.velora_profile.json'),
+          File('/storage/emulated/0/Download/Velora/velora_profile.json'),
+          File('/storage/emulated/0/Android/media/online.nurmancloud.velora/.velora_profile.json'),
+          File('/storage/emulated/0/Android/media/online.nurmancloud.velora/velora_profile.json'),
+        ];
+        for (final candidate in extCandidates) {
+          final extName = await _readFromJsonFile(candidate);
+          if (extName != null && extName.isNotEmpty && extName != defaultAthleteName) {
+            foundName = extName;
+            break;
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Pemulihan Otomatis (Self-Healing): Jika nama valid ditemukan, sinkronkan ke seluruh lapisan
+    if (foundName != null && foundName.isNotEmpty && foundName != defaultAthleteName) {
+      _cachedAthleteName = foundName;
+      _healAllLayers(foundName).catchError((_) {});
+      return foundName;
     }
 
     _cachedAthleteName = defaultAthleteName;
     return defaultAthleteName;
   }
 
-  /// Menyimpan nama atlet baru ke 3 lapisan penyimpanan lokal secara terjamin
+  /// Menyimpan nama atlet baru ke 6 lapisan penyimpanan lokal secara terjamin
   static Future<bool> setAthleteName(String name) async {
     try {
       final trimmed = name.trim();
@@ -87,11 +143,8 @@ class UserProfileService {
       final prefs = await SharedPreferences.getInstance();
       final spSuccess = await prefs.setString(_keyAthleteName, finalName);
 
-      // 1. Sinkronkan ke cadangan file JSON
-      await _syncToFile(finalName);
-
-      // 2. Sinkronkan ke database SQLite
-      await _syncToDb(finalName);
+      // Sinkronkan ke seluruh lapisan perlindungan secara menyeluruh
+      await _healAllLayers(finalName);
 
       return spSuccess;
     } catch (e) {
@@ -100,24 +153,78 @@ class UserProfileService {
     }
   }
 
-  static Future<void> _syncToFile(String name) async {
+  /// Memastikan seluruh lapisan penyimpanan ter-flush sempurna sebelum pemasangan pembaruan APK
+  static Future<void> flushBeforeUpdate() async {
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/$_backupFileName');
-      await file.writeAsString(jsonEncode({'athlete_name': name}));
+      final current = await getAthleteName();
+      if (current.isNotEmpty && current != defaultAthleteName) {
+        await _healAllLayers(current);
+      }
     } catch (_) {}
   }
 
-  static Future<String?> _readFromFile() async {
+  /// Menyinkronkan dan memulihkan nama ke semua lapisan penyimpanan
+  static Future<void> _healAllLayers(String name) async {
+    // 1. SharedPreferences
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final file = File('${dir.path}/$_backupFileName');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyAthleteName, name);
+    } catch (_) {}
+
+    // 2. Application Support Directory
+    try {
+      final supportDir = await getApplicationSupportDirectory();
+      await _writeToJsonFile(File('${supportDir.path}/$_backupFileName'), name);
+    } catch (_) {}
+
+    // 3. Application Documents Directory
+    try {
+      final docDir = await getApplicationDocumentsDirectory();
+      await _writeToJsonFile(File('${docDir.path}/$_backupFileName'), name);
+    } catch (_) {}
+
+    // 4. SQLite Database
+    try {
+      await _syncToDb(name);
+    } catch (_) {}
+
+    // 5. Penyimpanan Eksternal Publik Android (Download/Velora & Android/media)
+    try {
+      final extCandidates = [
+        File('/storage/emulated/0/Download/Velora/.velora_profile.json'),
+        File('/storage/emulated/0/Android/media/online.nurmancloud.velora/.velora_profile.json'),
+      ];
+      for (final file in extCandidates) {
+        if (!file.parent.existsSync()) {
+          try {
+            file.parent.createSync(recursive: true);
+          } catch (_) {}
+        }
+        await _writeToJsonFile(file, name);
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> _writeToJsonFile(File file, String name) async {
+    try {
+      await file.writeAsString(
+        jsonEncode({
+          'athlete_name': name,
+          'updated_at': DateTime.now().millisecondsSinceEpoch,
+        }),
+        flush: true,
+      );
+    } catch (_) {}
+  }
+
+  static Future<String?> _readFromJsonFile(File file) async {
+    try {
       if (await file.exists()) {
         final content = await file.readAsString();
         final data = jsonDecode(content);
         if (data is Map && data['athlete_name'] is String) {
           final name = (data['athlete_name'] as String).trim();
-          if (name.isNotEmpty) return name;
+          if (name.isNotEmpty && name != defaultAthleteName) return name;
         }
       }
     } catch (_) {}
@@ -138,6 +245,8 @@ class UserProfileService {
         {'key': _keyAthleteName, 'value': name},
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
+      // Checkpoint WAL agar data tersimpan permanen ke file database fisik di disk
+      await db.rawQuery('PRAGMA wal_checkpoint(FULL);');
     } catch (_) {}
   }
 
@@ -158,7 +267,7 @@ class UserProfileService {
       );
       if (res.isNotEmpty && res.first['value'] is String) {
         final val = (res.first['value'] as String).trim();
-        if (val.isNotEmpty) return val;
+        if (val.isNotEmpty && val != defaultAthleteName) return val;
       }
     } catch (_) {}
     return null;

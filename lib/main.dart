@@ -7,6 +7,7 @@ import 'providers/history_provider.dart';
 import 'providers/tracking_provider.dart';
 import 'screens/main_navigation_screen.dart';
 import 'services/foreground_service_handler.dart';
+import 'services/user_profile_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,9 @@ void main() async {
 
   // Inisialisasi Layanan Foreground Service untuk pelacakan latar belakang
   await ForegroundServiceHandler.initService();
+
+  // Inisialisasi & pulihkan profil atlet dari multi-tier storage sebelum UI dirender
+  await UserProfileService.init();
 
   runApp(const VeloraApp());
 }
