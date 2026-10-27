@@ -45,12 +45,30 @@ class UpdateService {
       final releaseHtmlUrl =
           'https://github.com/$githubOwner/$githubRepo/releases/tag/v$latestVersion';
 
+      String releaseNotes = 'Pembaruan aplikasi Velora terbaru siap dipasang.';
+      try {
+        final changelogUri = Uri.parse(
+          'https://raw.githubusercontent.com/$githubOwner/$githubRepo/main/CHANGELOG.md?t=${DateTime.now().millisecondsSinceEpoch}',
+        );
+        final changelogResp = await http.get(changelogUri).timeout(const Duration(seconds: 5));
+        if (changelogResp.statusCode == 200) {
+          final bodyText = changelogResp.body;
+          final versionHeader = RegExp(
+            r'##\s*\[v?' + RegExp.escape(latestVersion) + r'\][^\n]*\n([\s\S]*?)(?=\n##\s*\[|$)',
+          );
+          final m = versionHeader.firstMatch(bodyText);
+          if (m != null && m.group(1) != null && m.group(1)!.trim().isNotEmpty) {
+            releaseNotes = m.group(1)!.trim();
+          }
+        }
+      } catch (_) {}
+
       return AppUpdateInfo(
         currentVersion: currentVersion,
         latestVersion: latestVersion,
         hasUpdate: hasUpdate,
         releaseTitle: 'Versi v$latestVersion',
-        releaseNotes: 'Pembaruan aplikasi Velora terbaru siap dipasang.',
+        releaseNotes: releaseNotes,
         downloadUrl: downloadUrl,
         releaseHtmlUrl: releaseHtmlUrl,
         publishedAt: null,
