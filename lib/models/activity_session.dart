@@ -54,11 +54,18 @@ class ActivitySession {
 
   /// String format pace lari (cth: 5'12")
   String get formattedPace {
-    if (averagePaceSecondsPerKm <= 0 || averagePaceSecondsPerKm > 3600) {
+    if (averagePaceSecondsPerKm.isNaN ||
+        averagePaceSecondsPerKm.isInfinite ||
+        averagePaceSecondsPerKm <= 0 ||
+        averagePaceSecondsPerKm > 3600) {
       return "--'--\"";
     }
-    final mins = averagePaceSecondsPerKm ~/ 60;
-    final secs = (averagePaceSecondsPerKm % 60).round();
+    final int totalSecs = averagePaceSecondsPerKm.round();
+    if (totalSecs <= 0 || totalSecs > 3600) {
+      return "--'--\"";
+    }
+    final mins = totalSecs ~/ 60;
+    final secs = totalSecs % 60;
     return "$mins'${secs.toString().padLeft(2, '0')}\"";
   }
 

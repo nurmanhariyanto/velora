@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:velora/models/activity_session.dart';
 import 'package:velora/models/coordinate_point.dart';
 import 'package:velora/models/sports_type.dart';
 import 'package:velora/services/social_share_service.dart';
+import 'package:velora/widgets/mini_route_painter.dart';
 import 'package:velora/widgets/social_share_card.dart';
 
 void main() {
@@ -410,6 +412,246 @@ void main() {
 
       // Bersihkan file tes
       await file.delete();
+    });
+
+    group('Formula formatCleanPace & formatCleanDuration Unit Tests', () {
+      test('formatCleanPace mengonversi pace normal dengan benar', () {
+        expect(SocialShareCard.formatCleanPace(313.0), equals('5:13 /km'));
+        expect(SocialShareCard.formatCleanPace(300.0), equals('5:00 /km'));
+        expect(SocialShareCard.formatCleanPace(359.0), equals('5:59 /km'));
+      });
+
+      test('formatCleanPace menangani pembulatan detik ke 60 (mencegah format waktu anomali 5:60 /km)', () {
+        // Kasus 359.8 detik (5 menit 59.8 detik) harus dibulatkan ke 6:00 /km, bukan 5:60 /km
+        expect(SocialShareCard.formatCleanPace(359.8), equals('6:00 /km'));
+        // Kasus 59.9 detik harus menjadi 1:00 /km, bukan 0:60 /km
+        expect(SocialShareCard.formatCleanPace(59.9), equals('1:00 /km'));
+        // Kasus 3599.6 detik harus dibulatkan ke 60:00 /km, bukan 59:60 /km
+        expect(SocialShareCard.formatCleanPace(3599.6), equals('60:00 /km'));
+      });
+
+      test('formatCleanPace menangani batas ekstrem, NaN, Infinity, dan angka negatif tanpa crash', () {
+        expect(SocialShareCard.formatCleanPace(double.nan), equals('--:-- /km'));
+        expect(SocialShareCard.formatCleanPace(double.infinity), equals('--:-- /km'));
+        expect(SocialShareCard.formatCleanPace(-double.infinity), equals('--:-- /km'));
+        expect(SocialShareCard.formatCleanPace(0.0), equals('--:-- /km'));
+        expect(SocialShareCard.formatCleanPace(0.2), equals('--:-- /km'));
+        expect(SocialShareCard.formatCleanPace(-10.0), equals('--:-- /km'));
+        expect(SocialShareCard.formatCleanPace(3600.5), equals('--:-- /km'));
+        expect(SocialShareCard.formatCleanPace(5000.0), equals('--:-- /km'));
+      });
+
+      test('formatCleanDuration memformat durasi waktu bersih dengan benar', () {
+        expect(SocialShareCard.formatCleanDuration(0), equals('0m 0s'));
+        expect(SocialShareCard.formatCleanDuration(-15), equals('0m 0s'));
+        expect(SocialShareCard.formatCleanDuration(45), equals('0m 45s'));
+        expect(SocialShareCard.formatCleanDuration(3267), equals('54m 27s'));
+        expect(SocialShareCard.formatCleanDuration(3600), equals('1h 0m 0s'));
+        expect(SocialShareCard.formatCleanDuration(7325), equals('2h 2m 5s'));
+      });
+
+      test('ActivitySession.formattedPace menangani NaN dan pembulatan detik 60 secara aman', () {
+        final sessionEdge = ActivitySession(
+          id: 'edge-pace',
+          startTime: 1000,
+          endTime: 2000,
+          sportsType: SportsType.run,
+          distanceMeters: 5000,
+          durationSeconds: 1800,
+          elevationGain: 0,
+          maxSpeedKmh: 12.0,
+          averageSpeedKmh: 10.0,
+          averagePaceSecondsPerKm: 359.8,
+        );
+        expect(sessionEdge.formattedPace, equals("6'00\""));
+
+        final sessionNaN = ActivitySession(
+          id: 'nan-pace',
+          startTime: 1000,
+          endTime: 2000,
+          sportsType: SportsType.run,
+          distanceMeters: 5000,
+          durationSeconds: 1800,
+          elevationGain: 0,
+          maxSpeedKmh: 12.0,
+          averageSpeedKmh: 10.0,
+          averagePaceSecondsPerKm: double.nan,
+        );
+        expect(sessionNaN.formattedPace, equals("--'--\""));
+      });
+    });
+
+    group('MiniRoutePainter Unit & Canvas Scaling Tests', () {
+      test('MiniRoutePainter merender kanvas dengan aman ketika titik koordinat < 2', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+        const size = Size(200, 200);
+
+        // Kasus 0 titik
+        final painterEmpty = MiniRoutePainter(coordinates: const []);
+        expect(() => painterEmpty.paint(canvas, size), returnsNormally);
+
+        // Kasus 1 titik
+        final painterSingle = MiniRoutePainter(
+          coordinates: [
+            CoordinatePoint(activityId: 't1', latitude: -0.02, longitude: 109.34, timestamp: 1000),
+          ],
+        );
+        expect(() => painterSingle.paint(canvas, size), returnsNormally);
+      });
+
+      test('MiniRoutePainter menangani rute lurus horizontal (East-West) tanpa distorsi skala', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+        const size = Size(200, 200);
+
+        final horizontalPoints = [
+          CoordinatePoint(activityId: 't2', latitude: -0.0263, longitude: 109.3000, timestamp: 1000),
+          CoordinatePoint(activityId: 't2', latitude: -0.0263, longitude: 109.3500, timestamp: 2000),
+        ];
+
+        final painter = MiniRoutePainter(coordinates: horizontalPoints);
+        expect(() => painter.paint(canvas, size), returnsNormally);
+      });
+
+      test('MiniRoutePainter menangani rute lurus vertikal (North-South) tanpa distorsi skala', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+        const size = Size(200, 200);
+
+        final verticalPoints = [
+          CoordinatePoint(activityId: 't3', latitude: -0.0200, longitude: 109.3425, timestamp: 1000),
+          CoordinatePoint(activityId: 't3', latitude: -0.0800, longitude: 109.3425, timestamp: 2000),
+        ];
+
+        final painter = MiniRoutePainter(coordinates: verticalPoints);
+        expect(() => painter.paint(canvas, size), returnsNormally);
+      });
+
+      test('MiniRoutePainter mengabaikan koordinat NaN dan Infinity secara aman', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+        const size = Size(200, 200);
+
+        final mixedPoints = [
+          CoordinatePoint(activityId: 't4', latitude: double.nan, longitude: 109.3425, timestamp: 1000),
+          CoordinatePoint(activityId: 't4', latitude: -0.0200, longitude: 109.3425, timestamp: 2000),
+          CoordinatePoint(activityId: 't4', latitude: -0.0250, longitude: double.infinity, timestamp: 3000),
+          CoordinatePoint(activityId: 't4', latitude: -0.0300, longitude: 109.3500, timestamp: 4000),
+        ];
+
+        final painter = MiniRoutePainter(coordinates: mixedPoints);
+        expect(() => painter.paint(canvas, size), returnsNormally);
+      });
+
+      test('MiniRoutePainter shouldRepaint mengecek kesetaraan atribut dengan benar', () {
+        final pointsA = [
+          CoordinatePoint(activityId: 't5', latitude: -0.02, longitude: 109.34, timestamp: 1000),
+          CoordinatePoint(activityId: 't5', latitude: -0.03, longitude: 109.35, timestamp: 2000),
+        ];
+        final pointsB = [
+          CoordinatePoint(activityId: 't5', latitude: -0.04, longitude: 109.36, timestamp: 3000),
+          CoordinatePoint(activityId: 't5', latitude: -0.05, longitude: 109.37, timestamp: 4000),
+        ];
+
+        final p1 = MiniRoutePainter(coordinates: pointsA, routeColor: Colors.orange, strokeWidth: 3.5, showMarkers: true);
+        final pSame = MiniRoutePainter(coordinates: pointsA, routeColor: Colors.orange, strokeWidth: 3.5, showMarkers: true);
+        final pDiffColor = MiniRoutePainter(coordinates: pointsA, routeColor: Colors.blue, strokeWidth: 3.5, showMarkers: true);
+        final pDiffStroke = MiniRoutePainter(coordinates: pointsA, routeColor: Colors.orange, strokeWidth: 5.0, showMarkers: true);
+        final pDiffMarkers = MiniRoutePainter(coordinates: pointsA, routeColor: Colors.orange, strokeWidth: 3.5, showMarkers: false);
+        final pDiffCoords = MiniRoutePainter(coordinates: pointsB, routeColor: Colors.orange, strokeWidth: 3.5, showMarkers: true);
+
+        expect(p1.shouldRepaint(pSame), isFalse);
+        expect(p1.shouldRepaint(pDiffColor), isTrue);
+        expect(p1.shouldRepaint(pDiffStroke), isTrue);
+        expect(p1.shouldRepaint(pDiffMarkers), isTrue);
+        expect(p1.shouldRepaint(pDiffCoords), isTrue);
+      });
+    });
+
+    group('SocialShareCard Extended Scenarios Widget Tests', () {
+      testWidgets('SocialShareCard gaya Clean menangani sesi tanpa GPS (0 titik koordinat) secara anggun',
+          (WidgetTester tester) async {
+        final repaintKey = GlobalKey();
+
+        final indoorSession = ActivitySession(
+          id: 'test-indoor-1',
+          startTime: DateTime(2026, 10, 17, 7, 0).millisecondsSinceEpoch,
+          endTime: DateTime(2026, 10, 17, 7, 30).millisecondsSinceEpoch,
+          sportsType: SportsType.run,
+          distanceMeters: 5000.0,
+          durationSeconds: 1800,
+          elevationGain: 0.0,
+          maxSpeedKmh: 10.0,
+          averageSpeedKmh: 10.0,
+          averagePaceSecondsPerKm: 360.0,
+          coordinates: const [], // Tanpa koordinat GPS
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 360,
+                  height: 640,
+                  child: SocialShareCard(
+                    session: indoorSession,
+                    style: ShareCardStyle.clean,
+                    repaintKey: repaintKey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(repaintKey), findsOneWidget);
+        expect(find.text('Distance'), findsOneWidget);
+        expect(find.text('5.00 km'), findsOneWidget);
+        expect(find.text('Pace'), findsOneWidget);
+        expect(find.text('6:00 /km'), findsOneWidget);
+        expect(find.text('Time'), findsOneWidget);
+        expect(find.text('30m 0s'), findsOneWidget);
+        expect(find.text('VELORA'), findsOneWidget);
+      });
+
+      testWidgets('SocialShareCard gaya Foto (ShareCardStyle.photo) merender konten teks clean dengan shadow',
+          (WidgetTester tester) async {
+        final repaintKey = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 360,
+                  height: 640,
+                  child: SocialShareCard(
+                    session: dummySession,
+                    style: ShareCardStyle.photo,
+                    backgroundPhotoPath: null, // Fallback ke hitam pekat jika foto tidak ada
+                    repaintKey: repaintKey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(repaintKey), findsOneWidget);
+        expect(find.text('Distance'), findsOneWidget);
+        expect(find.text('25.40 km'), findsOneWidget);
+        expect(find.text('Speed'), findsOneWidget);
+        expect(find.text('25.4 km/h'), findsOneWidget);
+        expect(find.text('Time'), findsOneWidget);
+        expect(find.text('1h 0m 0s'), findsOneWidget);
+        expect(find.text('VELORA'), findsOneWidget);
+      });
     });
   });
 }
