@@ -68,6 +68,7 @@ class TrackingProvider extends ChangeNotifier {
   final List<CoordinatePoint> _coordinates = [];
   Position? _currentPosition;
   StreamSubscription<Position>? _locationSubscription;
+  StreamSubscription<Position>? _idleLocationSub;
 
   // Getters
   TrackingStatus get status => _status;
@@ -107,12 +108,91 @@ class TrackingProvider extends ChangeNotifier {
       PaceCalculator.formatPace(averagePaceSecondsPerKm);
 
   /// Inisialisasi posisi awal pengguna pada peta sebelum tracking dimulai
-  Future<void> fetchInitialPosition() async {
-    final pos = await _locationService.getCurrentPosition();
+  Future<Position?> fetchInitialPosition() async {
+    // 1. Ambil posisi terakhir yang diketahui secara instan (cache OS) agar peta langsung terpusat
+    if (_currentPosition == null) {
+      try {
+        final lastKnown = await _locationService.getLastKnownPosition();
+        if (lastKnown != null && _currentPosition == null) {
+          _currentPosition = lastKnown;
+          notifyListeners();
+        }
+      } catch (_) {}
+    }
+
+    // 2. Dapatkan sinyal GPS real-time terbaru dengan akurasi tinggi
+    try {
+      final pos = await _locationService.getCurrentPosition();
+      if (pos != null) {
+        _currentPosition = pos;
+        notifyListeners();
+      }
+    } catch (_) {}
+
+    return _currentPosition;
+  }
+
+  /// Memperbarui posisi saat ini secara eksplisit (cth: saat tombol pusatkan lokasi ditekan)
+  Future<({Position? position, String? message})> refreshLocation() async {
+    // Periksa status hardware GPS dan izin aplikasi
+    final diag = await _locationService.checkDiagnostics();
+    if (!diag.serviceEnabled || !diag.permissionGranted) {
+      return (position: null, message: diag.issueMessage);
+    }
+
+    // Coba last known terlebih dahulu jika saat ini masih null
+    if (_currentPosition == null) {
+      final lastKnown = await _locationService.getLastKnownPosition();
+      if (lastKnown != null) {
+        _currentPosition = lastKnown;
+        notifyListeners();
+      }
+    }
+
+    // Ambil posisi satelit akurat dengan batas waktu 8 detik
+    final pos = await _locationService.getCurrentPosition(
+      timeLimit: const Duration(seconds: 8),
+    );
     if (pos != null) {
       _currentPosition = pos;
       notifyListeners();
+      return (position: pos, message: null);
     }
+
+    if (_currentPosition != null) {
+      return (position: _currentPosition, message: null);
+    }
+
+    return (
+      position: null,
+      message: 'Sedang menunggu sinyal satelit GPS. Pastikan Anda berada di area terbuka.',
+    );
+  }
+
+  /// Memulai stream lokasi saat status idle agar titik peta mengikuti posisi pengguna
+  void startIdleLocationListener() {
+    if (_status != TrackingStatus.idle || _idleLocationSub != null) return;
+    try {
+      _idleLocationSub = _locationService.startLocationStream(
+        distanceFilterMeters: 2,
+        intervalDurationSeconds: 2,
+      ).listen(
+        (pos) {
+          if (_status == TrackingStatus.idle) {
+            _currentPosition = pos;
+            notifyListeners();
+          }
+        },
+        onError: (_) {},
+        cancelOnError: false,
+      );
+    } catch (_) {}
+  }
+
+  /// Menghentikan stream lokasi idle
+  void stopIdleLocationListener() {
+    _idleLocationSub?.cancel();
+    _idleLocationSub = null;
   }
 
   /// Mengganti jenis olahraga saat status idle
@@ -127,6 +207,9 @@ class TrackingProvider extends ChangeNotifier {
   Future<bool> startTracking() async {
     final hasPermission = await _locationService.checkAndRequestPermissions();
     if (!hasPermission) return false;
+
+    // Hentikan listener lokasi idle karena pelacakan aktif segera dimulai
+    stopIdleLocationListener();
 
     // Pastikan izin notifikasi aktif di Android 13+ agar tombol pintasan muncul
     await ForegroundServiceHandler.requestNotificationPermission();
@@ -224,6 +307,7 @@ class TrackingProvider extends ChangeNotifier {
     // Reset status pelacakan kembali ke idle agar siap untuk sesi baru berikutnya
     _status = TrackingStatus.idle;
     _resetState();
+    startIdleLocationListener();
 
     notifyListeners();
     return session;
@@ -238,6 +322,7 @@ class TrackingProvider extends ChangeNotifier {
     _locationService.stop();
     await ForegroundServiceHandler.stop();
     _resetState();
+    startIdleLocationListener();
     notifyListeners();
   }
 
@@ -414,6 +499,7 @@ class TrackingProvider extends ChangeNotifier {
   @override
   void dispose() {
     _stopTimer();
+    stopIdleLocationListener();
     _locationSubscription?.cancel();
     super.dispose();
   }

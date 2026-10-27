@@ -27,8 +27,89 @@ class _TrackingScreenState extends State<TrackingScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<TrackingProvider>().fetchInitialPosition();
+      final tracking = context.read<TrackingProvider>();
+      tracking.fetchInitialPosition();
+      tracking.startIdleLocationListener();
     });
+  }
+
+  Future<void> _handleRecenter() async {
+    final tracking = context.read<TrackingProvider>();
+
+    // Jika posisi GPS belum didapatkan, lakukan pencarian eksplisit dan tampilkan status
+    if (tracking.currentPosition == null) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.neonCyan),
+                ),
+              ),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Mencari titik lokasi GPS terkini...',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                ),
+              ),
+            ],
+          ),
+          duration: Duration(seconds: 4),
+          backgroundColor: AppColors.cardSurfaceElevated,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      final result = await tracking.refreshLocation();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      if (result.position != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 20),
+                SizedBox(width: 10),
+                Text(
+                  'Lokasi GPS berhasil ditemukan!',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                ),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+            backgroundColor: AppColors.cardSurfaceElevated,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else if (result.message != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.location_off_rounded, color: AppColors.neonRed, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    result.message!,
+                    style: const TextStyle(color: AppColors.textPrimary, fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 4),
+            backgroundColor: AppColors.cardSurfaceElevated,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _handleStopSession() async {
@@ -137,6 +218,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
               currentLocation: currentLatLng,
               isTracking: tracking.status.isRecording,
               autoCenter: true,
+              onRecenter: _handleRecenter,
             ),
           ),
 

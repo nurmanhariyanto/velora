@@ -24,6 +24,7 @@ class LiveMapView extends StatefulWidget {
   final SportsType sportsType;
   final List<CoordinatePoint>? highlightedSegment;
   final void Function(TrackMilestone)? onMilestoneTapped;
+  final VoidCallback? onRecenter;
 
   const LiveMapView({
     super.key,
@@ -35,6 +36,7 @@ class LiveMapView extends StatefulWidget {
     this.sportsType = SportsType.ride,
     this.highlightedSegment,
     this.onMilestoneTapped,
+    this.onRecenter,
   });
 
   @override
@@ -74,11 +76,34 @@ class _LiveMapViewState extends State<LiveMapView> {
     if (widget.showTrackMilestones != oldWidget.showTrackMilestones) {
       _showMilestones = widget.showTrackMilestones;
     }
-    if (widget.autoCenter &&
+
+    final isFirstLocation = oldWidget.currentLocation == null && widget.currentLocation != null;
+    if (isFirstLocation) {
+      _safeMoveMap(widget.currentLocation!, 16.5);
+    } else if (widget.autoCenter &&
         !_userInteracted &&
         widget.currentLocation != null &&
         widget.currentLocation != oldWidget.currentLocation) {
-      _mapController.move(widget.currentLocation!, _mapController.camera.zoom);
+      final currentZoom = () {
+        try {
+          return _mapController.camera.zoom;
+        } catch (_) {
+          return 16.5;
+        }
+      }();
+      _safeMoveMap(widget.currentLocation!, currentZoom);
+    }
+  }
+
+  void _safeMoveMap(LatLng target, double zoom) {
+    try {
+      _mapController.move(target, zoom);
+    } catch (_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        try {
+          _mapController.move(target, zoom);
+        } catch (_) {}
+      });
     }
   }
 
@@ -87,11 +112,12 @@ class _LiveMapViewState extends State<LiveMapView> {
       _userInteracted = false;
     });
     if (widget.currentLocation != null) {
-      _mapController.move(widget.currentLocation!, 16.5);
+      _safeMoveMap(widget.currentLocation!, 16.5);
     } else if (widget.coordinates.isNotEmpty) {
       final last = widget.coordinates.last;
-      _mapController.move(LatLng(last.latitude, last.longitude), 16.5);
+      _safeMoveMap(LatLng(last.latitude, last.longitude), 16.5);
     }
+    widget.onRecenter?.call();
   }
 
   void _toggleMapTheme() {
@@ -258,8 +284,8 @@ class _LiveMapViewState extends State<LiveMapView> {
                 if (widget.currentLocation != null)
                   Marker(
                     point: widget.currentLocation!,
-                    width: 44,
-                    height: 44,
+                    width: 48,
+                    height: 48,
                     child: _buildCurrentLocationMarker(),
                   ),
               ],
@@ -391,28 +417,53 @@ class _LiveMapViewState extends State<LiveMapView> {
     return Stack(
       alignment: Alignment.center,
       children: [
+        // 1. Halo pendar luar bercahaya
         Container(
-          width: 36,
-          height: 36,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
-            color: AppColors.neonCyan.withAlpha(60),
+            color: AppColors.neonCyan.withAlpha(45),
             shape: BoxShape.circle,
           ),
         ),
+        // 2. Ring pendar menengah bergaris halus
         Container(
-          width: 18,
-          height: 18,
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: AppColors.neonCyan.withAlpha(85),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.neonCyan.withAlpha(150),
+              width: 1.2,
+            ),
+          ),
+        ),
+        // 3. Titik Inti Biru Neon Velora dengan border putih tebal & bayangan tajam
+        Container(
+          width: 16,
+          height: 16,
           decoration: BoxDecoration(
             color: AppColors.neonCyan,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2.5),
             boxShadow: const [
               BoxShadow(
-                color: Colors.black45,
-                blurRadius: 8,
+                color: Colors.black87,
+                blurRadius: 6,
                 offset: Offset(0, 2),
               ),
             ],
+          ),
+          child: Center(
+            child: Container(
+              width: 4,
+              height: 4,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+              ),
+            ),
           ),
         ),
       ],

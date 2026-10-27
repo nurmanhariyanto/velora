@@ -4,9 +4,21 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 
 ## [v1.0.12] - 2026-10-27
 
-### 🌟 Clean Strava-Style Social Share, Typography Putih & Pembaruan Sistem Kartu
+### 🌟 Clean Strava-Style Social Share, Pelacakan Lokasi Aktif & Pusatkan Lokasi Pintar
 
-#### 🌟 1. Format Kartu Berbagi Clean Minimalis (Strava Style)
+#### 📍 1. Peningkatan Titik Lokasi Peta & Tombol Pusatkan Lokasi Pintar
+- **Desain Titik Lokasi Bercahaya (*Luminous Multi-Layer GPS Beacon*):**
+  - Mengubah penanda lokasi saat ini menjadi suar pendar multi-lapis (halo pendar luar 44px, cincin pembatas bergaris 28px, dan titik inti neon cyan 16px dengan border putih tebal serta *center dot* presisi) yang kontras di tema gelap maupun terang.
+- **Pemuatan Posisi Seketika (*Instant Zero-Latency Location*):**
+  - Mengambil *last known position* dari cache sistem Android dalam hitungan milidetik saat menu pelacakan dibuka, mencegah peta terpaku di koordinat default saat inisialisasi satelit.
+- **Stream Lokasi Pasif Mode Diam (*Idle State Location Stream*):**
+  - Mengaktifkan stream pembaruan koordinat pasif berdaya hemat saat berada di mode diam (*idle*), sehingga titik posisi pengguna langsung mengikuti pergerakan nyata sebelum tombol "MULAI" ditekan.
+- **Tombol Pusatkan Lokasi Pintar (*Smart Recenter with Auto Re-fetch*):**
+  - Mengintegrasikan callback `onRecenter` pada `LiveMapView`: jika koordinat belum terkunci, aplikasi langsung memicu pencarian ulang satelit GPS, memberikan feedback status melayang (*floating SnackBar*), serta memvalidasi kesiapan hardware GPS & izin lokasi perangkat.
+- **Pengujian Otomatis (148/148 Tes Lulus 100%):**
+  - Penambahan rangkaian pengujian di `test/location_recenter_test.dart` untuk memvalidasi interaksi pusatkan lokasi, penanganan nilai `currentLocation == null`, serta siklus hidup stream posisi idle.
+
+#### 🌟 2. Format Kartu Berbagi Clean Minimalis (Strava Style)
 - **Latar Belakang Solid Hitam Pekat (*Pure Solid Black* `#000000`):**
   - Mengeliminasi distraksi visual untuk menghadirkan kontras maksimal pada metrik utama dan siluet rute.
 - **Tiga Metrik Performa Inti Vertikal:**

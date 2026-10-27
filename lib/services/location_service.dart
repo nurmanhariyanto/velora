@@ -12,40 +12,101 @@ class LocationService {
 
   /// Memeriksa dan meminta izin lokasi Android/iOS
   Future<bool> checkAndRequestPermissions() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return false;
-    }
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
         return false;
       }
-    }
 
-    if (permission == LocationPermission.deniedForever) {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          return false;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        return false;
+      }
+
+      return true;
+    } catch (_) {
       return false;
     }
-
-    return true;
   }
 
-  /// Mengambil lokasi saat ini satu kali (untuk inisialisasi peta)
-  Future<Position?> getCurrentPosition() async {
+  /// Memeriksa status diagnosis layanan lokasi dan izin untuk memberikan pesan informatif
+  Future<({bool serviceEnabled, bool permissionGranted, String? issueMessage})> checkDiagnostics() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return (
+          serviceEnabled: false,
+          permissionGranted: false,
+          issueMessage: 'Layanan GPS/lokasi perangkat belum aktif. Silakan aktifkan GPS di pengaturan HP Anda.',
+        );
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          return (
+            serviceEnabled: true,
+            permissionGranted: false,
+            issueMessage: 'Izin akses lokasi ditolak. Velora membutuhkan izin lokasi untuk menampilkan posisi Anda.',
+          );
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        return (
+          serviceEnabled: true,
+          permissionGranted: false,
+          issueMessage: 'Izin lokasi ditolak permanen. Buka Pengaturan Aplikasi di HP untuk mengizinkan akses lokasi.',
+        );
+      }
+
+      return (
+        serviceEnabled: true,
+        permissionGranted: true,
+        issueMessage: null,
+      );
+    } catch (e) {
+      return (
+        serviceEnabled: false,
+        permissionGranted: false,
+        issueMessage: 'Gagal memeriksa status lokasi: $e',
+      );
+    }
+  }
+
+  /// Mengambil lokasi terakhir yang disimpan sistem Android/iOS secara instan
+  Future<Position?> getLastKnownPosition() async {
+    try {
+      final hasPermission = await checkAndRequestPermissions();
+      if (!hasPermission) return null;
+      return await Geolocator.getLastKnownPosition();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Mengambil lokasi saat ini satu kali (untuk inisialisasi peta atau tombol pusatkan)
+  Future<Position?> getCurrentPosition({Duration timeLimit = const Duration(seconds: 10)}) async {
     try {
       final hasPermission = await checkAndRequestPermissions();
       if (!hasPermission) return null;
 
       return await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
+        locationSettings: LocationSettings(
           accuracy: LocationAccuracy.high,
-          timeLimit: Duration(seconds: 10),
+          timeLimit: timeLimit,
         ),
       );
     } catch (_) {
-      return await Geolocator.getLastKnownPosition();
+      return await getLastKnownPosition();
     }
   }
 

@@ -32,6 +32,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Identitas Visual (Branding):** Mengimplementasikan logo **Velora** (ikon panah ganda 'V' berwarna oranye khas dengan gradasi api) di `lib/widgets/velora_logo.dart`.
 * [x] **Sistem Desain (Design System):** Menyusun panduan warna, tipografi, dan komponen visual di `docs/DESIGN_SYSTEM_VELORA.md`.
 * [x] **Desain Peta (Map Styling):** Menentukan gaya visual peta OSM dasar (tema standar & tema gelap dengan filter matriks neon) dan gaya *Polyline* neon cyan (`#00E5FF`) dengan efek *glow* di `lib/widgets/live_map_view.dart`. Bebas ketergantungan API key pihak ketiga.
+* [x] **Desain Suar Titik Lokasi Peta (Luminous Beacon GPS Dot):** Merancang penanda titik lokasi saat ini berdesain multi-lapis (halo pendar luar 44px, cincin pembatas bergaris 28px, dan titik inti neon cyan 16px dengan border putih tebal serta *center dot* presisi) yang sangat kontras di tema gelap maupun terang.
 * [x] **Desain Panel Navigasi Bebas Overflow:** Merancang panel *bottom-sheet* ergonomis untuk statistik *real-time* (Kecepatan, Pace, Jarak, Waktu, Elevasi) dengan perlindungan *FittedBox* dan desain tombol besar (Play/Pause/Resume/Stop) di `lib/widgets/control_buttons.dart` dan `lib/widgets/metric_card.dart`.
 * [x] **Desain Template Berbagi (Social Share 9:16):**
   * Merancang tata letak *overlay* gambar klasik dengan rasio 9:16 untuk IG Story / WA di `lib/widgets/social_share_card.dart` dan `lib/widgets/mini_route_painter.dart`.
@@ -50,6 +51,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Integrasi Peta & OSM Bebas API Key:** Menampilkan *TileLayer* OpenStreetMap dengan penanda posisi live dan *PolylineLayer* yang diperbarui secara dinamis di `lib/widgets/live_map_view.dart` tanpa memerlukan token berbayar.
 * [x] **Layanan Latar Belakang (Foreground Service):** Menggunakan `flutter_foreground_task` agar GPS tetap merekam saat layar ponsel mati atau aplikasi di-*minimize*, serta notifikasi persisten di `lib/services/foreground_service_handler.dart`.
 * [x] **Logika Pelacakan (Tracking Logic) & Auto-Pause Dual-Trigger:** Mengimplementasikan filter GPS, perhitungan jarak *real-time*, akumulasi elevasi, stopwatch waktu aktif, dan sistem *Auto-Pause* sinkron antara stream GPS dan ticker timer periodik di `lib/providers/tracking_provider.dart`.
+* [x] **Pemuatan Posisi Seketika & Smart Recenter:** Integrasi *instant last known position*, stream posisi pasif mode idle, tombol pusatkan lokasi interaktif dengan auto re-fetch & diagnosis status GPS di `lib/services/location_service.dart`, `lib/providers/tracking_provider.dart`, dan `lib/screens/tracking_screen.dart`.
 * [x] **Fitur Ekspor Gambar (RepaintBoundary):** Membangun komponen penangkapan snapshot PNG beresolusi tinggi dan berbagi ke media sosial di `lib/services/social_share_service.dart`.
 * [x] **Implementasi Template Clean Strava-Style:** Menambahkan enum `ShareCardStyle.clean`, fungsi `formatCleanPace`, `formatCleanDuration`, komponen `_buildCleanContent` pada `SocialShareCard`, serta pembaruan antarmuka pemilih tab 4 mode di `SharePreviewScreen`.
 * [x] **Fitur Auto-Update:** Mengimplementasikan pengecekan otomatis dan manual ke GitHub Releases API di `lib/services/update_service.dart`.
@@ -62,7 +64,8 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 **Tugas Utama & Realisasi:**
 
-* [x] **Pengujian Fungsional & Unit:** 132 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+* [x] **Pengujian Fungsional & Unit:** 148 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/location_recenter_test.dart`: Validasi callback tombol pusatkan lokasi, penanganan `currentLocation == null`, dan siklus hidup idle location stream.
   * `test/social_share_test.dart`: Validasi rendering kartu Clean Strava untuk Lari (`10.44 km`, `5:13 /km`, `54m 27s`, `VELORA`) dan Sepeda (`25.40 km`, `25.4 km/h`, `1h 0m 0s`), serta ekspor Full HD PNG capture.
   * `test/algorithms_test.dart`: Haversine, Douglas-Peucker, PaceCalculator.
   * `test/auto_pause_test.dart`: Trigger Auto-Pause dan Auto-Resume, serta evaluasi timer berkala henti stasioner.
