@@ -134,6 +134,15 @@ class MainActivity : FlutterActivity() {
                                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                                 addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                                putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                            }
+                            val resInfoList = context.packageManager.queryIntentActivities(
+                                intent,
+                                android.content.pm.PackageManager.MATCH_DEFAULT_ONLY
+                            )
+                            for (resolveInfo in resInfoList) {
+                                val pkgName = resolveInfo.activityInfo.packageName
+                                context.grantUriPermission(pkgName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
                             }
                             context.startActivity(intent)
                             result.success(true)

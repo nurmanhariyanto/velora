@@ -22,8 +22,43 @@ class UpdateService {
   static const MethodChannel _installerChannel =
       MethodChannel('online.nurmancloud.velora/app_installer');
 
-  static const String appVersionFallback = '1.0.13';
+  static const String appVersionFallback = '1.0.14';
   static bool _hasCheckedAutoUpdateThisSession = false;
+
+  /// Memeriksa fallback versi rilis langsung dari repositori publik (raw) jika GitHub API terkena rate limit
+  static Future<AppUpdateInfo?> _checkFallbackFromRawRepo(String currentVersion) async {
+    try {
+      final rawUri = Uri.parse(
+        'https://raw.githubusercontent.com/$githubOwner/$githubRepo/main/pubspec.yaml?t=${DateTime.now().millisecondsSinceEpoch}',
+      );
+      final rawResp = await http.get(rawUri).timeout(const Duration(seconds: 8));
+      if (rawResp.statusCode != 200) return null;
+
+      final match = RegExp(r'version:\s*([0-9.]+)\+([0-9]+)').firstMatch(rawResp.body);
+      if (match == null) return null;
+
+      final latestVersion = match.group(1)!;
+      final hasUpdate = AppUpdateInfo.isNewerVersion(currentVersion, latestVersion);
+
+      final downloadUrl =
+          'https://github.com/$githubOwner/$githubRepo/releases/download/v$latestVersion/velora-v$latestVersion.apk';
+      final releaseHtmlUrl =
+          'https://github.com/$githubOwner/$githubRepo/releases/tag/v$latestVersion';
+
+      return AppUpdateInfo(
+        currentVersion: currentVersion,
+        latestVersion: latestVersion,
+        hasUpdate: hasUpdate,
+        releaseTitle: 'Versi v$latestVersion',
+        releaseNotes: 'Pembaruan aplikasi Velora terbaru siap dipasang.',
+        downloadUrl: downloadUrl,
+        releaseHtmlUrl: releaseHtmlUrl,
+        publishedAt: null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Membersihkan sisa file APK lama di direktori temporary
   static Future<void> cleanOldApks() async {
@@ -35,6 +70,22 @@ class UpdateService {
           try {
             await entity.delete();
           } catch (_) {}
+        }
+      }
+    } catch (_) {}
+
+    try {
+      final extDirs = await getExternalCacheDirectories();
+      if (extDirs != null) {
+        for (final dir in extDirs) {
+          final entities = dir.listSync();
+          for (final entity in entities) {
+            if (entity is File && entity.path.toLowerCase().endsWith('.apk')) {
+              try {
+                await entity.delete();
+              } catch (_) {}
+            }
+          }
         }
       }
     } catch (_) {}
@@ -51,7 +102,7 @@ class UpdateService {
           appName: 'Velora',
           packageName: 'online.nurmancloud.velora',
           version: appVersionFallback,
-          buildNumber: '39',
+          buildNumber: '41',
         );
       });
 
@@ -71,7 +122,8 @@ class UpdateService {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
-        return null;
+        // Fallback jika API rate limit / 403 / 500
+        return await _checkFallbackFromRawRepo(currentVersion);
       }
 
       final data = json.decode(response.body) as Map<String, dynamic>;
@@ -109,7 +161,20 @@ class UpdateService {
         publishedAt: publishedAt,
       );
     } catch (_) {
-      return null;
+      try {
+        final packageInfo = await PackageInfo.fromPlatform().catchError((_) {
+          return PackageInfo(
+            appName: 'Velora',
+            packageName: 'online.nurmancloud.velora',
+            version: appVersionFallback,
+            buildNumber: '41',
+          );
+        });
+        final currentVersion = packageInfo.version.isNotEmpty ? packageInfo.version : appVersionFallback;
+        return await _checkFallbackFromRawRepo(currentVersion);
+      } catch (_) {
+        return null;
+      }
     }
   }
 
@@ -127,8 +192,16 @@ class UpdateService {
     try {
       await cleanOldApks();
 
-      final tempDir = await getTemporaryDirectory();
-      tempFile = File('${tempDir.path}/$fileName');
+      Directory? targetDir;
+      try {
+        final extDirs = await getExternalCacheDirectories();
+        if (extDirs != null && extDirs.isNotEmpty) {
+          targetDir = extDirs.first;
+        }
+      } catch (_) {}
+      targetDir ??= await getTemporaryDirectory();
+
+      tempFile = File('${targetDir.path}/$fileName');
       if (await tempFile.exists()) {
         await tempFile.delete();
       }
@@ -224,15 +297,25 @@ class UpdateService {
         builder: (_) => UpdateDialog(updateInfo: updateInfo),
       );
     } else if (!silent) {
-      final currentVer = updateInfo?.currentVersion ?? '1.0.0';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Aplikasi sudah menggunakan versi terbaru (v$currentVer).',
+      if (updateInfo == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Gagal memeriksa pembaruan. Pastikan ponsel terhubung ke internet.',
+            ),
+            backgroundColor: AppColors.neonRed,
           ),
-          backgroundColor: AppColors.primaryOrange,
-        ),
-      );
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Aplikasi sudah menggunakan versi terbaru (v${updateInfo.currentVersion}).',
+            ),
+            backgroundColor: AppColors.primaryOrange,
+          ),
+        );
+      }
     }
   }
 

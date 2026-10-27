@@ -2,6 +2,32 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.14] - 2026-10-27
+
+### 🚀 Ketahanan Pembaruan Aplikasi (In-App Updater Resilience) & Aksesibilitas Penuh Video Flyover 3D
+
+#### 🚀 1. Peningkatan Ketahanan Sistem Pembaruan In-App (Updater Engine Resilience)
+- **Bypass Limit GitHub API via Raw Fallback:**
+  - Mengimplementasikan fallback otomatis ke repositori publik (`raw.githubusercontent.com/.../pubspec.yaml`) jika pemanggilan GitHub API terkena batasan kuota (HTTP 403 Rate Limit), memastikan ponsel mendeteksi pembaruan secara instan tanpa terhalang pembagian IP seluler (CGNAT).
+- **Penyimpanan Berkas Cache Eksternal Kompatibel Lintas OEM:**
+  - Mengalihkan penyimpanan berkas APK pembaruan ke direktori cache eksternal (`getExternalCacheDirectories()`), memungkinkan aplikasi Package Installer bawaan vendor (Samsung, Xiaomi, Oppo, Vivo, Realme, dll.) membaca berkas melalui `FileProvider` tanpa kendala isolasi SELinux direktori privat.
+- **Pemberian Hak Akses URI Eksplisit & Flag Intent Lengkap:**
+  - Menambahkan `Intent.EXTRA_NOT_UNKNOWN_SOURCE` serta iterasi pemberian izin baca berkas `FLAG_GRANT_READ_URI_PERMISSION` ke seluruh paket installer Android untuk mencegah `SecurityException` pada Android 11+.
+- **Opsi Alternatif Unduh Manual via Web Browser:**
+  - Menambahkan tombol "Unduh Manual via Browser" pada `UpdateDialog` di layar utama pembaruan, saat unduhan terputus, maupun saat gagal memicu installer sistem, memberikan alternatif 100% bagi pengguna.
+- **Feedback UI Real-Time & Penanganan Galat Jaringan:**
+  - Memperbaiki penanganan status saat gagal menghubungi server pembaruan agar memberikan informasi koneksi yang jelas alih-alih keliru menyatakan aplikasi sudah di versi terbaru.
+
+#### 🎥 2. Visibilitas Permanen & Peningkatan Aksesibilitas Video Flyover 3D & Putar Rute
+- **Tombol Putar Rute Selalu Tampil:**
+  - Tombol `PUTAR RUTE` di detail aktivitas kini selalu tampil; jika aktivitas memiliki kurang dari 2 titik GPS, sistem memberikan pesan petunjuk melayang (*floating SnackBar*) yang informatif.
+- **Opsi Video Flyover Selalu Tersedia di Modal Pilihan:**
+  - Opsi `Video Flyover Rute (MP4 Sinematik)` selalu ditampilkan pada modal berbagi dengan lencana status kondisi titik GPS.
+- **Akses Cepat Video Flyover di Layar Berbagi Sosial:**
+  - Menambahkan tombol aksi langsung video flyover pada AppBar layar pratinjau berbagi (`SharePreviewScreen`) untuk pembuatan video rute 3D sinematik dalam satu sentuhan.
+
+
+
 ## [v1.0.13] - 2026-10-27
 
 ### 📍 Pelacakan Lokasi Aktif, Suar GPS Neon Pendar & Tombol Pusatkan Lokasi Pintar

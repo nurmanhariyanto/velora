@@ -94,3 +94,5 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Rilis Perdana GitHub (v1.0.0):** Kompilasi file APK rilis dan publikasi rilis di GitHub Releases.
 * [x] **Rilis Pembaruan GitHub (v1.0.1 s/d v1.0.11):** Publikasi rilis patch dan fitur lanjutan.
 * [x] **Rilis Pembaruan GitHub (v1.0.12):** Integrasi format Clean Minimalis ala Strava dan pemutakhiran dokumentasi tim agen.
+* [x] **Rilis Pembaruan GitHub (v1.0.13):** Pelacakan lokasi aktif, suar GPS neon pendar & tombol pusatkan lokasi pintar.
+* [x] **Rilis Pembaruan GitHub (v1.0.14):** Peningkatan ketahanan pembaruan in-app (bypass rate limit raw fallback, external cache storage OEM-friendly, browser download alternative), serta visibilitas permanen fitur Video Flyover 3D & Putar Rute.
