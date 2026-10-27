@@ -19,6 +19,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
   * Menetapkan *threshold* kecepatan untuk pemicu fitur **Auto-Pause** (< 2 km/jam selama $\ge 3$ detik) di `lib/services/auto_pause_detector.dart`.
   * Menentukan algoritma kompresi rute **Douglas-Peucker** di `lib/algorithms/douglas_peucker.dart`.
   * Merumuskan logika perbandingan SemVer untuk pembaruan rilis otomatis di `lib/models/app_update_info.dart`.
+  * Merumuskan formulasi matematis `formatCleanPace` ($M:SS\text{ /km}$) dan `formatCleanDuration` ($XX\text{m }YY\text{s}$ atau $X\text{h }YY\text{m }ZZ\text{s}$) untuk mode Clean Strava di `docs/PRD_VELORA.md`.
 
 ---
 
@@ -32,7 +33,9 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Sistem Desain (Design System):** Menyusun panduan warna, tipografi, dan komponen visual di `docs/DESIGN_SYSTEM_VELORA.md`.
 * [x] **Desain Peta (Map Styling):** Menentukan gaya visual peta OSM dasar (tema standar & tema gelap dengan filter matriks neon) dan gaya *Polyline* neon cyan (`#00E5FF`) dengan efek *glow* di `lib/widgets/live_map_view.dart`. Bebas ketergantungan API key pihak ketiga.
 * [x] **Desain Panel Navigasi Bebas Overflow:** Merancang panel *bottom-sheet* ergonomis untuk statistik *real-time* (Kecepatan, Pace, Jarak, Waktu, Elevasi) dengan perlindungan *FittedBox* dan desain tombol besar (Play/Pause/Resume/Stop) di `lib/widgets/control_buttons.dart` dan `lib/widgets/metric_card.dart`.
-* [x] **Desain Template Berbagi (Social Share 9:16):** Merancang tata letak *overlay* gambar dengan rasio 9:16 untuk IG Story / WA di `lib/widgets/social_share_card.dart` dan `lib/widgets/mini_route_painter.dart`.
+* [x] **Desain Template Berbagi (Social Share 9:16):**
+  * Merancang tata letak *overlay* gambar klasik dengan rasio 9:16 untuk IG Story / WA di `lib/widgets/social_share_card.dart` dan `lib/widgets/mini_route_painter.dart`.
+  * Merancang template **Clean Minimalis ala Strava** di `docs/DESIGN_SYSTEM_VELORA.md`: latar solid `#000000`, 3 metrik vertikal bold putih (`Distance`, `Pace`/`Speed`, `Time`), siluet rute polyline oranye tanpa pin, serta branding teks tebal **`VELORA`** putih (letter-spacing 4.5).
 * [x] **Desain Dialog Update:** Antarmuka notifikasi versi baru modern dengan badge versi dan catatan rilis di `lib/widgets/update_dialog.dart`.
 
 ---
@@ -48,6 +51,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Layanan Latar Belakang (Foreground Service):** Menggunakan `flutter_foreground_task` agar GPS tetap merekam saat layar ponsel mati atau aplikasi di-*minimize*, serta notifikasi persisten di `lib/services/foreground_service_handler.dart`.
 * [x] **Logika Pelacakan (Tracking Logic) & Auto-Pause Dual-Trigger:** Mengimplementasikan filter GPS, perhitungan jarak *real-time*, akumulasi elevasi, stopwatch waktu aktif, dan sistem *Auto-Pause* sinkron antara stream GPS dan ticker timer periodik di `lib/providers/tracking_provider.dart`.
 * [x] **Fitur Ekspor Gambar (RepaintBoundary):** Membangun komponen penangkapan snapshot PNG beresolusi tinggi dan berbagi ke media sosial di `lib/services/social_share_service.dart`.
+* [x] **Implementasi Template Clean Strava-Style:** Menambahkan enum `ShareCardStyle.clean`, fungsi `formatCleanPace`, `formatCleanDuration`, komponen `_buildCleanContent` pada `SocialShareCard`, serta pembaruan antarmuka pemilih tab 4 mode di `SharePreviewScreen`.
 * [x] **Fitur Auto-Update:** Mengimplementasikan pengecekan otomatis dan manual ke GitHub Releases API di `lib/services/update_service.dart`.
 
 ---
@@ -58,7 +62,8 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 **Tugas Utama & Realisasi:**
 
-* [x] **Pengujian Fungsional & Unit:** 27 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+* [x] **Pengujian Fungsional & Unit:** 132 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/social_share_test.dart`: Validasi rendering kartu Clean Strava untuk Lari (`10.44 km`, `5:13 /km`, `54m 27s`, `VELORA`) dan Sepeda (`25.40 km`, `25.4 km/h`, `1h 0m 0s`), serta ekspor Full HD PNG capture.
   * `test/algorithms_test.dart`: Haversine, Douglas-Peucker, PaceCalculator.
   * `test/auto_pause_test.dart`: Trigger Auto-Pause dan Auto-Resume, serta evaluasi timer berkala henti stasioner.
   * `test/models_and_db_test.dart`: Serialisasi dan mapping SQLite.
@@ -80,4 +85,5 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Konfigurasi Android & Izin:** Mengatur `AndroidManifest.xml` (Lokasi, Background, Kamera, Foreground Service Type) dan `build.gradle.kts` (minSdk 24, targetSdk 35, Java 17).
 * [x] **Optimasi ProGuard/R8:** Menerapkan aturan kompilasi rilis di `android/app/proguard-rules.pro`.
 * [x] **Rilis Perdana GitHub (v1.0.0):** Kompilasi file APK rilis dan publikasi rilis di GitHub Releases.
-* [x] **Rilis Pembaruan GitHub (v1.0.1):** Publikasi rilis patch v1.0.1 dengan file binary APK mandiri untuk mendukung in-app auto-update.
+* [x] **Rilis Pembaruan GitHub (v1.0.1 s/d v1.0.11):** Publikasi rilis patch dan fitur lanjutan.
+* [x] **Rilis Pembaruan GitHub (v1.0.12):** Integrasi format Clean Minimalis ala Strava dan pemutakhiran dokumentasi tim agen.

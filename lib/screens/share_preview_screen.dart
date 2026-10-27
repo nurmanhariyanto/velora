@@ -23,7 +23,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
   final GlobalKey _repaintKey = GlobalKey();
   final ImagePicker _picker = ImagePicker();
 
-  ShareCardStyle _currentStyle = ShareCardStyle.map;
+  ShareCardStyle _currentStyle = ShareCardStyle.clean;
   String? _selectedPhotoPath;
   bool _mapDarkTheme = true;
   bool _isSharing = false;
@@ -34,12 +34,10 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
   void initState() {
     super.initState();
     _selectedPhotoPath = widget.session.photoPath;
-    if (widget.session.coordinates.length < 2) {
-      _currentStyle = _selectedPhotoPath != null
-          ? ShareCardStyle.photo
-          : ShareCardStyle.minimal;
+    if (_selectedPhotoPath != null) {
+      _currentStyle = ShareCardStyle.photo;
     } else {
-      _currentStyle = ShareCardStyle.map;
+      _currentStyle = ShareCardStyle.clean;
     }
     _loadAthleteName();
   }
@@ -174,17 +172,25 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1. Selector Tab Gaya Tampilan (Peta / Foto / Minimalis)
+                  // 1. Selector Tab Gaya Tampilan (Clean / Peta / Foto / Klasik)
                   Row(
                     children: [
                       Expanded(
                         child: _buildStyleChip(
+                          icon: Icons.check_circle_outline_rounded,
+                          label: 'Clean',
+                          style: ShareCardStyle.clean,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _buildStyleChip(
                           icon: Icons.map_rounded,
-                          label: 'Peta Rute',
+                          label: 'Peta',
                           style: ShareCardStyle.map,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: _buildStyleChip(
                           icon: Icons.photo_camera_rounded,
@@ -199,11 +205,11 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Expanded(
                         child: _buildStyleChip(
-                          icon: Icons.palette_rounded,
-                          label: 'Minimalis',
+                          icon: Icons.dashboard_rounded,
+                          label: 'Klasik',
                           style: ShareCardStyle.minimal,
                         ),
                       ),
@@ -213,7 +219,37 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                   const SizedBox(height: 12),
 
                   // 2. Kontrol Kontekstual Berdasarkan Gaya yang Dipilih
-                  if (_currentStyle == ShareCardStyle.map) ...[
+                  if (_currentStyle == ShareCardStyle.clean) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.auto_awesome, size: 14, color: AppColors.primaryOrange),
+                              SizedBox(width: 6),
+                              Text(
+                                'Format Clean Minimalis (Strava Style)',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ] else if (_currentStyle == ShareCardStyle.map) ...[
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -291,11 +327,41 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                             onPressed: () {
                               setState(() {
                                 _selectedPhotoPath = null;
-                                _currentStyle = ShareCardStyle.map;
+                                _currentStyle = ShareCardStyle.clean;
                               });
                             },
                           ),
                         ],
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ] else if (_currentStyle == ShareCardStyle.minimal) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(12),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.dashboard_rounded, size: 14, color: AppColors.neonCyan),
+                              SizedBox(width: 6),
+                              Text(
+                                'Format Kartu Lengkap Klasik',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -441,7 +507,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primaryOrange.withAlpha(40)

@@ -2,6 +2,27 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.12] - 2026-10-27
+
+### 🌟 Clean Strava-Style Social Share, Typography Putih & Pembaruan Sistem Kartu
+
+#### 🌟 1. Format Kartu Berbagi Clean Minimalis (Strava Style)
+- **Latar Belakang Solid Hitam Pekat (*Pure Solid Black* `#000000`):**
+  - Mengeliminasi distraksi visual untuk menghadirkan kontras maksimal pada metrik utama dan siluet rute.
+- **Tiga Metrik Performa Inti Vertikal:**
+  - `Distance`: Nilai jarak besar ultra-bold putih (`XX.XX km`).
+  - `Pace / Speed`: Format clean lari (`M:SS /km`) via `formatCleanPace` atau kecepatan sepeda (`XX.X km/h`).
+  - `Time`: Format waktu clean (`XXm XXs` atau `Xh XXm XXs`) via `formatCleanDuration`.
+- **Siluet Rute Oranye Murni (*Markerless Polyline Silhouette*):**
+  - Garis rute oranye menyala (`#FC5200` / `AppColors.primaryOrange`) dengan efek pendaran lembut tanpa pin titik start/finish.
+- **Branding Teks VELORA Putih Tebal:**
+  - Teks **`VELORA`** kapital tebal putih (*FontWeight.w900*) dengan *wide tracking* di bagian bawah kartu.
+- **Pembaruan Layar Pratinjau Berbagi (`SharePreviewScreen`):**
+  - Menjadikan mode `Clean` sebagai pilihan bawaan (*default*).
+  - Menyediakan 4 opsi tab interaktif: `Clean`, `Peta`, `Foto Saya`, dan `Klasik`.
+- **Pengujian Otomatis (132 Tes Lolos 100%):**
+  - Penambahan rangkaian pengujian unit dan widget di `test/social_share_test.dart` untuk validasi snapshot Full HD dan perenderan mode lari/sepeda.
+
 ## [v1.0.11] - 2026-10-25
 
 ### 🛡️ Hepta-Layer Profile Engine, Native Android Channel & Resolusi Migrasi APK Lama

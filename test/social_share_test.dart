@@ -46,6 +46,123 @@ void main() {
   );
 
   group('SocialShareCard & SocialShareService Testing', () {
+    test('Formatters formatCleanPace dan formatCleanDuration menangani edge cases dengan aman', () {
+      // Test formatCleanPace
+      expect(SocialShareCard.formatCleanPace(313.0), '5:13 /km');
+      expect(SocialShareCard.formatCleanPace(59.8), '1:00 /km'); // Rounding safely to 1:00 instead of 0:60
+      expect(SocialShareCard.formatCleanPace(0), '--:-- /km');
+      expect(SocialShareCard.formatCleanPace(-10), '--:-- /km');
+      expect(SocialShareCard.formatCleanPace(3601), '--:-- /km');
+      expect(SocialShareCard.formatCleanPace(double.nan), '--:-- /km');
+
+      // Test formatCleanDuration
+      expect(SocialShareCard.formatCleanDuration(3267), '54m 27s');
+      expect(SocialShareCard.formatCleanDuration(3600), '1h 0m 0s');
+      expect(SocialShareCard.formatCleanDuration(4335), '1h 12m 15s');
+      expect(SocialShareCard.formatCleanDuration(0), '0m 0s');
+      expect(SocialShareCard.formatCleanDuration(-5), '0m 0s');
+    });
+    testWidgets('Merender SocialShareCard gaya Clean Minimalis (Strava Style) dan menguji capturePng',
+        (WidgetTester tester) async {
+      final repaintKey = GlobalKey();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 360,
+                height: 640,
+                child: SocialShareCard(
+                  session: dummySession,
+                  style: ShareCardStyle.clean,
+                  repaintKey: repaintKey,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // Pastikan widget terpasang dengan benar di pohon widget
+      expect(find.byKey(repaintKey), findsOneWidget);
+      expect(find.text('Distance'), findsOneWidget);
+      expect(find.text('25.40 km'), findsOneWidget);
+      expect(find.text('Speed'), findsOneWidget);
+      expect(find.text('25.4 km/h'), findsOneWidget);
+      expect(find.text('Time'), findsOneWidget);
+      expect(find.text('1h 0m 0s'), findsOneWidget);
+      expect(find.text('VELORA'), findsOneWidget);
+
+      // Uji penangkapan PNG dari RepaintBoundary
+      final Uint8List? pngBytes = await tester.runAsync<Uint8List?>(() async {
+        return await SocialShareService.capturePng(repaintKey);
+      });
+
+      expect(pngBytes, isNotNull);
+      expect(pngBytes!.isNotEmpty, isTrue);
+
+      // Verifikasi Magic Header PNG: 0x89 0x50 0x4E 0x47
+      expect(pngBytes[0], 0x89);
+      expect(pngBytes[1], 0x50);
+      expect(pngBytes[2], 0x4E);
+      expect(pngBytes[3], 0x47);
+    });
+
+    testWidgets('Merender SocialShareCard gaya Clean untuk aktivitas Lari (Run - Strava Style)',
+        (WidgetTester tester) async {
+      final repaintKey = GlobalKey();
+
+      final runSession = ActivitySession(
+        id: 'test-run-101',
+        startTime: DateTime(2026, 10, 17, 6, 0).millisecondsSinceEpoch,
+        endTime: DateTime(2026, 10, 17, 6, 54, 27).millisecondsSinceEpoch,
+        sportsType: SportsType.run,
+        distanceMeters: 10440.0,
+        durationSeconds: 3267, // 54m 27s
+        elevationGain: 45.0,
+        maxSpeedKmh: 14.5,
+        averageSpeedKmh: 11.5,
+        averagePaceSecondsPerKm: 313.0, // 5:13 /km
+        coordinates: [
+          CoordinatePoint(activityId: 'test-run-101', latitude: -0.0263, longitude: 109.3425, timestamp: 1000),
+          CoordinatePoint(activityId: 'test-run-101', latitude: -0.0270, longitude: 109.3435, timestamp: 2000),
+          CoordinatePoint(activityId: 'test-run-101', latitude: -0.0280, longitude: 109.3450, timestamp: 3000),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 360,
+                height: 640,
+                child: SocialShareCard(
+                  session: runSession,
+                  style: ShareCardStyle.clean,
+                  repaintKey: repaintKey,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(repaintKey), findsOneWidget);
+      expect(find.text('Distance'), findsOneWidget);
+      expect(find.text('10.44 km'), findsOneWidget);
+      expect(find.text('Pace'), findsOneWidget);
+      expect(find.text('5:13 /km'), findsOneWidget);
+      expect(find.text('Time'), findsOneWidget);
+      expect(find.text('54m 27s'), findsOneWidget);
+      expect(find.text('VELORA'), findsOneWidget);
+    });
+
     testWidgets('Merender SocialShareCard dan menguji SocialShareService.capturePng',
         (WidgetTester tester) async {
       final repaintKey = GlobalKey();

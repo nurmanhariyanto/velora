@@ -20,7 +20,18 @@ class MiniRoutePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (coordinates.length < 2) {
+    if (size.width <= 0 || size.height <= 0) return;
+
+    // Filter titik koordinat yang valid (singkirkan NaN / Infinity)
+    final validPoints = coordinates
+        .where((pt) =>
+            !pt.latitude.isNaN &&
+            !pt.latitude.isInfinite &&
+            !pt.longitude.isNaN &&
+            !pt.longitude.isInfinite)
+        .toList();
+
+    if (validPoints.length < 2) {
       // Gambar garis placeholder jika belum ada koordinat
       final paint = Paint()
         ..color = routeColor.withAlpha(80)
@@ -40,7 +51,7 @@ class MiniRoutePainter extends CustomPainter {
     double minLon = double.infinity;
     double maxLon = -double.infinity;
 
-    for (final pt in coordinates) {
+    for (final pt in validPoints) {
       if (pt.latitude < minLat) minLat = pt.latitude;
       if (pt.latitude > maxLat) maxLat = pt.latitude;
       if (pt.longitude < minLon) minLon = pt.longitude;
@@ -57,6 +68,8 @@ class MiniRoutePainter extends CustomPainter {
     final usableW = size.width * (1.0 - paddingFraction * 2);
     final usableH = size.height * (1.0 - paddingFraction * 2);
 
+    if (usableW <= 0 || usableH <= 0) return;
+
     // Hitung skala seragam untuk menjaga rasio aspek geospasial
     // 1 derajat lat ~ 111 km, 1 derajat lon ~ 111 * cos(lat) km
     final avgLatRad = ((minLat + maxLat) / 2.0) * (math.pi / 180.0);
@@ -65,9 +78,16 @@ class MiniRoutePainter extends CustomPainter {
     final geoWidth = lonRange * cosLat;
     final geoHeight = latRange;
 
-    final scaleX = geoWidth > 0 ? usableW / geoWidth : 1.0;
-    final scaleY = geoHeight > 0 ? usableH / geoHeight : 1.0;
-    final scale = math.min(scaleX, scaleY);
+    final double scale;
+    if (geoWidth > 0 && geoHeight > 0) {
+      scale = math.min(usableW / geoWidth, usableH / geoHeight);
+    } else if (geoWidth > 0) {
+      scale = usableW / geoWidth;
+    } else if (geoHeight > 0) {
+      scale = usableH / geoHeight;
+    } else {
+      return;
+    }
 
     // Pusat kanvas
     final renderedW = geoWidth * scale;
@@ -85,11 +105,11 @@ class MiniRoutePainter extends CustomPainter {
 
     // Siapkan Path rute
     final path = Path();
-    final firstPoint = project(coordinates.first);
+    final firstPoint = project(validPoints.first);
     path.moveTo(firstPoint.dx, firstPoint.dy);
 
-    for (int i = 1; i < coordinates.length; i++) {
-      final p = project(coordinates[i]);
+    for (int i = 1; i < validPoints.length; i++) {
+      final p = project(validPoints[i]);
       path.lineTo(p.dx, p.dy);
     }
 
@@ -124,7 +144,7 @@ class MiniRoutePainter extends CustomPainter {
       canvas.drawCircle(startPos, 5.0, markerBorder);
 
       // Titik Finish (Merah)
-      final endPos = project(coordinates.last);
+      final endPos = project(validPoints.last);
       final endPaint = Paint()..color = AppColors.neonRed;
       canvas.drawCircle(endPos, 5.0, endPaint);
       canvas.drawCircle(endPos, 5.0, markerBorder);
@@ -133,7 +153,9 @@ class MiniRoutePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant MiniRoutePainter oldDelegate) {
-    return oldDelegate.coordinates.length != coordinates.length ||
-        oldDelegate.routeColor != routeColor;
+    return oldDelegate.coordinates != coordinates ||
+        oldDelegate.routeColor != routeColor ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.showMarkers != showMarkers;
   }
 }

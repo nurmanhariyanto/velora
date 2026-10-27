@@ -118,12 +118,24 @@ CREATE INDEX idx_titik_aktivitas ON titik_koordinat (aktivitas_id);
 ## 5. Alur Fitur Social Media Sharing
 1. Pengguna menyelesaikan sesi latihan atau membuka riwayat sesi sebelumnya.
 2. Pengguna menekan tombol **"Bagikan / Share"**.
-3. Pengguna memilih foto latar belakang (dari Kamera ponsel atau Galeri).
+3. Pengguna memilih format gaya berbagi (Clean Minimalis ala Strava, Peta Rute OSM, Foto Pengguna, atau Klasik).
 4. Layar menampilkan pratinjau komposit *watermark*:
-   - Foto latar belakang dengan gradasi bayangan (*dark vignette*) di sisi atas dan bawah.
-   - **Header atas:** Jenis aktivitas, tanggal, nama rute.
-   - **Tengah atas:** Kartu metrik transparan (Total Jarak dalam format besar, Durasi, Pace/Kecepatan, dan Elevasi).
-   - **Tengah:** Miniatur polyline vektor rute berwarna oranye Velora dengan titik *start* (hijau) dan *finish* (merah).
-   - **Bawah:** Logo eksklusif **"VELORA : RUN & RIDE"**.
-5. Komponen dirender via `RepaintBoundary` menjadi citra PNG 1080x1920 (aspek rasio 9:16 ideal untuk IG Story / WA Status).
-6. File disimpan sementara di *cache*, kemudian memicu *native share sheet* (`share_plus`).
+   - Aspek rasio 9:16 ideal untuk Instagram Story & status WhatsApp.
+   - Pilihan latar belakang: Hitam pekat (*pure black* `#000000`), Peta OSM, atau Foto Pengguna.
+5. Komponen dirender via `RepaintBoundary` menjadi citra PNG resolusi tinggi Full HD (1080x1920).
+6. File disimpan sementara di direktori *cache*, kemudian memicu *native share sheet* (`share_plus`) atau integrasi langsung ke WhatsApp dan Instagram Story.
+
+### 5.2. Spesifikasi Teknis Format Clean Minimalis (Strava Style)
+- **Tujuan:** Menghadirkan template visual yang sangat bersih (*distraction-free*) dengan fokus pada metrik inti performa atlet dan siluet rute, terinspirasi dari format visual populer Strava.
+- **Hierarki Konten (Vertical Stacking):**
+  1. **Metrik 1 (Distance):** Label `Distance`, nilai `XX.XX km` dalam tipografi ultra-bold putih.
+  2. **Metrik 2 (Pace / Speed):**
+     - Sesi Lari (*Run*): Label `Pace`, nilai `M:SS /km` via algoritma `formatCleanPace` ($mins = pace \div 60$, $secs = pace \pmod{60}$).
+     - Sesi Bersepeda (*Ride*): Label `Speed`, nilai `XX.X km/h`.
+  3. **Metrik 3 (Time):** Label `Time`, nilai `XXm XXs` (jika $< 1\text{ jam}$) atau `Xh XXm XXs` (jika $\ge 1\text{ jam}$) via algoritma `formatCleanDuration`.
+  4. **Siluet Rute GPS:** Miniatur rute polyline vektor dengan warna oranye Strava/Velora (`#FC5200`), garis melengkung halus tanpa marker titik awal/akhir (*markerless clean path*).
+  5. **Branding Aplikasi:** Teks kapital murni **`VELORA`** berwarna putih tebal (*FontWeight.w900*) dengan *wide tracking* (letter spacing 4.5).
+- **Penanganan Kondisi Batas (*Edge Cases*):**
+  - Pace $\le 0$ atau $> 3600\text{ s/km}$: Menampilkan placeholder `--:-- /km`.
+  - Durasi $\le 0$: Menampilkan `0m 0s`.
+  - Jumlah koordinat $< 2$: Siluet rute disembunyikan secara anggun (*graceful fallback*) tanpa merusak perataan vertikal spacer.

@@ -13,7 +13,11 @@ Dokumen ini memuat daftar fitur lengkap untuk aplikasi **Velora: Run & Ride** (b
 5. **Dashboard Statistik Cerdas Bebas Overflow:** Menampilkan metrik *real-time* meliputi Durasi Bersih, Jarak (km), Kecepatan Saat Ini, rata-rata Pace, dan Elevasi Positif (+m) dengan perlindungan *FittedBox* adaptif di semua ukuran layar ponsel. *(Status: Selesai)*
 6. **Auto-Pause Adaptif Ganda (Dual-Trigger):** Perekaman waktu dan jarak otomatis berhenti sementara (*pause*) saat pengguna berhenti bergerak (< 2 km/jam selama $\ge 3$ detik), dideteksi secara presisi melalui kombinasi *stream* posisi GPS dan *ticker timer* periodik 1 detik, serta otomatis melanjut (*resume*) seketika saat pergerakan terdeteksi lagi. *(Status: Selesai)*
 7. **Riwayat Aktivitas (Local Storage):** Menyimpan daftar aktivitas masa lalu beserta rute koordinatnya langsung di memori internal ponsel menggunakan SQLite (`velora_local.db`), 100% tanpa internet. *(Status: Selesai)*
-8. **Social Media Sharing (Ekspor Gambar 9:16):** Mengambil foto atau memilih dari galeri, otomatis ditumpuk (*overlay*) via `RepaintBoundary` dengan logo Velora, rute *polyline* mini oranye, dan teks metrik aktivitas dengan bayangan tajam. Gambar akhir dapat langsung dibagikan ke WhatsApp atau Instagram Story. *(Status: Selesai)*
+8. **Social Media Sharing (Ekspor Gambar 9:16):**
+   - **Mode Clean Minimalis (Strava Style):** Tampilan ultra-bersih dengan latar hitam solid (`#000000`), metrik vertikal bold putih (`Distance`, `Pace`/`Speed`, `Time`), siluet rute polyline oranye, dan teks branding **`VELORA`** putih (menjadi mode default).
+   - **Mode Peta & Foto Saya:** Pilihan latar belakang peta OSM langsung atau foto pengguna dari galeri/kamera dengan overlay metrik resolusi tinggi.
+   - **Mode Klasik:** Format kartu lengkap dengan badge sesi dan 4 metrik sekunder.
+   - Diekspor via `RepaintBoundary` menjadi gambar resolusi tinggi Full HD untuk Instagram Story atau WhatsApp Status. *(Status: Selesai)*
 9. **Pembaruan Otomatis Aplikasi (In-App Auto-Update):** Memeriksa ketersediaan versi rilis baru secara otomatis dan manual dari GitHub Releases API, membandingkan SemVer, menampilkan dialog *changelog*, serta mengunduh file APK langsung. *(Status: Selesai)*
 
 ---

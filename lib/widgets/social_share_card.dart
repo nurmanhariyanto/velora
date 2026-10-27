@@ -11,9 +11,10 @@ import 'velora_logo.dart';
 
 /// Gaya tampilan kartu berbagi media sosial
 enum ShareCardStyle {
+  clean, // Gaya Clean Minimalis ala Strava (Distance, Pace/Speed, Time, Rute Oranye, VELORA Putih)
   map, // Peta OpenStreetMap dengan lintasan rute nyata
   photo, // Foto latar belakang pengguna (Kamera / Galeri)
-  minimal, // Desain minimalis gelap futuristik
+  minimal, // Desain minimalis gelap klasik
 }
 
 /// Kartu komposit template untuk dibagikan ke Instagram Story (rasio 9:16)
@@ -29,7 +30,7 @@ class SocialShareCard extends StatelessWidget {
     super.key,
     required this.session,
     this.backgroundPhotoPath,
-    this.style = ShareCardStyle.map,
+    this.style = ShareCardStyle.clean,
     this.mapDarkTheme = true,
     required this.repaintKey,
     this.athleteName,
@@ -53,13 +54,17 @@ class SocialShareCard extends StatelessWidget {
       DateTime.fromMillisecondsSinceEpoch(session.startTime),
     );
 
+    final bool isCleanMode = style == ShareCardStyle.clean || style == ShareCardStyle.photo;
+
     return RepaintBoundary(
       key: repaintKey,
       child: AspectRatio(
         aspectRatio: 9 / 16,
         child: Container(
           decoration: BoxDecoration(
-            color: AppColors.darkBackground,
+            color: (style == ShareCardStyle.clean)
+                ? Colors.black
+                : AppColors.darkBackground,
             borderRadius: BorderRadius.circular(24),
             boxShadow: const [
               BoxShadow(
@@ -73,251 +78,35 @@ class SocialShareCard extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // 1. Lapisan Latar Belakang (Peta OSM / Foto Pengguna / Gradasi Minimalis)
+              // 1. Lapisan Latar Belakang (Hitam Pekat / Foto Pengguna / Peta OSM / Minimalis)
               _buildBackground(),
 
-              // 2. Lapisan Bayangan Vignette Gelap (Memastikan Kontras Tinggi untuk Teks)
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Colors.black.withAlpha(style == ShareCardStyle.map
-                          ? (mapDarkTheme ? 110 : 130)
-                          : 200),
-                      Colors.black.withAlpha(style == ShareCardStyle.map ? 0 : 40),
-                      Colors.black.withAlpha(style == ShareCardStyle.map
-                          ? (mapDarkTheme ? 120 : 140)
-                          : 220),
-                    ],
-                    stops: const [0.0, 0.45, 0.95],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
+              // 2. Lapisan Bayangan Vignette Gelap (Hanya untuk Peta OSM, Foto, atau Klasik)
+              if (style != ShareCardStyle.clean)
+                Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withAlpha(style == ShareCardStyle.map
+                            ? (mapDarkTheme ? 110 : 130)
+                            : 180),
+                        Colors.black.withAlpha(style == ShareCardStyle.map ? 0 : 30),
+                        Colors.black.withAlpha(style == ShareCardStyle.map
+                            ? (mapDarkTheme ? 120 : 140)
+                            : 200),
+                      ],
+                      stops: const [0.0, 0.45, 0.95],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
                   ),
                 ),
-              ),
 
-              // 3. Konten Teks & Statistik Aktivitas
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Header Atas: Badge Olahraga & Tanggal
-                    Column(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.primaryOrange.withAlpha(230),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Colors.black45,
-                                blurRadius: 8,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
-                          ),
-                          child: Text(
-                            session.displayTitle,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                              letterSpacing: 1.2,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          (athleteName != null &&
-                                  athleteName!.trim().isNotEmpty &&
-                                  athleteName!.trim() != 'Velora Athlete')
-                              ? '${athleteName!.trim()} • $formattedDate'
-                              : formattedDate,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            shadows: [
-                              Shadow(
-                                color: Colors.black,
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Bagian Atas: Angka Jarak Besar & Ringkasan Metrik
-                    Column(
-                      children: [
-                        // Angka Jarak Besar
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.baseline,
-                            textBaseline: TextBaseline.alphabetic,
-                            children: [
-                              Text(
-                                session.distanceKm.toStringAsFixed(2),
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 68,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -1.5,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black,
-                                      blurRadius: 16,
-                                      offset: Offset(0, 4),
-                                    ),
-                                    Shadow(
-                                      color: Colors.black,
-                                      blurRadius: 8,
-                                      offset: Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Text(
-                                'KM',
-                                style: TextStyle(
-                                  color: AppColors.primaryOrange,
-                                  fontSize: 26,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 1.2,
-                                  shadows: [
-                                    Shadow(
-                                      color: Colors.black,
-                                      blurRadius: 10,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        const SizedBox(height: 12),
-
-                        // Baris Metrik Sekunder (Waktu, Pace/Speed, Max Speed, Elevasi)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withAlpha(140),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.white.withAlpha(40),
-                              width: 1,
-                            ),
-                          ),
-                          child: FittedBox(
-                            fit: BoxFit.scaleDown,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                _buildMetricItem(
-                                  'DURASI',
-                                  session.formattedDuration,
-                                ),
-                                Container(
-                                  width: 1,
-                                  height: 32,
-                                  margin: const EdgeInsets.symmetric(horizontal: 10),
-                                  color: Colors.white24,
-                                ),
-                                _buildMetricItem(
-                                  session.sportsType == SportsType.run
-                                      ? 'PACE'
-                                      : 'AVG SPEED',
-                                  session.sportsType == SportsType.run
-                                      ? session.formattedPace
-                                      : session.formattedSpeed,
-                                ),
-                                Container(
-                                  width: 1,
-                                  height: 32,
-                                  margin: const EdgeInsets.symmetric(horizontal: 10),
-                                  color: Colors.white24,
-                                ),
-                                _buildMetricItem(
-                                  'MAX SPEED',
-                                  '${session.maxSpeedKmh.toStringAsFixed(1)} km/h',
-                                ),
-                                Container(
-                                  width: 1,
-                                  height: 32,
-                                  margin: const EdgeInsets.symmetric(horizontal: 10),
-                                  color: Colors.white24,
-                                ),
-                                _buildMetricItem(
-                                  'ELEVASI',
-                                  '+${session.elevationGain.toStringAsFixed(0)} m',
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    // Bagian Tengah: Sketsa Rute (Hanya untuk Mode Foto / Minimalis)
-                    // Pada Mode Peta, lintasan rute sudah digambar langsung di atas OpenStreetMap!
-                    if (style != ShareCardStyle.map)
-                      Expanded(
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 20),
-                          child: CustomPaint(
-                            size: Size.infinite,
-                            painter: MiniRoutePainter(
-                              coordinates: session.coordinates,
-                              routeColor: AppColors.primaryOrange,
-                              strokeWidth: 4.5,
-                              showMarkers: true,
-                            ),
-                          ),
-                        ),
-                      )
-                    else
-                      const Spacer(),
-
-                    // Bagian Bawah: Logo Velora & Aksen Garis
-                    Column(
-                      children: [
-                        Container(
-                          height: 2,
-                          width: 80,
-                          margin: const EdgeInsets.only(bottom: 14),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                AppColors.electricAmber,
-                                AppColors.primaryOrange,
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                        const VeloraLogo(
-                          size: 34,
-                          showTagline: false,
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+              // 3. Konten Teks & Statistik Aktivitas (Clean Minimalis ala Strava atau Klasik)
+              if (isCleanMode)
+                _buildCleanContent()
+              else
+                _buildClassicContent(formattedDate),
             ],
           ),
         ),
@@ -325,8 +114,395 @@ class SocialShareCard extends StatelessWidget {
     );
   }
 
+  /// Tampilan Clean Minimalis ala Strava (Distance, Pace/Speed, Time, Rute Oranye, VELORA Putih)
+  Widget _buildCleanContent() {
+    final bool isRun = session.sportsType == SportsType.run;
+
+    final distanceStr = '${session.distanceKm.toStringAsFixed(2)} km';
+    final paceOrSpeedStr = isRun
+        ? formatCleanPace(session.averagePaceSecondsPerKm)
+        : '${session.averageSpeedKmh.toStringAsFixed(1)} km/h';
+    final timeStr = formatCleanDuration(session.durationSeconds);
+
+    final bool isPhoto = style == ShareCardStyle.photo;
+    final List<Shadow>? textShadows = isPhoto
+        ? const [
+            Shadow(color: Colors.black, blurRadius: 10, offset: Offset(0, 2)),
+            Shadow(color: Colors.black87, blurRadius: 6, offset: Offset(0, 1)),
+          ]
+        : null;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          const Spacer(flex: 3),
+
+          // 1. Metrik Distance
+          _buildCleanMetricBlock(
+            label: 'Distance',
+            value: distanceStr,
+            shadows: textShadows,
+          ),
+
+          const Spacer(flex: 3),
+
+          // 2. Metrik Pace / Speed
+          _buildCleanMetricBlock(
+            label: isRun ? 'Pace' : 'Speed',
+            value: paceOrSpeedStr,
+            shadows: textShadows,
+          ),
+
+          const Spacer(flex: 3),
+
+          // 3. Metrik Time
+          _buildCleanMetricBlock(
+            label: 'Time',
+            value: timeStr,
+            shadows: textShadows,
+          ),
+
+          const Spacer(flex: 4),
+
+          // 4. Sketsa Rute Oranye (Silhouette rute GPS tanpa pin start/finish, persis Strava)
+          Expanded(
+            flex: 10,
+            child: Center(
+              child: session.coordinates.length >= 2
+                  ? AspectRatio(
+                      aspectRatio: 1.0,
+                      child: CustomPaint(
+                        size: Size.infinite,
+                        painter: MiniRoutePainter(
+                          coordinates: session.coordinates,
+                          routeColor: const Color(0xFFFC5200), // Vibrant Strava Orange
+                          strokeWidth: 4.2,
+                          showMarkers: false,
+                        ),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ),
+
+          const Spacer(flex: 4),
+
+          // 5. Teks Brand: VELORA putih tebal bersih
+          Text(
+            'VELORA',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 28,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 4.5,
+              shadows: textShadows,
+            ),
+          ),
+
+          const Spacer(flex: 3),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCleanMetricBlock({
+    required String label,
+    required String value,
+    List<Shadow>? shadows,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.2,
+            shadows: shadows,
+          ),
+        ),
+        const SizedBox(height: 6),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 44,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.5,
+              shadows: shadows,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Format pace lari clean gaya Strava (contoh: 5:13 /km)
+  static String formatCleanPace(double paceSecondsPerKm) {
+    if (paceSecondsPerKm.isNaN ||
+        paceSecondsPerKm.isInfinite ||
+        paceSecondsPerKm <= 0 ||
+        paceSecondsPerKm > 3600) {
+      return '--:-- /km';
+    }
+    final int totalSecs = paceSecondsPerKm.round();
+    if (totalSecs <= 0 || totalSecs > 3600) {
+      return '--:-- /km';
+    }
+    final mins = totalSecs ~/ 60;
+    final secs = totalSecs % 60;
+    return '$mins:${secs.toString().padLeft(2, '0')} /km';
+  }
+
+  /// Format durasi clean gaya Strava (contoh: 54m 27s atau 1h 12m 45s)
+  static String formatCleanDuration(int totalSeconds) {
+    if (totalSeconds < 0) totalSeconds = 0;
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return '${hours}h ${minutes}m ${seconds}s';
+    }
+    return '${minutes}m ${seconds}s';
+  }
+
+  /// Tampilan kartu klasik lengkap dengan badge olahraga, 4 metrik, dan logo Velora
+  Widget _buildClassicContent(String formattedDate) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Header Atas: Badge Olahraga & Tanggal
+          Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withAlpha(230),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black45,
+                      blurRadius: 8,
+                      offset: Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Text(
+                  session.displayTitle,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                (athleteName != null &&
+                        athleteName!.trim().isNotEmpty &&
+                        athleteName!.trim() != 'Velora Athlete')
+                    ? '${athleteName!.trim()} • $formattedDate'
+                    : formattedDate,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black,
+                      blurRadius: 6,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Bagian Atas: Angka Jarak Besar & Ringkasan Metrik
+          Column(
+            children: [
+              // Angka Jarak Besar
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Text(
+                      session.distanceKm.toStringAsFixed(2),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 68,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -1.5,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black,
+                            blurRadius: 16,
+                            offset: Offset(0, 4),
+                          ),
+                          Shadow(
+                            color: Colors.black,
+                            blurRadius: 8,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'KM',
+                      style: TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.2,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black,
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              // Baris Metrik Sekunder (Waktu, Pace/Speed, Max Speed, Elevasi)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.black.withAlpha(140),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: Colors.white.withAlpha(40),
+                    width: 1,
+                  ),
+                ),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildMetricItem(
+                        'DURASI',
+                        session.formattedDuration,
+                      ),
+                      Container(
+                        width: 1,
+                        height: 32,
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        color: Colors.white24,
+                      ),
+                      _buildMetricItem(
+                        session.sportsType == SportsType.run
+                            ? 'PACE'
+                            : 'AVG SPEED',
+                        session.sportsType == SportsType.run
+                            ? session.formattedPace
+                            : session.formattedSpeed,
+                      ),
+                      Container(
+                        width: 1,
+                        height: 32,
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        color: Colors.white24,
+                      ),
+                      _buildMetricItem(
+                        'MAX SPEED',
+                        '${session.maxSpeedKmh.toStringAsFixed(1)} km/h',
+                      ),
+                      Container(
+                        width: 1,
+                        height: 32,
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        color: Colors.white24,
+                      ),
+                      _buildMetricItem(
+                        'ELEVASI',
+                        '+${session.elevationGain.toStringAsFixed(0)} m',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Bagian Tengah: Sketsa Rute (Hanya untuk Mode Minimalis / Klasik)
+          if (style != ShareCardStyle.map)
+            Expanded(
+              child: Container(
+                margin: const EdgeInsets.symmetric(vertical: 20),
+                child: CustomPaint(
+                  size: Size.infinite,
+                  painter: MiniRoutePainter(
+                    coordinates: session.coordinates,
+                    routeColor: AppColors.primaryOrange,
+                    strokeWidth: 4.5,
+                    showMarkers: true,
+                  ),
+                ),
+              ),
+            )
+          else
+            const Spacer(),
+
+          // Bagian Bawah: Logo Velora & Aksen Garis
+          Column(
+            children: [
+              Container(
+                height: 2,
+                width: 80,
+                margin: const EdgeInsets.only(bottom: 14),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      AppColors.electricAmber,
+                      AppColors.primaryOrange,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const VeloraLogo(
+                size: 34,
+                showTagline: false,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildBackground() {
     switch (style) {
+      case ShareCardStyle.clean:
+        return Container(color: Colors.black);
+
       case ShareCardStyle.map:
         return _buildMapBackground();
 
@@ -337,10 +513,10 @@ class SocialShareCard extends StatelessWidget {
             File(backgroundPhotoPath!),
             fit: BoxFit.cover,
             errorBuilder: (context, error, stackTrace) =>
-                _buildMinimalBackground(),
+                Container(color: Colors.black),
           );
         }
-        return _buildMinimalBackground();
+        return Container(color: Colors.black);
 
       case ShareCardStyle.minimal:
         return _buildMinimalBackground();

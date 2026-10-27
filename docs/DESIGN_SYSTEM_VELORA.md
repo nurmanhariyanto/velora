@@ -67,7 +67,7 @@ Menggunakan font keluarga Modern Sans (Roboto / System Default sans-serif):
   - Ringkasan 4 metrik penting (jarak, durasi, pace/kecepatan, tanggal/jam).
   - Miniatur sketsa rute atau pintasan cepat untuk membuka rincian dan berbagi.
 
-### 3.3. Template Desain Social Share (Instagram Story / WA)
+### 3.3. Template Desain Social Share Klasik (Instagram Story / WA)
 Rasio kanvas: **9:16 (1080 x 1920 px)**.
 - **Latar Belakang:** Foto jepretan pengguna dari kamera atau galeri, dengan gradasi *vignette* hitam halus (opacity 60% di atas dan 75% di bawah).
 - **Bagian Atas (Header):**
@@ -83,3 +83,30 @@ Rasio kanvas: **9:16 (1080 x 1920 px)**.
 - **Bagian Bawah (Footer & Branding):**
   - Ikon panah ganda Velora dan teks **VELORA : RUN & RIDE**.
   - Garis aksen oranye penegas identitas aplikasi.
+
+### 3.4. Template Desain Social Share Clean Minimalis (Strava Style)
+Rasio kanvas: **9:16 (1080 x 1920 px)**, berorientasi vertikal, ultra-minimalis, bebas distraksi (*distraction-free*).
+- **Latar Belakang:**
+  - Mode Clean Standar: Hitam pekat murni (*Pure Solid Black* `#000000`).
+  - Mode Foto Clean: Foto pengguna dengan lapisan bayangan ganda halus (*dual-drop shadow*) pada teks untuk kontras sempurna.
+- **Skema Warna Elemen:**
+  - Teks & Angka Metrik: Putih murni (`#FFFFFF`).
+  - Garis Rute GPS (*Polyline*): Oranye menyala khas atletik (`#FC5200` / `AppColors.primaryOrange`) dengan efek pendaran lembut (*glow aura* `#FC5200` alpha 70).
+  - Teks Branding Footer: Putih murni (`#FFFFFF`).
+- **Hierarki Tipografi & Tata Letak Vertikal (Flex Proportions: 3:3:3:4:10:4:3):**
+  1. **Label Metrik (`Distance`, `Pace` / `Speed`, `Time`):**
+     - Ukuran: 18sp.
+     - Bobot: *Bold* (w700).
+     - Warna: Putih murni `#FFFFFF`.
+  2. **Angka Nilai Metrik (`10.44 km`, `5:13 /km`, `54m 27s`):**
+     - Ukuran: 44sp (dilindungi `FittedBox` adaptif anti-overflow).
+     - Bobot: *Black / Ultra Bold* (w900).
+     - Jarak Antar Huruf: Tabular, letter spacing -0.5px.
+  3. **Siluet Rute GPS:**
+     - Ketebalan garis: 4.2px, *StrokeCap.round*, *StrokeJoin.round*.
+     - Bebas penanda titik start dan finish (*markerless*), mempertahankan rasio aspek geospasial rute asli.
+  4. **Branding Aplikasi:**
+     - Teks: **`VELORA`**
+     - Ukuran: 28sp.
+     - Bobot: *Black* (w900).
+     - Letter Spacing: 4.5px (wide athletic tracking), tanpa ikon tambahan agar tampilan tetap minimalis.
