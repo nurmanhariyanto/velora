@@ -37,7 +37,9 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Desain Template Berbagi (Social Share 9:16):**
   * Merancang tata letak *overlay* gambar klasik dengan rasio 9:16 untuk IG Story / WA di `lib/widgets/social_share_card.dart` dan `lib/widgets/mini_route_painter.dart`.
   * Merancang template **Clean Minimalis ala Strava** di `docs/DESIGN_SYSTEM_VELORA.md`: latar solid `#000000`, 3 metrik vertikal bold putih (`Distance`, `Pace`/`Speed`, `Time`), siluet rute polyline oranye tanpa pin, serta branding teks tebal **`VELORA`** putih (letter-spacing 4.5).
+  * Merancang tombol pintasan cepat ke Video Flyover 3D di AppBar `SharePreviewScreen` agar pengguna dapat langsung beralih format tanpa harus kembali ke halaman awal.
 * [x] **Desain Dialog Update:** Antarmuka notifikasi versi baru modern dengan badge versi dan catatan rilis di `lib/widgets/update_dialog.dart`.
+* [x] **Desain Aksesibilitas Fitur Video Permanen:** Menetapkan tombol `PUTAR RUTE` dan opsi `Video Flyover (MP4)` selalu tampil di antarmuka; memberikan feedback informatif jika sesi latihan belum merekam rute bergerak.
 
 ---
 
@@ -53,7 +55,8 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Logika Pelacakan (Tracking Logic) & Auto-Pause Dual-Trigger:** Mengimplementasikan filter GPS, perhitungan jarak *real-time*, akumulasi elevasi, stopwatch waktu aktif, dan sistem *Auto-Pause* sinkron antara stream GPS dan ticker timer periodik di `lib/providers/tracking_provider.dart`.
 * [x] **Pemuatan Posisi Seketika & Smart Recenter:** Integrasi *instant last known position*, stream posisi pasif mode idle, tombol pusatkan lokasi interaktif dengan auto re-fetch & diagnosis status GPS di `lib/services/location_service.dart`, `lib/providers/tracking_provider.dart`, dan `lib/screens/tracking_screen.dart`.
 * [x] **Fitur Ekspor Gambar (RepaintBoundary):** Membangun komponen penangkapan snapshot PNG beresolusi tinggi dan berbagi ke media sosial di `lib/services/social_share_service.dart`.
-* [x] **Implementasi Template Clean Strava-Style:** Menambahkan enum `ShareCardStyle.clean`, fungsi `formatCleanPace`, `formatCleanDuration`, komponen `_buildCleanContent` pada `SocialShareCard`, serta pembaruan antarmuka pemilih tab 4 mode di `SharePreviewScreen`.
+* [x] **Implementasi Template Clean Strava-Style & Akses Video:** Menambahkan enum `ShareCardStyle.clean`, fungsi `formatCleanPace`, `formatCleanDuration`, komponen `_buildCleanContent` pada `SocialShareCard`, serta pembaruan antarmuka pemilih tab 4 mode dan pintasan video di `SharePreviewScreen`.
+* [x] **Persistensi & Feedback Fitur Video:** Memastikan tombol `PUTAR RUTE` dan modal `Video Flyover Rute (MP4 Sinematik)` di `ActivityDetailScreen` selalu dapat diakses secara persisten, dilengkapi SnackBar penjelas jika rute belum mencukupi.
 * [x] **Fitur Auto-Update:** Mengimplementasikan pengecekan otomatis dan manual ke GitHub Releases API di `lib/services/update_service.dart`.
 
 ---
@@ -64,7 +67,8 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 **Tugas Utama & Realisasi:**
 
-* [x] **Pengujian Fungsional & Unit:** 148 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+* [x] **Pengujian Fungsional & Unit:** 149 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/activity_detail_share_test.dart`: Validasi keterlihatan permanen tombol `PUTAR RUTE` dan modal opsi `Video Flyover Rute (MP4 Sinematik)` baik pada sesi dengan rute maupun sesi kosong/minim koordinat.
   * `test/location_recenter_test.dart`: Validasi callback tombol pusatkan lokasi, penanganan `currentLocation == null`, dan siklus hidup idle location stream.
   * `test/social_share_test.dart`: Validasi rendering kartu Clean Strava untuk Lari (`10.44 km`, `5:13 /km`, `54m 27s`, `VELORA`) dan Sepeda (`25.40 km`, `25.4 km/h`, `1h 0m 0s`), serta ekspor Full HD PNG capture.
   * `test/algorithms_test.dart`: Haversine, Douglas-Peucker, PaceCalculator.

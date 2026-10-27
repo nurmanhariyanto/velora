@@ -270,42 +270,67 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                   // Menu Aksi Utama Minimalis (Putar Rute & Bagikan)
                   Row(
                     children: [
-                      if (widget.session.coordinates.length >= 2) ...[
-                        Expanded(
-                          flex: 3,
-                          child: SizedBox(
-                            height: 52,
-                            child: ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => RouteReplayScreen(session: widget.session),
+                      Expanded(
+                        flex: 3,
+                        child: SizedBox(
+                          height: 52,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              if (widget.session.coordinates.length < 2) {
+                                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Aktivitas ini belum merekam rute bergerak (butuh minimal 2 titik GPS) untuk memutar video flyover.',
+                                    ),
+                                    backgroundColor: AppColors.cardSurfaceElevated,
+                                    behavior: SnackBarBehavior.floating,
                                   ),
                                 );
-                              },
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primaryOrange,
-                                foregroundColor: Colors.white,
-                                elevation: 3,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
+                                return;
+                              }
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => RouteReplayScreen(session: widget.session),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: widget.session.coordinates.length >= 2
+                                  ? AppColors.primaryOrange
+                                  : AppColors.cardSurfaceElevated,
+                              foregroundColor: widget.session.coordinates.length >= 2
+                                  ? Colors.white
+                                  : AppColors.textMuted,
+                              elevation: widget.session.coordinates.length >= 2 ? 3 : 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(
+                                  color: widget.session.coordinates.length >= 2
+                                      ? Colors.transparent
+                                      : AppColors.borderSubtle,
                                 ),
                               ),
-                              icon: const Icon(Icons.play_arrow_rounded, size: 24),
-                              label: const Text(
-                                'PUTAR RUTE',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: 0.8,
-                                ),
+                            ),
+                            icon: Icon(
+                              widget.session.coordinates.length >= 2
+                                  ? Icons.play_arrow_rounded
+                                  : Icons.videocam_outlined,
+                              size: 24,
+                            ),
+                            label: const Text(
+                              'PUTAR RUTE',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.8,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                      ],
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         flex: 2,
                         child: SizedBox(
@@ -425,29 +450,42 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
               const SizedBox(height: 12),
 
               // Opsi 2: Video Flyover Rute POV (MP4 Sinematik)
-              if (widget.session.coordinates.length >= 2) ...[
-                _buildShareChoiceCard(
-                  icon: Icons.movie_filter_rounded,
-                  iconColor: AppColors.neonCyan,
-                  title: 'Video Flyover Rute (MP4 Sinematik)',
-                  subtitle: 'Animasi kamera POV 3D Full HD dengan speedometer & elevasi untuk Reels, TikTok, atau WhatsApp.',
-                  badgeText: 'VIDEO MP4',
-                  badgeColor: AppColors.neonCyan,
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RouteReplayScreen(
-                          session: widget.session,
-                          autoStartVideoExport: true,
+              _buildShareChoiceCard(
+                icon: Icons.movie_filter_rounded,
+                iconColor: AppColors.neonCyan,
+                title: 'Video Flyover Rute (MP4 Sinematik)',
+                subtitle: widget.session.coordinates.length >= 2
+                    ? 'Animasi kamera POV 3D Full HD dengan speedometer & elevasi untuk Reels, TikTok, atau WhatsApp.'
+                    : 'Membutuhkan minimal 2 titik GPS bergerak untuk membuat video flyover 3D.',
+                badgeText: widget.session.coordinates.length >= 2 ? 'VIDEO MP4' : 'MIN 2 TITIK GPS',
+                badgeColor: widget.session.coordinates.length >= 2 ? AppColors.neonCyan : AppColors.textMuted,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (widget.session.coordinates.length < 2) {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Aktivitas ini belum merekam rute bergerak (butuh min. 2 titik GPS) untuk dibuatkan video flyover.',
                         ),
+                        backgroundColor: AppColors.cardSurfaceElevated,
+                        behavior: SnackBarBehavior.floating,
                       ),
                     );
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
+                    return;
+                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => RouteReplayScreen(
+                        session: widget.session,
+                        autoStartVideoExport: true,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
 
               // Opsi 3: Ekspor Berkas GPX
               _buildShareChoiceCard(

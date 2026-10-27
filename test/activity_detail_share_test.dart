@@ -100,5 +100,51 @@ void main() {
       expect(find.text('Poster Ringkasan Latihan (HD)'), findsOneWidget);
       expect(find.text('Video Flyover Rute (MP4 Sinematik)'), findsOneWidget);
     });
+
+    testWidgets('PUTAR RUTE dan Opsi Video tetap tampil meski aktivitas tidak memiliki koordinat (coordinates < 2)',
+        (WidgetTester tester) async {
+      final emptyCoordsSession = ActivitySession(
+        id: 'act-detail-empty-coords',
+        notes: 'Uji Coba Statis',
+        sportsType: SportsType.run,
+        startTime: startTime,
+        endTime: startTime + 60000,
+        durationSeconds: 60,
+        distanceMeters: 0,
+        averageSpeedKmh: 0,
+        maxSpeedKmh: 0,
+        averagePaceSecondsPerKm: 0,
+        coordinates: const [],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ActivityDetailScreen(session: emptyCoordsSession),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      // PUTAR RUTE tetap ada di layar (tidak hilang)
+      final putarRuteBtn = find.text('PUTAR RUTE');
+      expect(putarRuteBtn, findsOneWidget);
+
+      // Ketuk PUTAR RUTE -> menampilkan SnackBar informatif
+      await tester.tap(putarRuteBtn);
+      await tester.pump();
+
+      expect(
+        find.text('Aktivitas ini belum merekam rute bergerak (butuh minimal 2 titik GPS) untuk memutar video flyover.'),
+        findsOneWidget,
+      );
+
+      // Buka modal BAGIKAN
+      await tester.tap(find.text('BAGIKAN'));
+      await tester.pumpAndSettle();
+
+      // Video Flyover Rute tetap ada di modal dengan badge MIN 2 TITIK GPS
+      expect(find.text('Video Flyover Rute (MP4 Sinematik)'), findsOneWidget);
+      expect(find.text('MIN 2 TITIK GPS'), findsOneWidget);
+    });
   });
 }

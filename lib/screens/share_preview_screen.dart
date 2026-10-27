@@ -5,6 +5,7 @@ import '../models/activity_session.dart';
 import '../services/social_share_service.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/social_share_card.dart';
+import 'route_replay_screen.dart';
 
 /// Layar Pratinjau Ekspor Gambar Media Sosial (WhatsApp / Instagram Story)
 class SharePreviewScreen extends StatefulWidget {
@@ -135,6 +136,47 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       backgroundColor: AppColors.darkBackground,
       appBar: AppBar(
         title: const Text('Bagikan ke Media Sosial'),
+        actions: [
+          Tooltip(
+            message: 'Buat Video Flyover 3D (MP4)',
+            child: TextButton.icon(
+              icon: const Icon(Icons.movie_filter_rounded, color: AppColors.neonCyan, size: 20),
+              label: const Text(
+                'Video Flyover',
+                style: TextStyle(
+                  color: AppColors.neonCyan,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              onPressed: () {
+                if (widget.session.coordinates.length < 2) {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                        'Aktivitas ini belum merekam rute bergerak (butuh min. 2 titik GPS) untuk video flyover.',
+                      ),
+                      backgroundColor: AppColors.cardSurfaceElevated,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  return;
+                }
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RouteReplayScreen(
+                      session: widget.session,
+                      autoStartVideoExport: true,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: Column(
