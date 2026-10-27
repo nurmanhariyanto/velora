@@ -2,9 +2,9 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
-## [v1.0.12] - 2026-10-27
+## [v1.0.13] - 2026-10-27
 
-### 🌟 Clean Strava-Style Social Share, Pelacakan Lokasi Aktif & Pusatkan Lokasi Pintar
+### 📍 Pelacakan Lokasi Aktif, Suar GPS Neon Pendar & Tombol Pusatkan Lokasi Pintar
 
 #### 📍 1. Peningkatan Titik Lokasi Peta & Tombol Pusatkan Lokasi Pintar
 - **Desain Titik Lokasi Bercahaya (*Luminous Multi-Layer GPS Beacon*):**
@@ -18,7 +18,11 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
 - **Pengujian Otomatis (148/148 Tes Lulus 100%):**
   - Penambahan rangkaian pengujian di `test/location_recenter_test.dart` untuk memvalidasi interaksi pusatkan lokasi, penanganan nilai `currentLocation == null`, serta siklus hidup stream posisi idle.
 
-#### 🌟 2. Format Kartu Berbagi Clean Minimalis (Strava Style)
+## [v1.0.12] - 2026-10-27
+
+### 🌟 Clean Strava-Style Social Share, Typography Putih & Pembaruan Sistem Kartu
+
+#### 🌟 1. Format Kartu Berbagi Clean Minimalis (Strava Style)
 - **Latar Belakang Solid Hitam Pekat (*Pure Solid Black* `#000000`):**
   - Mengeliminasi distraksi visual untuk menghadirkan kontras maksimal pada metrik utama dan siluet rute.
 - **Tiga Metrik Performa Inti Vertikal:**

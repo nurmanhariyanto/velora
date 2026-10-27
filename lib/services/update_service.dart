@@ -22,7 +22,7 @@ class UpdateService {
   static const MethodChannel _installerChannel =
       MethodChannel('online.nurmancloud.velora/app_installer');
 
-  static const String appVersionFallback = '1.0.12';
+  static const String appVersionFallback = '1.0.13';
   static bool _hasCheckedAutoUpdateThisSession = false;
 
   /// Membersihkan sisa file APK lama di direktori temporary
