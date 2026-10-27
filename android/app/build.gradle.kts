@@ -27,11 +27,19 @@ android {
             enableV1Signing = true
             enableV2Signing = true
         }
+        create("release") {
+            storeFile = file("velora-release.jks")
+            storePassword = "velora2026"
+            keyAlias = "velora"
+            keyPassword = "velora2026"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
