@@ -2615,17 +2615,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: _buildHudMetric(
-                    label: widget.session.sportsType == SportsType.run
-                        ? 'PACE'
-                        : 'SPEED',
-                    value: widget.session.sportsType == SportsType.run
-                        ? (currentSpeedKmh > 1.0
+                    label: widget.session.sportsType == SportsType.ride
+                        ? 'SPEED'
+                        : 'PACE',
+                    value: widget.session.sportsType == SportsType.ride
+                        ? currentSpeedKmh.toStringAsFixed(1)
+                        : (currentSpeedKmh > 1.0
                             ? PaceCalculator.formatPace(3600.0 / currentSpeedKmh)
-                            : "--'--\"")
-                        : currentSpeedKmh.toStringAsFixed(1),
-                    unit: widget.session.sportsType == SportsType.run
-                        ? '/KM'
-                        : 'KM/H',
+                            : "--'--\""),
+                    unit: widget.session.sportsType == SportsType.ride
+                        ? 'KM/H'
+                        : '/KM',
                     accentColor: AppColors.primaryOrange,
                   ),
                 ),
@@ -4397,7 +4397,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       if (video != null) {
         final sportsName = widget.session.sportsType == SportsType.ride
             ? 'Gowes'
-            : 'Lari';
+            : (widget.session.sportsType == SportsType.hike ? 'Mendaki' : 'Lari');
         await SharePlus.instance.share(
           ShareParams(
             files: [XFile(video.path)],
@@ -4571,14 +4571,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     required double currentElevationGain,
     required int elapsedSeconds,
   }) {
-    final isRun = widget.session.sportsType == SportsType.run;
-    final speedValue = isRun
-        ? (currentSpeedKmh > 1.0
+    final isRide = widget.session.sportsType == SportsType.ride;
+    final speedValue = isRide
+        ? currentSpeedKmh.toStringAsFixed(1)
+        : (currentSpeedKmh > 1.0
             ? PaceCalculator.formatPace(3600.0 / currentSpeedKmh)
-            : "--'--\"")
-        : currentSpeedKmh.toStringAsFixed(1);
-    final speedUnit = isRun ? '/KM' : 'KM/H';
-    final speedLabel = isRun ? 'PACE' : 'SPEED';
+            : "--'--\"");
+    final speedUnit = isRide ? 'KM/H' : '/KM';
+    final speedLabel = isRide ? 'SPEED' : 'PACE';
 
     return Container(
       decoration: BoxDecoration(

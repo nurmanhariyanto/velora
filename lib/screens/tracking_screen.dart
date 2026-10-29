@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../models/sports_type.dart';
+import '../models/tracking_status.dart';
 import '../providers/achievement_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/tracking_provider.dart';
@@ -257,6 +258,49 @@ class _TrackingScreenState extends State<TrackingScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Badge Olahraga Aktif saat sesi sedang berjalan
+                  if (tracking.status != TrackingStatus.idle &&
+                      tracking.status != TrackingStatus.completed)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: _getSportAccentColor(tracking.sportsType)
+                              .withAlpha(35),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _getSportAccentColor(tracking.sportsType)
+                                .withAlpha(90),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _getSportIcon(tracking.sportsType),
+                              size: 14,
+                              color: _getSportAccentColor(tracking.sportsType),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              tracking.sportsType.displayName.toUpperCase(),
+                              style: TextStyle(
+                                color: _getSportAccentColor(tracking.sportsType),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   // Grid Metrik Statistik Utama
                   Row(
                     children: [
@@ -284,25 +328,35 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   ),
                   const SizedBox(height: 10),
 
-                  // Baris Metrik Sekunder: Pace/Speed + Elevasi
+                  // Baris Metrik Sekunder: Dinamis Menyesuaikan Olahraga (Lari / Sepeda / Mendaki)
                   Row(
                     children: [
                       Expanded(
                         child: MetricCard(
-                          label: tracking.sportsType.primaryMetricLabel,
+                          label: tracking.sportsType == SportsType.hike
+                              ? 'ALTITUDE'
+                              : tracking.sportsType.primaryMetricLabel,
                           value: tracking.sportsType == SportsType.run
                               ? tracking.formattedPace
-                              : tracking.averageSpeedKmh.toStringAsFixed(1),
-                          unit: tracking.sportsType.primaryMetricUnit,
+                              : (tracking.sportsType == SportsType.hike
+                                  ? tracking.currentAltitude.toStringAsFixed(0)
+                                  : tracking.averageSpeedKmh.toStringAsFixed(1)),
+                          unit: tracking.sportsType == SportsType.hike
+                              ? 'mdpl'
+                              : tracking.sportsType.primaryMetricUnit,
                           icon: tracking.sportsType == SportsType.run
                               ? Icons.speed_rounded
-                              : Icons.directions_bike_rounded,
+                              : (tracking.sportsType == SportsType.hike
+                                  ? Icons.filter_hdr_rounded
+                                  : Icons.directions_bike_rounded),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: MetricCard(
-                          label: 'ELEVASI',
+                          label: tracking.sportsType == SportsType.hike
+                              ? 'ELEV GAIN'
+                              : 'ELEVASI',
                           value: '+${tracking.elevationGain.toStringAsFixed(0)}',
                           unit: 'm',
                           icon: Icons.terrain_rounded,
@@ -311,10 +365,18 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: MetricCard(
-                          label: 'SPEED',
-                          value: tracking.currentSpeedKmh.toStringAsFixed(1),
-                          unit: 'km/h',
-                          icon: Icons.navigation_rounded,
+                          label: tracking.sportsType == SportsType.hike
+                              ? 'PACE'
+                              : 'SPEED',
+                          value: tracking.sportsType == SportsType.hike
+                              ? tracking.formattedPace
+                              : tracking.currentSpeedKmh.toStringAsFixed(1),
+                          unit: tracking.sportsType == SportsType.hike
+                              ? '/km'
+                              : 'km/h',
+                          icon: tracking.sportsType == SportsType.hike
+                              ? Icons.speed_rounded
+                              : Icons.navigation_rounded,
                         ),
                       ),
                     ],
@@ -322,33 +384,212 @@ class _TrackingScreenState extends State<TrackingScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Tombol Kontrol (Start, Pause, Resume, Stop)
+                  // Tombol Kontrol: Mulai Membuka Badge Menu Pemilihan Olahraga
                   ControlButtons(
                     status: tracking.status,
                     sportsType: tracking.sportsType,
-                    onStart: () async {
-                      final success = await tracking.startTracking();
-                      if (!success && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Harap berikan izin akses GPS untuk memulai pelacakan.',
-                            ),
-                            backgroundColor: AppColors.neonRed,
-                          ),
-                        );
-                      }
-                    },
+                    onStart: () => _showSportSelectionModal(context, tracking),
                     onPause: () => tracking.pauseTracking(),
                     onResume: () => tracking.resumeTracking(),
                     onStop: _handleStopSession,
-                    onSportsTypeChanged: (type) => tracking.setSportsType(type),
                   ),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  IconData _getSportIcon(SportsType sport) {
+    switch (sport) {
+      case SportsType.run:
+        return Icons.directions_run_rounded;
+      case SportsType.ride:
+        return Icons.directions_bike_rounded;
+      case SportsType.hike:
+        return Icons.hiking_rounded;
+    }
+  }
+
+  Color _getSportAccentColor(SportsType sport) {
+    switch (sport) {
+      case SportsType.run:
+        return AppColors.primaryOrange;
+      case SportsType.ride:
+        return AppColors.neonCyan;
+      case SportsType.hike:
+        return AppColors.electricAmber;
+    }
+  }
+
+  /// Menampilkan modal badge menu pemilihan jenis olahraga saat tombol Mulai ditekan
+  void _showSportSelectionModal(BuildContext context, TrackingProvider tracking) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (modalCtx) {
+        return SafeArea(
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              decoration: const BoxDecoration(
+                color: AppColors.cardSurface,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                border: Border(top: BorderSide(color: AppColors.borderSubtle)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.textMuted.withAlpha(80),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const Text(
+                'PILIH JENIS OLAHRAGA',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Pilih aktivitas untuk menyesuaikan metrik dan pelacakan GPS',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 20),
+              _buildSportOptionBadge(
+                context: modalCtx,
+                tracking: tracking,
+                sport: SportsType.run,
+                icon: Icons.directions_run_rounded,
+                accentColor: AppColors.primaryOrange,
+                title: 'Lari (Run)',
+                subtitle: 'Pelacak pace (/km), ritme langkah & jarak lari',
+              ),
+              const SizedBox(height: 12),
+              _buildSportOptionBadge(
+                context: modalCtx,
+                tracking: tracking,
+                sport: SportsType.ride,
+                icon: Icons.directions_bike_rounded,
+                accentColor: AppColors.neonCyan,
+                title: 'Sepeda (Ride)',
+                subtitle: 'Pelacak kecepatan (km/h) & rute gowes',
+              ),
+              const SizedBox(height: 12),
+              _buildSportOptionBadge(
+                context: modalCtx,
+                tracking: tracking,
+                sport: SportsType.hike,
+                icon: Icons.hiking_rounded,
+                accentColor: AppColors.electricAmber,
+                title: 'Mendaki (Hike / Trekking)',
+                subtitle: 'Pelacak ketinggian (mdpl), elevasi lereng & tanjakan',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  },
+);
+  }
+
+  Widget _buildSportOptionBadge({
+    required BuildContext context,
+    required TrackingProvider tracking,
+    required SportsType sport,
+    required IconData icon,
+    required Color accentColor,
+    required String title,
+    required String subtitle,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () async {
+          Navigator.pop(context);
+          tracking.setSportsType(sport);
+          final success = await tracking.startTracking();
+          if (!success && mounted) {
+            ScaffoldMessenger.of(this.context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'Harap berikan izin akses GPS untuk memulai pelacakan.',
+                ),
+                backgroundColor: AppColors.neonRed,
+              ),
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.cardSurfaceElevated,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderSubtle),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: accentColor.withAlpha(35),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: accentColor.withAlpha(90)),
+                ),
+                child: Icon(icon, color: accentColor, size: 26),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textMuted,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -60,10 +60,34 @@ void main() {
     test('SportsType parsing dan label metrik', () {
       expect(SportsType.fromString('run'), equals(SportsType.run));
       expect(SportsType.fromString('ride'), equals(SportsType.ride));
+      expect(SportsType.fromString('hike'), equals(SportsType.hike));
+      expect(SportsType.fromString('mendaki'), equals(SportsType.hike));
       expect(SportsType.fromString('UNKNOWN'), equals(SportsType.run));
 
       expect(SportsType.run.primaryMetricLabel, equals('AVG PACE'));
       expect(SportsType.ride.primaryMetricLabel, equals('AVG SPEED'));
+      expect(SportsType.hike.primaryMetricLabel, equals('AVG PACE'));
+      expect(SportsType.hike.displayName, equals('Mendaki (Hike)'));
+      expect(SportsType.hike.shortName, equals('HIKE'));
+    });
+
+    test('ActivitySession menghasilkan judul default yang tepat untuk Mendaki (Hike)', () {
+      final hikeSession = ActivitySession(
+        id: 'velora_hike_1',
+        sportsType: SportsType.hike,
+        startTime: 1697508000000, // Jam pagi
+        endTime: 1697515200000,
+        durationSeconds: 7200,
+        distanceMeters: 6500.0,
+        averageSpeedKmh: 3.25,
+        maxSpeedKmh: 5.0,
+        averagePaceSecondsPerKm: 1107.0,
+        elevationGain: 420.0,
+      );
+
+      expect(hikeSession.defaultTitle, contains('Mendaki'));
+      expect(hikeSession.displayTitle, contains('Mendaki'));
+      expect(hikeSession.toMap()['jenis_olahraga'], equals('hike'));
     });
   });
 }

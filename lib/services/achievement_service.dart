@@ -90,6 +90,14 @@ class AchievementService {
         (id: 'run_half_marathon', label: '21.1 km Half-Marathon', targetMeters: 21097.5),
         (id: 'run_marathon', label: '42.2 km Marathon', targetMeters: 42195.0),
       ];
+    } else if (sportsType == SportsType.hike) {
+      milestones = const [
+        (id: 'hike_1k', label: '1 km Trail', targetMeters: 1000.0),
+        (id: 'hike_3k', label: '3 km Trek', targetMeters: 3000.0),
+        (id: 'hike_5k', label: '5 km Mountain Trek', targetMeters: 5000.0),
+        (id: 'hike_10k', label: '10 km Summit Expedition', targetMeters: 10000.0),
+        (id: 'hike_15k', label: '15 km Ultra Trail', targetMeters: 15000.0),
+      ];
     } else {
       milestones = const [
         (id: 'ride_1k', label: '1 km Sprint', targetMeters: 1000.0),

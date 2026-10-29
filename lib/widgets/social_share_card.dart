@@ -417,12 +417,12 @@ class SocialShareCard extends StatelessWidget {
                         color: Colors.white24,
                       ),
                       _buildMetricItem(
-                        session.sportsType == SportsType.run
-                            ? 'PACE'
-                            : 'AVG SPEED',
-                        session.sportsType == SportsType.run
-                            ? session.formattedPace
-                            : session.formattedSpeed,
+                        session.sportsType == SportsType.ride
+                            ? 'AVG SPEED'
+                            : 'PACE',
+                        session.sportsType == SportsType.ride
+                            ? session.formattedSpeed
+                            : session.formattedPace,
                       ),
                       Container(
                         width: 1,

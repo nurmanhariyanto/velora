@@ -1,7 +1,8 @@
 /// Jenis olahraga yang didukung Velora
 enum SportsType {
   run,
-  ride;
+  ride,
+  hike;
 
   String get displayName {
     switch (this) {
@@ -9,6 +10,8 @@ enum SportsType {
         return 'Lari (Run)';
       case SportsType.ride:
         return 'Sepeda (Ride)';
+      case SportsType.hike:
+        return 'Mendaki (Hike)';
     }
   }
 
@@ -18,6 +21,8 @@ enum SportsType {
         return 'RUN';
       case SportsType.ride:
         return 'RIDE';
+      case SportsType.hike:
+        return 'HIKE';
     }
   }
 
@@ -27,6 +32,8 @@ enum SportsType {
         return 'AVG PACE';
       case SportsType.ride:
         return 'AVG SPEED';
+      case SportsType.hike:
+        return 'AVG PACE';
     }
   }
 
@@ -36,12 +43,17 @@ enum SportsType {
         return '/km';
       case SportsType.ride:
         return 'km/h';
+      case SportsType.hike:
+        return '/km';
     }
   }
 
   static SportsType fromString(String value) {
-    if (value.toLowerCase() == 'ride') {
+    final v = value.toLowerCase();
+    if (v == 'ride') {
       return SportsType.ride;
+    } else if (v == 'hike' || v == 'hiking' || v == 'mendaki') {
+      return SportsType.hike;
     }
     return SportsType.run;
   }

@@ -11,7 +11,7 @@ class ControlButtons extends StatelessWidget {
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onStop;
-  final ValueChanged<SportsType> onSportsTypeChanged;
+  final ValueChanged<SportsType>? onSportsTypeChanged;
 
   const ControlButtons({
     super.key,
@@ -21,66 +21,34 @@ class ControlButtons extends StatelessWidget {
     required this.onPause,
     required this.onResume,
     required this.onStop,
-    required this.onSportsTypeChanged,
+    this.onSportsTypeChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     if (status == TrackingStatus.idle || status == TrackingStatus.completed) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Pemilih Jenis Olahraga (Run / Ride)
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: BoxDecoration(
-              color: AppColors.cardSurfaceElevated,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.borderSubtle),
+      return SizedBox(
+        width: double.infinity,
+        height: 58,
+        child: ElevatedButton.icon(
+          onPressed: onStart,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryOrange,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildSportTypeChip(
-                  type: SportsType.run,
-                  icon: Icons.directions_run_rounded,
-                  label: 'LARI',
-                ),
-                const SizedBox(width: 4),
-                _buildSportTypeChip(
-                  type: SportsType.ride,
-                  icon: Icons.directions_bike_rounded,
-                  label: 'SEPEDA',
-                ),
-              ],
+            elevation: 4,
+          ),
+          icon: const Icon(Icons.play_arrow_rounded, size: 28),
+          label: const Text(
+            'MULAI LATIHAN',
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
             ),
           ),
-          const SizedBox(height: 16),
-          // Tombol Mulai Besar
-          SizedBox(
-            width: double.infinity,
-            height: 58,
-            child: ElevatedButton.icon(
-              onPressed: onStart,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                elevation: 4,
-              ),
-              icon: const Icon(Icons.play_arrow_rounded, size: 28),
-              label: const Text(
-                'MULAI LATIHAN',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       );
     }
 
@@ -112,44 +80,6 @@ class ControlButtons extends StatelessWidget {
           onPressed: () => _confirmStop(context),
         ),
       ],
-    );
-  }
-
-  Widget _buildSportTypeChip({
-    required SportsType type,
-    required IconData icon,
-    required String label,
-  }) {
-    final isSelected = sportsType == type;
-    return GestureDetector(
-      onTap: () => onSportsTypeChanged(type),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              size: 18,
-              color: isSelected ? Colors.white : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textSecondary,
-                fontWeight: FontWeight.w700,
-                fontSize: 13,
-                letterSpacing: 1.0,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

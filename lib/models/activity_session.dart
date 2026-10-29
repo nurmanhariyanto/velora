@@ -97,7 +97,9 @@ class ActivitySession {
       timeOfDayName = 'Subuh';
     }
 
-    final prefix = sportsType == SportsType.ride ? 'Bersepeda' : 'Lari';
+    final prefix = sportsType == SportsType.ride
+        ? 'Bersepeda'
+        : (sportsType == SportsType.hike ? 'Mendaki' : 'Lari');
     return '$prefix $timeOfDayName';
   }
 

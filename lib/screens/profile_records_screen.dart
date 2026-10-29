@@ -283,7 +283,7 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
   }
 
   Widget _buildSportsSelector(AchievementProvider achievement) {
-    final isRide = achievement.selectedSports == SportsType.ride;
+    final selected = achievement.selectedSports;
 
     return Container(
       padding: const EdgeInsets.all(4),
@@ -296,18 +296,26 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
         children: [
           Expanded(
             child: _buildSportsTab(
-              icon: Icons.pedal_bike_rounded,
-              label: 'Sepeda (Ride)',
-              isSelected: isRide,
+              icon: Icons.directions_run_rounded,
+              label: 'Lari',
+              isSelected: selected == SportsType.run,
+              onTap: () => achievement.setSportsType(SportsType.run),
+            ),
+          ),
+          Expanded(
+            child: _buildSportsTab(
+              icon: Icons.directions_bike_rounded,
+              label: 'Sepeda',
+              isSelected: selected == SportsType.ride,
               onTap: () => achievement.setSportsType(SportsType.ride),
             ),
           ),
           Expanded(
             child: _buildSportsTab(
-              icon: Icons.directions_run_rounded,
-              label: 'Lari (Run)',
-              isSelected: !isRide,
-              onTap: () => achievement.setSportsType(SportsType.run),
+              icon: Icons.hiking_rounded,
+              label: 'Mendaki',
+              isSelected: selected == SportsType.hike,
+              onTap: () => achievement.setSportsType(SportsType.hike),
             ),
           ),
         ],
@@ -415,7 +423,11 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
               color: AppColors.primaryOrange,
             ),
             _buildStatCard(
-              title: isRun ? 'LARI TERJAUH' : 'GOWES TERJAUH',
+              title: isRun
+                  ? 'LARI TERJAUH'
+                  : (achievement.selectedSports == SportsType.hike
+                      ? 'DAKI TERJAUH'
+                      : 'GOWES TERJAUH'),
               value: stats.formattedLongestDistance,
               icon: Icons.straighten_rounded,
               color: AppColors.neonGreen,

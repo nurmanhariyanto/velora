@@ -263,7 +263,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       child: Icon(
                         session.sportsType == SportsType.run
                             ? Icons.directions_run_rounded
-                            : Icons.pedal_bike_rounded,
+                            : (session.sportsType == SportsType.hike
+                                ? Icons.hiking_rounded
+                                : Icons.pedal_bike_rounded),
                         color: AppColors.primaryOrange,
                         size: 20,
                       ),

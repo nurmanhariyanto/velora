@@ -42,6 +42,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Desain Aksesibilitas Fitur Video Permanen:** Menetapkan tombol `PUTAR RUTE` dan opsi `Video Flyover (MP4)` selalu tampil di antarmuka; memberikan feedback informatif jika sesi latihan belum merekam rute bergerak.
 * [x] **Desain Anti-Occlusion Banner Puncak & Proporsi Badge 3D:** Merancang ulang banner notifikasi puncak elevasi (`_buildPeakSummitBanner`) menjadi *capsule pill* horizontal ultra-kompak (28px) dengan efek *frosted glass* semi-transparan (`BackdropFilter` sigma 10) di zona langit atas aman (`padding.top + 52`), membebaskan area cakrawala peta dari tumpang-tindih visual terhadap pin 3D di peta, serta merampingkan dimensi pin penanda 3D (`MountainPeakPin`, `RoadTrackPin`, `RegencyFlagPin`) agar proporsional, elegan, dan bebas silau.
 * [x] **Desain Pemuatan Instan Penanda Jalan Putaran Pertama:** Merancang pengalaman visual tanpa jeda (*zero-delay visual experience*) di mana penanda nama ruas jalan di rute 3D langsung tampil di detik pertama putaran pertama tanpa harus menunggu putaran kedua atau koneksi internet yang lambat.
+* [x] **Desain Badge Menu Pemilihan Olahraga & Mode Mendaki:** Merancang antarmuka pemilihan aktivitas berbasis *Modal Bottom Sheet* elegan yang terpicu saat menekan tombol "MULAI LATIHAN" (dengan 3 kartu badge informatif: Lari, Sepeda, dan Mendaki), serta merancang tata letak metrik dinamis mendaki yang menonjolkan ketinggian aktual (*Altitude mdpl*) dan elevasi lereng (*Elevation Gain*).
 
 ---
 
@@ -63,6 +64,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Sinkronisasi Pemutar Rute & Auto-Play Instan:** Mengoreksi kondisi inisialisasi controller animasi rute di `lib/screens/route_replay_screen.dart`, menyinkronkan status visual tombol Pause/Play secara langsung dengan `_animController.isAnimating`, memperbaiki scrubbing linimasa, serta menjamin rute langsung berputar mulus tanpa jeda atau klik ganda saat dibuka.
 * [x] **Anti-Occlusion Banner & Refaktorisasi Pin 3D Rute:** Mengimplementasikan banner selebrasi puncak elevasi dan batas wilayah berbasis *frosted glass capsule pill* dalam `Column` terpadu anti-tumpang-tindih pada `lib/screens/route_replay_screen.dart`, mengamankan visibilitas badge penanda ketinggian rute (`PUNCAK XXM`), serta mengecilkan skala pin gunung dari 190x84 ke 130x58 dan pin lintasan dari 220x76 ke 150x52 untuk keterbacaan optimal.
 * [x] **Pemuatan Instan Nama Jalan & Pra-Pemuatan Detail Aktivitas:** Mengimplementasikan arsitektur dua tahap (*Two-Tier Fast Pass*) pada `lib/services/road_geocoding_service.dart` (fast pass sinkron 0 ms dan targeted online upgrade dengan timeout ketat 1,2 detik), integrasi `onProgressUpdate` pada `lib/screens/route_replay_screen.dart`, pra-pemuatan otomatis di `lib/screens/activity_detail_screen.dart`, serta perluasan koridor offline lokal Pontianak (Uray Bawadi, Sutan Syahrir, Kesehatan, Harapan Jaya, Ampera, Prof. M. Yamin, Wahidin).
+* [x] **Mode Olahraga Mendaki (Hike) & Integrasi Modal Pemilih Olahraga:** Mengintegrasikan enum `SportsType.hike`, penyederhanaan tombol "MULAI LATIHAN" pada `lib/widgets/control_buttons.dart` yang memicu modal badge 3 olahraga pada `lib/screens/tracking_screen.dart`, dashboard metrik dinamis ketinggian (Altitude mdpl, Elev Gain, Pace), toleransi auto-pause tanjakan curam di `lib/providers/tracking_provider.dart`, penyesuaian rekor jarak daki di `lib/services/achievement_service.dart`, serta integrasi UI riwayat, detail, dan video 3D.
 
 ---
 
@@ -72,7 +74,8 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 **Tugas Utama & Realisasi:**
 
-* [x] **Pengujian Fungsional & Unit:** 157 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+* [x] **Pengujian Fungsional & Unit:** 162 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/tracking_screen_sport_selection_test.dart`: Validasi penekanan tombol "MULAI LATIHAN" memunculkan badge modal 3 olahraga, verifikasi pemilihan mode Mendaki (hike), dan pengujian metrik dinamis mendaki (`ALTITUDE mdpl`, `ELEV GAIN`, `PACE`).
   * `test/road_geocoding_test.dart`: Validasi pemformatan nama jalan, pengenalan koridor rute offline Pontianak & kota-kota besar, deduplikasi transisi, callback instan `onProgressUpdate` (0 ms), dan pemanasan memori `precacheRoadTransitions`.
   * `test/route_replay_test.dart`, `test/route_replay_interaction_test.dart` & `test/route_replay_layout_audit_test.dart`: Validasi siklus pemutaran rute otomatis, transisi Play/Pause satu sentuhan tanpa freeze, scrubber linimasa, audit tata letak pada berbagai rasio layar, serta validasi banner selebrasi puncak elevasi anti-occlusion pada zona aman atas.
   * `test/map_precache_test.dart`: Validasi konversi koordinat tile OSM, pemotongan batas, kalkulasi ubin rute, pembersihan cache memori, penanganan pembatalan, inisialisasi direktori cache ubin, pemeriksaan internet, warm-up startup, dan precache rute aktivitas.
@@ -108,3 +111,4 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Rilis Pembaruan GitHub (v1.0.16):** Perbaikan desinkronisasi status Play/Pause pemutar rute (Route Replay) dan auto-play instan rute GPX.
 * [x] **Rilis Pembaruan GitHub (v1.0.17):** Optimalisasi penanda puncak elevasi rute bebas tumpang-tindih (anti-occlusion banner) dan desain badge 3D ramping proporsional.
 * [x] **Rilis Pembaruan GitHub (v1.0.18):** Pemuatan instan nama jalan putaran pertama (Instant Road Geocoding & Early Pre-Warming).
+* [x] **Rilis Pembaruan GitHub (v1.0.19):** Mode olahraga Mendaki (Hiking / Trekking), antarmuka modal badge pemilih olahraga saat tombol Mulai ditekan, dan dashboard metrik elevasi dinamis.

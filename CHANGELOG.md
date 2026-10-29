@@ -2,6 +2,33 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.19] - 2026-10-29
+
+### 🥾 Mode Olahraga Mendaki (Hiking / Trekking) & Modal Badge Pemilih Olahraga
+
+#### 🥾 1. Dukungan Penuh Cabang Olahraga Mendaki (*Hiking & Mountain Trekking*)
+- **Penambahan `SportsType.hike`:**
+  - Menghadirkan cabang olahraga ketiga **Mendaki (Hike / Trekking)** dengan ikon sepatu gunung (`Icons.hiking_rounded`) dan tema warna amber (`#F59E0B`).
+  - Penyesuaian nama otomatis sesi latihan secara adaptif ("Mendaki Pagi Hari", "Mendaki Sore Hari", dst.) serta serialisasi ke basis data SQLite lokal.
+  - Penambahan lencana rekor jarak khusus mendaki (*Best Efforts Hiking*): 1 km Trail, 3 km Trek, 5 km Mountain Trek, 10 km Summit Expedition, dan 15 km Ultra Trail.
+  - Penyesuaian metrik HUD pada Video Flyover 3D dan kartu berbagi sosial (Clean Strava-Style) untuk aktivitas mendaki.
+
+#### 🎯 2. Antarmuka Pemilih Olahraga Responsif (*Sport Selection Badge Modal*)
+- **Pemicu Modal Cerdas pada Tombol 'MULAI LATIHAN':**
+  - Menggantikan barisan chip statis di panel awal dengan tombol **"MULAI LATIHAN"** bersih, minimalis, dan modern.
+  - Mengetuk tombol "MULAI LATIHAN" kini memunculkan *Modal Bottom Sheet* elegan berisi 3 kartu lencana olahraga:
+    1. 🏃 **Lari (Run):** Aksen oranye dengan metrik utama Pace (`/km`), ritme langkah & jarak lari.
+    2. 🚴 **Sepeda (Ride):** Aksen cyan neon dengan metrik utama Kecepatan (`km/h`) & jarak jelajah gowes.
+    3. 🥾 **Mendaki (Hike):** Aksen amber dengan metrik utama Ketinggian (`mdpl`), elevasi lereng & tanjakan.
+  - Sesi latihan langsung dimulai seketika saat salah satu lencana olahraga dipilih.
+
+#### 📊 3. Dashboard Metrik Dinamis Khusus Aktivitas Mendaki
+- **Metrik Sekunder Real-Time:**
+  - Menampilkan metrik **ALTITUDE** (`mdpl`) secara langsung dari sensor ketinggian GPS.
+  - Menampilkan metrik **ELEV GAIN** (`+m`) dan **PACE** (`/km`).
+- **Toleransi Kecepatan Auto-Pause Menanjak:**
+  - Menyesuaikan sensitivitas *Auto-Pause Detector* agar langkah pelan saat melintasi tanjakan terjal ($\ge 0.8\text{ km/jam}$) tidak memicu jeda otomatis keliru.
+
 ## [v1.0.18] - 2026-10-29
 
 ### 🚀 Pemuatan Instan Nama Jalan Putaran Pertama (Instant Road Geocoding & Early Pre-Warming)

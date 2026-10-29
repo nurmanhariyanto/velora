@@ -129,7 +129,9 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                             Icon(
                               widget.session.sportsType == SportsType.run
                                   ? Icons.directions_run_rounded
-                                  : Icons.pedal_bike_rounded,
+                                  : (widget.session.sportsType == SportsType.hike
+                                      ? Icons.hiking_rounded
+                                      : Icons.pedal_bike_rounded),
                               size: 16,
                               color: AppColors.primaryOrange,
                             ),

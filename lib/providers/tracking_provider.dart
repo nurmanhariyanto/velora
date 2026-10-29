@@ -79,6 +79,7 @@ class TrackingProvider extends ChangeNotifier {
   double get currentSpeedKmh => _status.isPaused ? 0.0 : _currentSpeedMps * 3.6;
   double get maxSpeedKmh => _maxSpeedMps * 3.6;
   double get elevationGain => _elevationGain;
+  double get currentAltitude => _lastElevation ?? 0.0;
   List<CoordinatePoint> get coordinates => List.unmodifiable(_coordinates);
   Position? get currentPosition => _currentPosition;
   String get currentSessionId => _currentSessionId;
@@ -362,11 +363,14 @@ class TrackingProvider extends ChangeNotifier {
     }
 
     // Deteksi Auto-Pause via AutoPauseDetector
-    final isAutoPausedNow = _autoPauseDetector.processPoint(
-      speedMps: speedMps,
-      timestampMs: nowMs,
-      distanceMovedMeters: movedMeters,
-    );
+    // Untuk mendaki (hike), ambang henti disesuaikan lebih toleran (< 0.8 km/jam / 0.22 m/s) agar tidak salah menjeda saat tanjakan curam
+    final isAutoPausedNow = (_sportsType == SportsType.hike && speedMps >= 0.22)
+        ? false
+        : _autoPauseDetector.processPoint(
+            speedMps: speedMps,
+            timestampMs: nowMs,
+            distanceMovedMeters: movedMeters,
+          );
 
     if (isAutoPausedNow && _status == TrackingStatus.tracking) {
       _status = TrackingStatus.pausedAuto;
