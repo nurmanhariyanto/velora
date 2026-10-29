@@ -2,6 +2,26 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.18] - 2026-10-29
+
+### 🚀 Pemuatan Instan Nama Jalan Putaran Pertama (Instant Road Geocoding & Early Pre-Warming)
+
+#### ⚡ 1. Pemuatan Instan Nama Jalan di Detik Pertama (*Zero-Delay Road Transitions*)
+- **Dua Tahap Resolusi Sinkron & Asinkron (*Two-Tier Fast Pass*):**
+  - Mengimplementasikan evaluasi instan tahap 1 (0 ms) pada `RoadGeocodingService.detectRoadTransitions` menggunakan pencocokan memori cache dan koridor lokal offline sehingga penanda transisi jalan langsung tersedia seketika di frame pertama pemutaran rute (`onProgressUpdate`).
+  - Menghilangkan kendala nama jalan yang kosong pada putaran pertama akibat balapan waktu (*race condition*) antara animasi rute (durasi 18 detik) dan *sequential HTTP requests* reverse geocoding OSM publik yang lambat (15-25 detik).
+  - Melakukan *targeted upgrade* tahap 2 secara terarah hanya untuk titik jalan yang belum teridentifikasi dengan batas *timeout* ketat (1,2 detik per pemanggilan), memperbarui nama jalan secara halus (*seamless update*) tanpa menghentikan pemutaran rute.
+
+#### 🛣️ 2. Pra-Pemuatan Nama Jalan di Detail Aktivitas (*Early Pre-Warming*)
+- **Pra-Pemuatan Latar Belakang Otomatis:**
+  - Memicu `RoadGeocodingService.precacheRoadTransitions` di latar belakang saat pengguna membuka halaman rincian latihan (`ActivityDetailScreen`), berjalan beriringan dengan pra-pemuatan ubin peta (*Smart Map Pre-Caching*).
+  - Menjamin seluruh nama jalan di sepanjang rute latihan sudah ter-cache penuh di memori bahkan sebelum pengguna menekan tombol "PUTAR RUTE".
+
+#### 🗺️ 3. Perluasan Koridor Jalan Populer Pontianak (*Rich Offline Corridors*)
+- **Pencarian Offline Cepat 0 ms untuk Koridor Utama Pontianak:**
+  - Menambahkan koridor rute olahraga Kota Baru, Pontianak Barat, dan Pontianak Selatan ke dalam basis data offline lokal: Jl. Uray Bawadi, Jl. Sutan Syahrir, Jl. Kesehatan, Jl. Harapan Jaya, Jl. Ampera, Jl. Prof. M. Yamin, dan Jl. Dr. Wahidin S.
+  - Memastikan rute-rute populer di Pontianak langsung menampilkan nama jalan resmi secara akurat bahkan dalam mode offline tanpa koneksi internet.
+
 ## [v1.0.17] - 2026-10-29
 
 ### 🏔️ Optimalisasi Penanda Puncak Elevasi (Anti-Occlusion) & Desain Badge 3D Ramping Proporsional

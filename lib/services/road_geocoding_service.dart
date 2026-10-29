@@ -85,10 +85,38 @@ class RoadGeocodingService {
     return name;
   }
 
-  /// Deteksi titik perpindahan nama jalan di sepanjang lintasan rute GPS
+  /// Melakukan pra-pemuatan nama jalan di latar belakang sebelum layar putar rute dibuka
+  static Future<void> precacheRoadTransitions(
+    List<CoordinatePoint> coordinates, {
+    http.Client? client,
+  }) async {
+    if (coordinates.length < 2) return;
+    try {
+      final cumulativeDistances = <double>[0.0];
+      for (int i = 1; i < coordinates.length; i++) {
+        final d = Haversine.calculateDistance(
+          coordinates[i - 1].latitude,
+          coordinates[i - 1].longitude,
+          coordinates[i].latitude,
+          coordinates[i].longitude,
+        );
+        cumulativeDistances.add(cumulativeDistances.last + d);
+      }
+      await detectRoadTransitions(
+        coordinates: coordinates,
+        cumulativeDistances: cumulativeDistances,
+        client: client,
+      );
+    } catch (_) {}
+  }
+
+  /// Deteksi titik perpindahan nama jalan di sepanjang lintasan rute GPS.
+  /// Menjalankan fast pass sinkron (0 ms) agar badge jalan langsung tampil di detik pertama,
+  /// kemudian melakukan targeted online reverse geocoding di latar belakang.
   static Future<List<RoadTransitionEvent>> detectRoadTransitions({
     required List<CoordinatePoint> coordinates,
     required List<double> cumulativeDistances,
+    void Function(List<RoadTransitionEvent> updated)? onProgressUpdate,
     http.Client? client,
   }) async {
     if (coordinates.length < 2) return const [];
@@ -97,8 +125,8 @@ class RoadGeocodingService {
 
     // 1. Kumpulkan indeks titik rute yang relevan untuk diperiksa:
     // - Titik awal rute (KM 0)
-    // - Titik dengan belokan tikungan nyata (perubahan bearing > 18 derajat)
-    // - Titik reguler setiap interval jarak (~200-300 meter)
+    // - Titik dengan belokan tikungan nyata (perubahan bearing >= 18 derajat)
+    // - Titik reguler setiap interval jarak (~250 meter)
     final sampleIndices = <int>{0};
 
     double lastSampleDist = 0.0;
@@ -116,33 +144,46 @@ class RoadGeocodingService {
       if (angleDiff > 180) angleDiff = 360 - angleDiff;
 
       final isSharpTurn = angleDiff >= 18.0;
-      final isDistanceInterval = (dist - lastSampleDist) >= 200.0;
+      final isDistanceInterval = (dist - lastSampleDist) >= 250.0;
 
       if (isSharpTurn || isDistanceInterval) {
         sampleIndices.add(i);
         lastSampleDist = dist;
       }
 
-      // Batasi maksimal 70 titik sampel untuk menjaga performa optimal
-      if (sampleIndices.length >= 70) break;
+      // Batasi maksimal 40 titik sampel untuk efisiensi tinggi
+      if (sampleIndices.length >= 40) break;
     }
     sampleIndices.add(coordinates.length - 1);
 
     final sortedIndices = sampleIndices.toList()..sort();
-
-    // Himpunan nama jalan yang sudah pernah muncul untuk menjamin deduplikasi:
-    // Setiap nama jalan HANYA MUNCUL TEPAT 1 KALI di sepanjang rute latihan
     final seenRoadNames = <String>{};
 
-    // 2. Query nama jalan untuk setiap titik sampel
+    // --- TAHAP 1: FAST PASS SINKRON INSTAN (0 ms) ---
+    // Evaluasi seluruh titik sampel dengan cache lokal dan tabel offline.
+    // Jika belum ada nama jalan, berikan penanda waypoint cerdas seketika ("Titik Awal Rute" / "Lintasan X.X KM")
+    // sehingga rute langsung memiliki penanda di detik ke-0 tanpa menunggu jaringan!
+    final pendingOnlineIndices = <int>[];
+
     for (final idx in sortedIndices) {
       final pt = coordinates[idx];
-      var road = await getRoadName(pt.latitude, pt.longitude, client: client);
+      final dist = idx < cumulativeDistances.length ? cumulativeDistances[idx] : 0.0;
 
-      // Fallback cerdas jika titik awal atau akhir belum ter-geocoding
+      // Cek cache memori atau tabel offline (0 ms)
+      final cacheKey = '${(pt.latitude * 1000).round() / 1000},${(pt.longitude * 1000).round() / 1000}';
+      String? road = _cache[cacheKey] ?? lookupOfflineRoad(pt.latitude, pt.longitude);
+      if (road != null && road.isNotEmpty) {
+        road = formatRoadName(road);
+        _cache[cacheKey] = road;
+      }
+
+      bool isPlaceholder = false;
       if (road == null || road.isEmpty) {
         if (transitions.isEmpty) {
           road = 'Titik Awal Rute';
+        } else if (dist >= 400.0) {
+          road = 'Lintasan ${(dist / 1000).toStringAsFixed(1)} KM';
+          isPlaceholder = true;
         } else if (idx == coordinates.length - 1 && transitions.length < 3) {
           road = 'Garis Akhir (Finish)';
         }
@@ -150,12 +191,10 @@ class RoadGeocodingService {
 
       if (road == null || road.isEmpty) continue;
 
-      // Normalisasi nama jalan untuk deduplikasi (hapus awalan variatif seperti Jl., Jalan, Gang, dll)
       final normName = road.toLowerCase().replaceAll(RegExp(r'^(jl\.|jalan|gg\.|gang|lr\.|lorong|blvd\.|boulevard)\s*'), '').trim();
 
       if (!seenRoadNames.contains(normName)) {
         seenRoadNames.add(normName);
-        final dist = idx < cumulativeDistances.length ? cumulativeDistances[idx] : 0.0;
         transitions.add(
           RoadTransitionEvent(
             roadName: road,
@@ -165,10 +204,13 @@ class RoadGeocodingService {
             pointIndex: idx,
           ),
         );
+        if (isPlaceholder) {
+          pendingOnlineIndices.add(idx);
+        }
       }
     }
 
-    // 3. Jaminan Visualisasi Rute: Jika transisi yang terdeteksi masih < 2 pada rute panjang (> 800 meter),
+    // Jaminan Visualisasi Rute: Jika transisi < 2 pada rute panjang (> 800 meter),
     // tambahkan waypoint rute di titik belokan utama agar peta 3D selalu kaya informasi
     if (transitions.length < 2 && cumulativeDistances.isNotEmpty && cumulativeDistances.last > 800.0) {
       for (final idx in sortedIndices) {
@@ -193,6 +235,51 @@ class RoadGeocodingService {
         }
       }
       transitions.sort((a, b) => a.distanceMeters.compareTo(b.distanceMeters));
+    }
+
+    // Panggil callback progress seketika (0 ms) agar layar pemutar rute langsung terisi badge!
+    if (onProgressUpdate != null) {
+      onProgressUpdate(List<RoadTransitionEvent>.from(transitions));
+    }
+
+    // --- TAHAP 2: TARGETED FAST ONLINE UPGRADE ---
+    // Jika ada titik placeholder, lakukan pencarian online cepat untuk maksimal 5 titik terpenting
+    if (pendingOnlineIndices.isNotEmpty) {
+      final targets = pendingOnlineIndices.take(5).toList();
+      bool anyUpdated = false;
+
+      for (final idx in targets) {
+        final pt = coordinates[idx];
+        try {
+          final onlineRoad = await reverseGeocodeRoadOnline(pt.latitude, pt.longitude, client: client)
+              .timeout(const Duration(milliseconds: 1200));
+          if (onlineRoad != null && onlineRoad.isNotEmpty) {
+            final formatted = formatRoadName(onlineRoad);
+            final cacheKey = '${(pt.latitude * 1000).round() / 1000},${(pt.longitude * 1000).round() / 1000}';
+            _cache[cacheKey] = formatted;
+
+            final normOnline = formatted.toLowerCase().replaceAll(RegExp(r'^(jl\.|jalan|gg\.|gang|lr\.|lorong|blvd\.|boulevard)\s*'), '').trim();
+            if (!seenRoadNames.contains(normOnline)) {
+              final tIdx = transitions.indexWhere((t) => t.pointIndex == idx);
+              if (tIdx != -1) {
+                transitions[tIdx] = RoadTransitionEvent(
+                  roadName: formatted,
+                  latitude: pt.latitude,
+                  longitude: pt.longitude,
+                  distanceMeters: transitions[tIdx].distanceMeters,
+                  pointIndex: idx,
+                );
+                seenRoadNames.add(normOnline);
+                anyUpdated = true;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      if (anyUpdated && onProgressUpdate != null) {
+        onProgressUpdate(List<RoadTransitionEvent>.from(transitions));
+      }
     }
 
     return transitions;
@@ -241,6 +328,41 @@ class RoadGeocodingService {
     // Jl. Khatulistiwa (Siantan / Tugu Khatulistiwa)
     if (lat >= -0.015 && lat <= 0.020 && lon >= 109.310 && lon <= 109.340) {
       return 'Jl. Khatulistiwa';
+    }
+
+    // Jl. Uray Bawadi: koridor lari & rute penghubung kota
+    if (lat >= -0.040 && lat <= -0.035 && lon >= 109.316 && lon <= 109.328) {
+      return 'Jl. Uray Bawadi';
+    }
+
+    // Jl. Sutan Syahrir: koridor penghubung pusat kota
+    if (lat >= -0.048 && lat < -0.040 && lon >= 109.316 && lon <= 109.328) {
+      return 'Jl. Sutan Syahrir';
+    }
+
+    // Jl. Kesehatan / Jl. Putri Candramidi (Podomoro): koridor perumahan & kesehatan
+    if (lat >= -0.057 && lat <= -0.048 && lon >= 109.315 && lon <= 109.328) {
+      return 'Jl. Kesehatan';
+    }
+
+    // Jl. Prof. M. Yamin / Kota Baru: koridor olahraga & kuliner Kota Baru
+    if (lat >= -0.060 && lat < -0.052 && lon >= 109.308 && lon <= 109.320) {
+      return 'Jl. Prof. M. Yamin';
+    }
+
+    // Jl. Harapan Jaya / Jl. Purnama: koridor gowes & perumahan selatan
+    if (lat >= -0.075 && lat <= -0.058 && lon >= 109.308 && lon <= 109.330) {
+      return 'Jl. Harapan Jaya';
+    }
+
+    // Jl. Dr. Wahidin S. / Jl. Dr. Soetomo: koridor barat Pontianak
+    if (lat >= -0.045 && lat <= -0.030 && lon >= 109.305 && lon <= 109.320) {
+      return 'Jl. Dr. Wahidin S.';
+    }
+
+    // Jl. Ampera / Jl. Danau Sentarum: koridor barat Kota Baru
+    if (lat >= -0.055 && lat < -0.045 && lon >= 109.295 && lon <= 109.312) {
+      return 'Jl. Ampera';
     }
 
     // -------------------------------------------------------------------------

@@ -281,6 +281,13 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       final transitions = await RoadGeocodingService.detectRoadTransitions(
         coordinates: widget.session.coordinates,
         cumulativeDistances: _cumulativeDistances,
+        onProgressUpdate: (updated) {
+          if (mounted) {
+            setState(() {
+              _roadTransitions = updated;
+            });
+          }
+        },
       );
       if (mounted) {
         setState(() {

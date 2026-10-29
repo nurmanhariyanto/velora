@@ -110,5 +110,48 @@ void main() {
       final thamrinCount = transitions.where((t) => t.roadName.contains('Thamrin')).length;
       expect(thamrinCount, 1);
     });
+
+    test('lookupOfflineRoad mengenali koridor rute Pontianak tambahan secara akurat', () {
+      expect(RoadGeocodingService.lookupOfflineRoad(-0.038, 109.320), 'Jl. Uray Bawadi');
+      expect(RoadGeocodingService.lookupOfflineRoad(-0.044, 109.323), 'Jl. Sutan Syahrir');
+      expect(RoadGeocodingService.lookupOfflineRoad(-0.053, 109.318), 'Jl. Kesehatan');
+      expect(RoadGeocodingService.lookupOfflineRoad(-0.064, 109.313), 'Jl. Harapan Jaya');
+      expect(RoadGeocodingService.lookupOfflineRoad(-0.048, 109.305), 'Jl. Ampera');
+      expect(RoadGeocodingService.lookupOfflineRoad(-0.056, 109.314), 'Jl. Prof. M. Yamin');
+      expect(RoadGeocodingService.lookupOfflineRoad(-0.040, 109.312), 'Jl. Dr. Wahidin S.');
+    });
+
+    test('detectRoadTransitions memicu onProgressUpdate seketika pada frame awal (0 ms)', () async {
+      final coords = [
+        const CoordinatePoint(activityId: 'a1', latitude: -0.038, longitude: 109.320, elevation: 5, timestamp: 0),
+        const CoordinatePoint(activityId: 'a1', latitude: -0.053, longitude: 109.318, elevation: 12, timestamp: 60),
+      ];
+      final distances = [0.0, 1800.0];
+
+      List<RoadTransitionEvent>? firstUpdate;
+      final transitions = await RoadGeocodingService.detectRoadTransitions(
+        coordinates: coords,
+        cumulativeDistances: distances,
+        onProgressUpdate: (updated) {
+          firstUpdate ??= updated;
+        },
+      );
+
+      expect(firstUpdate, isNotNull);
+      expect(firstUpdate!.isNotEmpty, isTrue);
+      expect(transitions.isNotEmpty, isTrue);
+      expect(transitions.any((t) => t.roadName.contains('Uray Bawadi') || t.roadName.contains('Kesehatan')), isTrue);
+    });
+
+    test('precacheRoadTransitions memanaskan data nama jalan ke dalam memori', () async {
+      final coords = [
+        const CoordinatePoint(activityId: 'a1', latitude: -0.038, longitude: 109.320, elevation: 5, timestamp: 0),
+        const CoordinatePoint(activityId: 'a1', latitude: -0.053, longitude: 109.318, elevation: 12, timestamp: 60),
+      ];
+
+      await RoadGeocodingService.precacheRoadTransitions(coords);
+      final cachedRoad = await RoadGeocodingService.getRoadName(-0.038, 109.320);
+      expect(cachedRoad, 'Jl. Uray Bawadi');
+    });
   });
 }

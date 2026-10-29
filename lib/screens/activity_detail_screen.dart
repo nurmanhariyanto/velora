@@ -7,6 +7,7 @@ import '../models/sports_type.dart';
 import '../models/track_milestone.dart';
 import '../services/gpx_service.dart';
 import '../services/map_precache_service.dart';
+import '../services/road_geocoding_service.dart';
 import '../services/track_analysis_service.dart';
 import '../widgets/elevation_chart.dart';
 import '../widgets/live_map_view.dart';
@@ -45,10 +46,11 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
     );
     _highlightedSegment = _fastest1kSegment;
 
-    // Mulai unduh ubin rute di latar belakang saat layar rincian dibuka jika ada internet
+    // Mulai unduh ubin rute & nama jalan di latar belakang saat layar rincian dibuka jika ada internet
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.session.coordinates.length >= 2) {
         MapPrecacheService.precacheActivityRoute(widget.session.coordinates);
+        RoadGeocodingService.precacheRoadTransitions(widget.session.coordinates);
       }
     });
   }
