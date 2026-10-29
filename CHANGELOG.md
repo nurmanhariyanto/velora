@@ -2,6 +2,24 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.17] - 2026-10-29
+
+### 🏔️ Optimalisasi Penanda Puncak Elevasi (Anti-Occlusion) & Desain Badge 3D Ramping Proporsional
+
+#### 🏔️ 1. Penataan Ulang Pemberitahuan Puncak Elevasi Rute (*Anti-Occlusion Summit Banner*)
+- **Pemberitahuan Puncak Ramping Tanpa Menutupi Pin Peta (*Zero Occlusion Floating Pill*):**
+  - Mengubah desain banner perayaan puncak elevasi (`_buildPeakSummitBanner`) dari kotak tebal masif bertingkat dua menjadi kapsul horizontal ramping berteknologi *frosted-glass backdrop blur* (`[ 🏔️ PUNCAK ELEVASI • 53 mdpl ]`).
+  - Menempatkan banner di zona aman atas (`top: padding.top + 52` pada mode normal, atau di bawah watermark pada mode rekam), menjauh dari cakrawala lintasan dan titik koordinat atlet sehingga pin 3D penanda puncak di peta tetap terlihat 100% utuh dan jelas tanpa terhalang.
+  - Menyatukan penataan banner batas wilayah (`_buildRegencyBorderBanner`) dan puncak elevasi dalam kolom vertikal terpadu untuk mencegah tumpang tindih (*z-fighting*).
+
+#### 🏷️ 2. Restrukturisasi Skala & Proporsi Badge 3D di Peta Lintasan (*Sleek 3D Badges*)
+- **Penanda Puncak Gunung 3D Ramping (*3D Summit Milestone Pin*):**
+  - Memperkecil dimensi penanda peta dari ukuran masif (190x84, scale 1.18) menjadi ukuran presisi dan proporsional (130x58, micro-scale 1.05 saat aktif, tiang 1.5px, ground anchor 5px), memberikan tampilan estetis dan tajam mirip pin 3D modern tanpa mendominasi tampilan jalan.
+- **Penanda Ruas Jalan 3D Ramping (*3D Road Billboard Pin*):**
+  - Menyesuaikan ukuran kotak penanda ruas jalan (`_buildRoadTrackPin`) dari lebar 220x76 ke 150x52 dengan tipografi dan ikon yang proporsional, mencegah penumpukan elemen di layar saat melintasi persimpangan atau ruas jalan.
+- **Pita Batas Wilayah Kabupaten Ramping (*3D Regency Boundary Flag*):**
+  - Memperhalus garis pita cahaya dan badge batas wilayah menjadi 130x38 dengan kontras warna yang elegan.
+
 ## [v1.0.16] - 2026-10-29
 
 ### 🎯 Sinkronisasi State Play/Pause Pemutar Rute (Route Replay) & Auto-Play Instan

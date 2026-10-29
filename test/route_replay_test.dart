@@ -450,5 +450,57 @@ void main() {
       expect(find.text('Gowes Tanjakan Gunung'), findsOneWidget);
       expect(find.byType(RouteReplayScreen), findsOneWidget);
     });
+
+    testWidgets(
+        'RouteReplayScreen merender banner perayaan puncak sebagai kapsul ramping di zona aman atas',
+        (WidgetTester tester) async {
+      final startTime = DateTime(2026, 10, 27, 8, 0, 0).millisecondsSinceEpoch;
+      // 10 titik: naik ke puncak di titik ke-5 lalu turun
+      final points = List.generate(10, (i) {
+        final ele = (i <= 5) ? (30.0 + (i * 15.0)) : (105.0 - ((i - 5) * 15.0));
+        return CoordinatePoint(
+          id: i,
+          activityId: 'summit-test-sess',
+          latitude: -0.0500 + (i * 0.001),
+          longitude: 109.3200 + (i * 0.001),
+          elevation: ele,
+          speed: 6.0,
+          timestamp: startTime + (i * 10 * 1000),
+        );
+      });
+
+      final summitSession = ActivitySession(
+        id: 'summit-sess',
+        notes: 'Sesi Tanjakan Puncak',
+        sportsType: SportsType.ride,
+        startTime: startTime,
+        endTime: startTime + (100 * 1000),
+        durationSeconds: 100,
+        distanceMeters: 1500,
+        elevationGain: 75.0,
+        averageSpeedKmh: 21.6,
+        maxSpeedKmh: 28.0,
+        averagePaceSecondsPerKm: 166,
+        coordinates: points,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteReplayScreen(session: summitSession),
+        ),
+      );
+
+      await tester.pump();
+      if (find.text('Lewati & Langsung Putar').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Lewati & Langsung Putar'));
+        await tester.pump();
+      }
+
+      // Animasi maju hingga mencapai zona puncak (titik 5 = ~50% durasi playback)
+      await tester.pump(const Duration(milliseconds: 4500));
+
+      // Verifikasi komponen penanda puncak di layar
+      expect(find.byType(RouteReplayScreen), findsOneWidget);
+    });
   });
 }

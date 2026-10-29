@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:intl/intl.dart';
@@ -1079,22 +1080,26 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               child: _buildMilestoneChimeCard(_latestChimeMilestone!),
             ),
 
-          // 3b. Pop-up Badge Bendera Saat Melintasi Batas Wilayah Kabupaten Baru (Tampil di Replay & Video MP4)
-          if (_activeBorderEvent != null)
+          // 3b & 3c. Pop-up Event Banner (Batas Wilayah / Puncak Elevasi Rute)
+          // Ditempatkan di zona aman atas (di bawah header bar) dengan desain kapsul ramping
+          // agar tidak menutupi penanda / pin 3D di peta lintasan
+          if (_activeBorderEvent != null || _activePeakEvent != null)
             Positioned(
-              top: MediaQuery.of(context).padding.top + (_cleanRecordMode ? (_enableSocialSafeZone ? 66 : 52) : 74),
+              top: MediaQuery.of(context).padding.top +
+                  (_cleanRecordMode ? (_enableSocialSafeZone ? 68 : 48) : 52),
               left: 20,
               right: 20,
-              child: _buildRegencyBorderBanner(_activeBorderEvent!),
-            ),
-
-          // 3c. Pop-up Perayaan Puncak Tertinggi saat Melewati Puncak Elevasi (Tampil di Replay & Video MP4)
-          if (_activePeakEvent != null)
-            Positioned(
-              top: MediaQuery.of(context).padding.top + (_cleanRecordMode ? (_enableSocialSafeZone ? 66 : 52) : 74),
-              left: 20,
-              right: 20,
-              child: _buildPeakSummitBanner(_activePeakEvent!),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_activeBorderEvent != null)
+                    _buildRegencyBorderBanner(_activeBorderEvent!),
+                  if (_activeBorderEvent != null && _activePeakEvent != null)
+                    const SizedBox(height: 6),
+                  if (_activePeakEvent != null)
+                    _buildPeakSummitBanner(_activePeakEvent!),
+                ],
+              ),
             ),
 
 
@@ -1601,8 +1606,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
                 return Marker(
                   point: LatLng(m.latitude, m.longitude),
-                  width: 190,
-                  height: 84,
+                  width: 130,
+                  height: 58,
                   alignment: Alignment.bottomCenter,
                   child: _buildMountainPeakPin(
                     m,
@@ -1630,8 +1635,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               final isPassed = b.distanceMeters <= currentDistanceM;
               return Marker(
                 point: LatLng(b.latitude, b.longitude),
-                width: 180,
-                height: 48,
+                width: 130,
+                height: 38,
                 alignment: Alignment.center,
                 child: _buildRegencyFlagPin(b, isPassed),
               );
@@ -1652,8 +1657,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
                 return Marker(
                   point: LatLng(road.latitude, road.longitude),
-                  width: 220,
-                  height: 76,
+                  width: 150,
+                  height: 52,
                   alignment: Alignment.bottomCenter,
                   child: _buildRoadTrackPin(
                     road: road,
@@ -1731,7 +1736,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
   Widget _buildRegencyFlagPin(RegencyBorderEvent border, bool isPassed) {
     return AnimatedScale(
       duration: const Duration(milliseconds: 350),
-      scale: isPassed ? 1.05 : 0.95,
+      scale: isPassed ? 1.0 : 0.88,
       child: AnimatedOpacity(
         duration: const Duration(milliseconds: 300),
         opacity: isPassed ? 1.0 : 0.85,
@@ -1740,8 +1745,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           children: [
             // Pita Cahaya Garis Batas Wilayah Lintas Aspal / Satelit
             Container(
-              width: 140,
-              height: 2.5,
+              width: 100,
+              height: 1.8,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
@@ -1753,46 +1758,46 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 boxShadow: [
                   BoxShadow(
                     color: isPassed ? const Color(0xFFFF5722) : const Color(0xFFFFD600),
-                    blurRadius: 6,
+                    blurRadius: 4,
                     spreadRadius: 1,
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 2),
-            // Badge Nama Kabupaten Tepat di Atas Garis Rute
+            // Badge Nama Kabupaten Tepat di Atas Garis Rute (Desain Ramping & Proporsional)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
               decoration: BoxDecoration(
-                color: const Color(0xFF0F172A).withAlpha(245),
-                borderRadius: BorderRadius.circular(14),
+                color: const Color(0xFF0F172A).withAlpha(235),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                   color: isPassed ? const Color(0xFFFF5722) : const Color(0xFFFFD600),
-                  width: 1.6,
+                  width: 1.1,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: isPassed
-                        ? const Color(0xFFFF5722).withAlpha(140)
-                        : const Color(0xFFFFD600).withAlpha(100),
-                    blurRadius: 10,
-                    spreadRadius: 1,
-                    offset: const Offset(0, 2),
+                        ? const Color(0xFFFF5722).withAlpha(120)
+                        : const Color(0xFFFFD600).withAlpha(90),
+                    blurRadius: 6,
+                    spreadRadius: 0.5,
+                    offset: const Offset(0, 1.5),
                   ),
                 ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('🚩', style: TextStyle(fontSize: 12)),
-                  const SizedBox(width: 5),
+                  const Text('🚩', style: TextStyle(fontSize: 10)),
+                  const SizedBox(width: 4),
                   Text(
                     border.regencyName.toUpperCase(),
                     style: TextStyle(
                       color: isPassed ? Colors.white : const Color(0xFFFFEA00),
-                      fontSize: 10.5,
+                      fontSize: 8.5,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 0.5,
+                      letterSpacing: 0.4,
                     ),
                   ),
                 ],
@@ -1806,63 +1811,66 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
   Widget _buildRegencyBorderBanner(RegencyBorderEvent border) {
     return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F172A).withAlpha(245),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFFF5722), width: 1.8),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFFFF5722).withAlpha(110),
-              blurRadius: 18,
-              spreadRadius: 2,
-              offset: const Offset(0, 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A).withAlpha(195),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFF5722).withAlpha(190), width: 1.1),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF5722).withAlpha(50),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 2),
+                ),
+                const BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF5722).withAlpha(45),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFFF5722).withAlpha(180)),
-              ),
-              child: const Text('🚩', style: TextStyle(fontSize: 18)),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'BATAS WILAYAH DAERAH',
-                    style: TextStyle(
-                      color: Color(0xFFFF8A65),
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
-                    ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🚩', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 6),
+                const Text(
+                  'BATAS WILAYAH',
+                  style: TextStyle(
+                    color: Color(0xFFFF8A65),
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Memasuki ${border.regencyName}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w900,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(width: 5),
+                const Text(
+                  '•',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  border.regencyName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -1879,11 +1887,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
         ..setEntry(3, 2, 0.0015)
         ..rotateX(_isSatelliteMode ? (0.70 - _currentClimbTilt) : 0.0),
       child: Transform.translate(
-        offset: Offset(0, isActive ? -10.0 : 0.0),
+        offset: Offset(0, isActive ? -4.0 : 0.0),
         child: AnimatedScale(
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeOutBack,
-          scale: isActive ? 1.18 : (isPassed ? 1.0 : 0.92),
+          scale: isActive ? 1.05 : (isPassed ? 0.90 : 0.82),
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 250),
             opacity: 1.0,
@@ -1892,11 +1900,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Badge Puncak Gunung 3D (Sunset Crimson Gradient)
+                  // Badge Puncak Gunung 3D Ramping & Proporsional (Sunset Crimson Gradient)
                   Container(
                     padding: EdgeInsets.symmetric(
-                      horizontal: isActive ? 11 : 9,
-                      vertical: isActive ? 5 : 4,
+                      horizontal: isActive ? 7.5 : 6.0,
+                      vertical: isActive ? 3.0 : 2.0,
                     ),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -1911,22 +1919,22 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                                 Color(0xFFE64A19),
                               ],
                       ),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: Colors.white,
-                        width: isActive ? 2.0 : 1.4,
+                        width: isActive ? 1.2 : 0.9,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFF5722).withAlpha(isActive ? 255 : 130),
-                          blurRadius: isActive ? 20 : 8,
-                          spreadRadius: isActive ? 4 : 0,
-                          offset: const Offset(0, 3),
+                          color: const Color(0xFFFF5722).withAlpha(isActive ? 200 : 100),
+                          blurRadius: isActive ? 8 : 4,
+                          spreadRadius: isActive ? 1.0 : 0,
+                          offset: const Offset(0, 2),
                         ),
                         const BoxShadow(
-                          color: Colors.black45,
-                          blurRadius: 6,
-                          offset: Offset(0, 3),
+                          color: Colors.black38,
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
                         ),
                       ],
                     ),
@@ -1935,20 +1943,20 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                       children: [
                         Text(
                           '🏔️',
-                          style: TextStyle(fontSize: isActive ? 14 : 12.5),
+                          style: TextStyle(fontSize: isActive ? 11.0 : 9.5),
                         ),
-                        const SizedBox(width: 5),
+                        const SizedBox(width: 4),
                         Text(
                           'PUNCAK ${m.elevation.toStringAsFixed(0)}M',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: isActive ? 11.0 : 10.0,
+                            fontSize: isActive ? 9.5 : 8.5,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: 0.5,
+                            letterSpacing: 0.3,
                             shadows: const [
                               Shadow(
                                 color: Colors.black45,
-                                blurRadius: 4,
+                                blurRadius: 3,
                                 offset: Offset(0, 1),
                               ),
                             ],
@@ -1959,17 +1967,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   ),
                   // Pointer segitiga ke bawah
                   Transform.translate(
-                    offset: const Offset(0, -2),
+                    offset: const Offset(0, -1.5),
                     child: Transform.rotate(
                       angle: math.pi / 4,
                       child: Container(
-                        width: isActive ? 8 : 6,
-                        height: isActive ? 8 : 6,
+                        width: isActive ? 5 : 4,
+                        height: isActive ? 5 : 4,
                         decoration: BoxDecoration(
                           color: isActive ? const Color(0xFFDD2C00) : const Color(0xFFE64A19),
                           border: Border(
-                            bottom: BorderSide(color: Colors.white, width: isActive ? 1.0 : 0.8),
-                            right: BorderSide(color: Colors.white, width: isActive ? 1.0 : 0.8),
+                            bottom: BorderSide(color: Colors.white, width: isActive ? 0.8 : 0.6),
+                            right: BorderSide(color: Colors.white, width: isActive ? 0.8 : 0.6),
                           ),
                         ),
                       ),
@@ -1977,8 +1985,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   ),
                   // Tiang vertikal 3D
                   Container(
-                    width: isActive ? 2.4 : 1.8,
-                    height: isActive ? 12.0 : 9.0,
+                    width: 1.5,
+                    height: isActive ? 7.0 : 5.0,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         begin: Alignment.topCenter,
@@ -1991,22 +1999,22 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFF5722).withAlpha(isActive ? 200 : 130),
-                          blurRadius: isActive ? 6 : 4,
+                          color: const Color(0xFFFF5722).withAlpha(isActive ? 160 : 100),
+                          blurRadius: 4,
                         ),
                       ],
                     ),
                   ),
                   // Ground Anchor
                   Container(
-                    width: isActive ? 8 : 7,
-                    height: isActive ? 8 : 7,
+                    width: 5,
+                    height: 5,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: const Color(0xFFFF5722),
-                        width: isActive ? 1.8 : 1.4,
+                        width: 1.0,
                       ),
                     ),
                   ),
@@ -2021,63 +2029,66 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
   Widget _buildPeakSummitBanner(TrackMilestone peak) {
     return Center(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F172A).withAlpha(245),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: const Color(0xFFFF5722), width: 1.8),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x99FF5722),
-              blurRadius: 18,
-              spreadRadius: 2,
-              offset: Offset(0, 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F172A).withAlpha(195),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFFF5722).withAlpha(190), width: 1.1),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF5722).withAlpha(50),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 2),
+                ),
+                const BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFF5722).withAlpha(45),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFFFF5722).withAlpha(180)),
-              ),
-              child: const Text('🏔️', style: TextStyle(fontSize: 18)),
-            ),
-            const SizedBox(width: 12),
-            Flexible(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'PUNCAK ELEVASI RUTE',
-                    style: TextStyle(
-                      color: Color(0xFFFF8A65),
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.8,
-                    ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('🏔️', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 6),
+                const Text(
+                  'PUNCAK ELEVASI',
+                  style: TextStyle(
+                    color: Color(0xFFFF8A65),
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.6,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    'Titik Tertinggi ${peak.elevation.toStringAsFixed(0)} mdpl',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w900,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(width: 5),
+                const Text(
+                  '•',
+                  style: TextStyle(
+                    color: Colors.white38,
+                    fontSize: 10.0,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  '${peak.elevation.toStringAsFixed(0)} mdpl',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -2093,10 +2104,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     const brightBlue = Color(0xFF38BDF8);
     const deepBlue = Color(0xFF0369A1);
 
-    // Hitung status visual & animasi 3D:
-    // - Memasuki/melintasi ruas jalan (isActive): membesar (scale 1.18), mengambang naik, dan memancarkan pendaran 3D
-    // - Sudah dilewati (isPassed): tetap tersemat rapi di peta (scale 0.88), tidak pernah hilang sepanjang rute
-    final scale = isActive ? 1.18 : (isPassed ? 0.88 : 0.0);
+    // Hitung status visual & animasi 3D (Desain Ramping & Proporsional):
+    // - Memasuki/melintasi ruas jalan (isActive): scale 1.05 halus, mengambang naik, dan pendaran subtle
+    // - Sudah dilewati (isPassed): tetap tersemat rapi di peta (scale 0.82), tidak pernah hilang sepanjang rute
+    final scale = isActive ? 1.05 : (isPassed ? 0.82 : 0.0);
     final opacity = isActive ? 1.0 : (isPassed ? 0.88 : 0.0);
 
     return Transform(
@@ -2114,15 +2125,15 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // 1. Badge Kapsul Kotak Warna Biru Solid 3D (Mengambang di Atas Tiang)
+              // 1. Badge Kapsul Kotak Warna Biru Solid 3D (Desain Ramping & Proporsional)
               AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOutBack,
-                transform: Matrix4.translationValues(0, isActive ? -8.0 : 0.0, 0),
-                constraints: const BoxConstraints(maxWidth: 200),
+                transform: Matrix4.translationValues(0, isActive ? -4.0 : 0.0, 0),
+                constraints: const BoxConstraints(maxWidth: 140),
                 padding: EdgeInsets.symmetric(
-                  horizontal: isActive ? 11 : 9,
-                  vertical: isActive ? 5.5 : 4.5,
+                  horizontal: isActive ? 7.5 : 6.0,
+                  vertical: isActive ? 3.0 : 2.0,
                 ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -2132,22 +2143,22 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                         ? const [brightBlue, primaryBlue]
                         : const [primaryBlue, deepBlue],
                   ),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                     color: Colors.white,
-                    width: isActive ? 1.6 : 1.2,
+                    width: isActive ? 1.2 : 0.9,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: primaryBlue.withAlpha(isActive ? 220 : 130),
-                      blurRadius: isActive ? 16 : 8,
-                      spreadRadius: isActive ? 3 : 0,
-                      offset: const Offset(0, 3),
+                      color: primaryBlue.withAlpha(isActive ? 180 : 100),
+                      blurRadius: isActive ? 8 : 4,
+                      spreadRadius: isActive ? 1.0 : 0,
+                      offset: const Offset(0, 2),
                     ),
                     const BoxShadow(
-                      color: Colors.black45,
-                      blurRadius: 6,
-                      offset: Offset(0, 3),
+                      color: Colors.black38,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
                     ),
                   ],
                 ),
@@ -2156,22 +2167,22 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   children: [
                     Icon(
                       isActive ? Icons.navigation_rounded : Icons.alt_route_rounded,
-                      size: isActive ? 13 : 11,
+                      size: isActive ? 10.5 : 9.0,
                       color: Colors.white,
                     ),
-                    const SizedBox(width: 5),
+                    const SizedBox(width: 4),
                     Flexible(
                       child: Text(
                         road.roadName,
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: isActive ? 12 : 10.5,
+                          fontSize: isActive ? 9.5 : 8.5,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.3,
                           shadows: const [
                             Shadow(
                               color: Colors.black45,
-                              blurRadius: 4,
+                              blurRadius: 3,
                               offset: Offset(0, 1),
                             ),
                           ],
@@ -2186,17 +2197,17 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
               // 2. Segitiga Penunjuk Biru ke Aspal Lintasan
               Transform.translate(
-                offset: const Offset(0, -3),
+                offset: const Offset(0, -1.5),
                 child: Transform.rotate(
                   angle: math.pi / 4,
                   child: Container(
-                    width: 7,
-                    height: 7,
+                    width: 5,
+                    height: 5,
                     decoration: BoxDecoration(
                       color: isActive ? primaryBlue : deepBlue,
                       border: const Border(
-                        bottom: BorderSide(color: Colors.white, width: 0.8),
-                        right: BorderSide(color: Colors.white, width: 0.8),
+                        bottom: BorderSide(color: Colors.white, width: 0.6),
+                        right: BorderSide(color: Colors.white, width: 0.6),
                       ),
                     ),
                   ),
@@ -2205,8 +2216,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
               // 3. Tiang Penanda Vertikal 3D (Menghubungkan Pin Mengambang ke Aspal Rute)
               Container(
-                width: 2.0,
-                height: isActive ? 16.0 : 11.0,
+                width: 1.5,
+                height: isActive ? 8.0 : 6.0,
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     begin: Alignment.topCenter,
@@ -2219,8 +2230,8 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF0284C7).withAlpha(160),
-                      blurRadius: 4,
+                      color: const Color(0xFF0284C7).withAlpha(140),
+                      blurRadius: 3,
                     ),
                   ],
                 ),
@@ -2232,29 +2243,29 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                 children: [
                   // Bayangan elips di permukaan aspal
                   Container(
-                    width: 14,
-                    height: 5,
+                    width: 10,
+                    height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.black45,
-                      borderRadius: BorderRadius.circular(6),
+                      color: Colors.black38,
+                      borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                   // Titik Suar Ground Beacon
                   Container(
-                    width: isActive ? 8 : 6,
-                    height: isActive ? 8 : 6,
+                    width: isActive ? 5 : 4,
+                    height: isActive ? 5 : 4,
                     decoration: BoxDecoration(
                       color: Colors.white,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: const Color(0xFF0284C7),
-                        width: 1.2,
+                        width: 1.0,
                       ),
                       boxShadow: [
                         BoxShadow(
                           color: const Color(0xFF38BDF8),
-                          blurRadius: isActive ? 10 : 5,
-                          spreadRadius: isActive ? 3 : 1,
+                          blurRadius: isActive ? 6 : 3,
+                          spreadRadius: isActive ? 1.5 : 0.5,
                         ),
                       ],
                     ),

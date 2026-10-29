@@ -40,6 +40,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
   * Merancang tombol pintasan cepat ke Video Flyover 3D di AppBar `SharePreviewScreen` agar pengguna dapat langsung beralih format tanpa harus kembali ke halaman awal.
 * [x] **Desain Dialog Update:** Antarmuka notifikasi versi baru modern dengan badge versi dan catatan rilis di `lib/widgets/update_dialog.dart`.
 * [x] **Desain Aksesibilitas Fitur Video Permanen:** Menetapkan tombol `PUTAR RUTE` dan opsi `Video Flyover (MP4)` selalu tampil di antarmuka; memberikan feedback informatif jika sesi latihan belum merekam rute bergerak.
+* [x] **Desain Anti-Occlusion Banner Puncak & Proporsi Badge 3D:** Merancang ulang banner notifikasi puncak elevasi (`_buildPeakSummitBanner`) menjadi *capsule pill* horizontal ultra-kompak (28px) dengan efek *frosted glass* semi-transparan (`BackdropFilter` sigma 10) di zona langit atas aman (`padding.top + 52`), membebaskan area cakrawala peta dari tumpang-tindih visual terhadap pin 3D di peta, serta merampingkan dimensi pin penanda 3D (`MountainPeakPin`, `RoadTrackPin`, `RegencyFlagPin`) agar proporsional, elegan, dan bebas silau.
 
 ---
 
@@ -59,6 +60,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Persistensi & Feedback Fitur Video:** Memastikan tombol `PUTAR RUTE` dan modal `Video Flyover Rute (MP4 Sinematik)` di `ActivityDetailScreen` selalu dapat diakses secara persisten, dilengkapi SnackBar penjelas jika rute belum mencukupi.
 * [x] **Fitur Auto-Update:** Mengimplementasikan pengecekan otomatis dan manual ke GitHub Releases API di `lib/services/update_service.dart`.
 * [x] **Sinkronisasi Pemutar Rute & Auto-Play Instan:** Mengoreksi kondisi inisialisasi controller animasi rute di `lib/screens/route_replay_screen.dart`, menyinkronkan status visual tombol Pause/Play secara langsung dengan `_animController.isAnimating`, memperbaiki scrubbing linimasa, serta menjamin rute langsung berputar mulus tanpa jeda atau klik ganda saat dibuka.
+* [x] **Anti-Occlusion Banner & Refaktorisasi Pin 3D Rute:** Mengimplementasikan banner selebrasi puncak elevasi dan batas wilayah berbasis *frosted glass capsule pill* dalam `Column` terpadu anti-tumpang-tindih pada `lib/screens/route_replay_screen.dart`, mengamankan visibilitas badge penanda ketinggian rute (`PUNCAK XXM`), serta mengecilkan skala pin gunung dari 190x84 ke 130x58 dan pin lintasan dari 220x76 ke 150x52 untuk keterbacaan optimal.
 
 ---
 
@@ -68,8 +70,8 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 **Tugas Utama & Realisasi:**
 
-* [x] **Pengujian Fungsional & Unit:** 153 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
-  * `test/route_replay_test.dart`, `test/route_replay_interaction_test.dart` & `test/route_replay_layout_audit_test.dart`: Validasi siklus pemutaran rute otomatis, transisi Play/Pause satu sentuhan tanpa freeze, scrubber linimasa, serta audit tata letak pada berbagai rasio layar.
+* [x] **Pengujian Fungsional & Unit:** 154 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/route_replay_test.dart`, `test/route_replay_interaction_test.dart` & `test/route_replay_layout_audit_test.dart`: Validasi siklus pemutaran rute otomatis, transisi Play/Pause satu sentuhan tanpa freeze, scrubber linimasa, audit tata letak pada berbagai rasio layar, serta validasi banner selebrasi puncak elevasi anti-occlusion pada zona aman atas.
   * `test/map_precache_test.dart`: Validasi konversi koordinat tile OSM, pemotongan batas, kalkulasi ubin rute, pembersihan cache memori, penanganan pembatalan, inisialisasi direktori cache ubin, pemeriksaan internet, warm-up startup, dan precache rute aktivitas.
   * `test/activity_detail_share_test.dart`: Validasi keterlihatan permanen tombol `PUTAR RUTE` dan modal opsi `Video Flyover Rute (MP4 Sinematik)` baik pada sesi dengan rute maupun sesi kosong/minim koordinat.
   * `test/location_recenter_test.dart`: Validasi callback tombol pusatkan lokasi, penanganan `currentLocation == null`, dan siklus hidup idle location stream.
@@ -101,3 +103,4 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Rilis Pembaruan GitHub (v1.0.14):** Peningkatan ketahanan pembaruan in-app (bypass rate limit raw fallback, external cache storage OEM-friendly, browser download alternative), serta visibilitas permanen fitur Video Flyover 3D & Putar Rute.
 * [x] **Rilis Pembaruan GitHub (v1.0.15):** Pemanasan peta cerdas saat aplikasi dibuka (Smart Early Map Pre-Caching jika ada internet / skip jika offline), precache koridor rute di detail & replay, dan dekode GPU instan saat render video.
 * [x] **Rilis Pembaruan GitHub (v1.0.16):** Perbaikan desinkronisasi status Play/Pause pemutar rute (Route Replay) dan auto-play instan rute GPX.
+* [x] **Rilis Pembaruan GitHub (v1.0.17):** Optimalisasi penanda puncak elevasi rute bebas tumpang-tindih (anti-occlusion banner) dan desain badge 3D ramping proporsional.
