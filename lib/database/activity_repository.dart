@@ -50,6 +50,33 @@ class ActivityRepository {
     return maps.map((map) => ActivitySession.fromMap(map)).toList();
   }
 
+  /// Mengambil sejumlah sesi aktivitas terbaru beserta seluruh titik koordinatnya
+  Future<List<ActivitySession>> getLatestActivitiesWithCoordinates({int limit = 2}) async {
+    final db = await _dbHelper.database;
+    final List<Map<String, dynamic>> sessionMaps = await db.query(
+      'aktivitas',
+      orderBy: 'waktu_mulai DESC',
+      limit: limit,
+    );
+
+    if (sessionMaps.isEmpty) return [];
+
+    final result = <ActivitySession>[];
+    for (final map in sessionMaps) {
+      final id = map['id'] as String;
+      final List<Map<String, dynamic>> coordMaps = await db.query(
+        'titik_koordinat',
+        where: 'aktivitas_id = ?',
+        whereArgs: [id],
+        orderBy: 'timestamp ASC',
+      );
+      final coordinates =
+          coordMaps.map((c) => CoordinatePoint.fromMap(c)).toList();
+      result.add(ActivitySession.fromMap(map, coordinates: coordinates));
+    }
+    return result;
+  }
+
   /// Mengambil rincian sesi beserta seluruh titik koordinatnya
   Future<ActivitySession?> getActivityById(String id) async {
     final db = await _dbHelper.database;

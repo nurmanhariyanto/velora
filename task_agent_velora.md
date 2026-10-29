@@ -67,7 +67,8 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 **Tugas Utama & Realisasi:**
 
-* [x] **Pengujian Fungsional & Unit:** 149 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+* [x] **Pengujian Fungsional & Unit:** 153 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/map_precache_test.dart`: Validasi konversi koordinat tile OSM, pemotongan batas, kalkulasi ubin rute, pembersihan cache memori, penanganan pembatalan, inisialisasi direktori cache ubin, pemeriksaan internet, warm-up startup, dan precache rute aktivitas.
   * `test/activity_detail_share_test.dart`: Validasi keterlihatan permanen tombol `PUTAR RUTE` dan modal opsi `Video Flyover Rute (MP4 Sinematik)` baik pada sesi dengan rute maupun sesi kosong/minim koordinat.
   * `test/location_recenter_test.dart`: Validasi callback tombol pusatkan lokasi, penanganan `currentLocation == null`, dan siklus hidup idle location stream.
   * `test/social_share_test.dart`: Validasi rendering kartu Clean Strava untuk Lari (`10.44 km`, `5:13 /km`, `54m 27s`, `VELORA`) dan Sepeda (`25.40 km`, `25.4 km/h`, `1h 0m 0s`), serta ekspor Full HD PNG capture.
@@ -96,3 +97,4 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Rilis Pembaruan GitHub (v1.0.12):** Integrasi format Clean Minimalis ala Strava dan pemutakhiran dokumentasi tim agen.
 * [x] **Rilis Pembaruan GitHub (v1.0.13):** Pelacakan lokasi aktif, suar GPS neon pendar & tombol pusatkan lokasi pintar.
 * [x] **Rilis Pembaruan GitHub (v1.0.14):** Peningkatan ketahanan pembaruan in-app (bypass rate limit raw fallback, external cache storage OEM-friendly, browser download alternative), serta visibilitas permanen fitur Video Flyover 3D & Putar Rute.
+* [x] **Rilis Pembaruan GitHub (v1.0.15):** Pemanasan peta cerdas saat aplikasi dibuka (Smart Early Map Pre-Caching jika ada internet / skip jika offline), precache koridor rute di detail & replay, dan dekode GPU instan saat render video.

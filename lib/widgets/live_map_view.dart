@@ -5,6 +5,7 @@ import '../constants/app_colors.dart';
 import '../models/coordinate_point.dart';
 import '../models/sports_type.dart';
 import '../models/track_milestone.dart';
+import '../services/map_precache_service.dart';
 import '../services/track_analysis_service.dart';
 import 'track_milestone_pin.dart';
 
@@ -63,11 +64,20 @@ class _LiveMapViewState extends State<LiveMapView> {
     0.00, 0.00, 0.00, 1,   0,
   ];
 
+  String? _cacheDir;
+
   @override
   void initState() {
     super.initState();
     _mapController = MapController();
     _showMilestones = widget.showTrackMilestones;
+    MapPrecacheService.getTileCacheDir().then((dir) {
+      if (mounted) {
+        setState(() {
+          _cacheDir = dir;
+        });
+      }
+    });
   }
 
   @override
@@ -173,6 +183,12 @@ class _LiveMapViewState extends State<LiveMapView> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'online.nurmancloud.velora',
+              tileProvider: _cacheDir != null
+                  ? VeloraTileProvider(
+                      cacheDir: _cacheDir!,
+                      providerType: 'osm',
+                    )
+                  : NetworkTileProvider(),
               panBuffer: 2,
               keepBuffer: 6,
               tileDisplay: const TileDisplay.fadeIn(

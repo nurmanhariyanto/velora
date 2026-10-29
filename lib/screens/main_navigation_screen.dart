@@ -5,6 +5,7 @@ import 'profile_records_screen.dart';
 import 'tracking_screen.dart';
 
 import '../services/foreground_service_handler.dart';
+import '../services/map_precache_service.dart';
 import '../services/update_service.dart';
 
 /// Navigasi Utama Aplikasi Velora (Pelacakan, Riwayat, Profil & Prestasi)
@@ -24,6 +25,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       UpdateService.checkForUpdate(context, silent: true);
       ForegroundServiceHandler.requestNotificationPermission();
+      // Pemanasan peta otomatis jika ada internet saat aplikasi dibuka
+      MapPrecacheService.warmUpOnAppStart();
     });
   }
 

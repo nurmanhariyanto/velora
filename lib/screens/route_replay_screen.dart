@@ -175,15 +175,25 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _mapController = MapController();
-    getApplicationDocumentsDirectory().then((dir) {
+    MapPrecacheService.getTileCacheDir().then((dirPath) {
       if (mounted) {
         setState(() {
-          _cacheDir = '${dir.path}/velora_tile_cache';
+          _cacheDir = dirPath;
           _tileProvider = VeloraTileProvider(
             cacheDir: _cacheDir!,
             providerType: _isSatelliteMode ? 'satellite' : 'osm',
           );
         });
+      }
+    });
+
+    // Mulai pemanasan ubin rute di latar belakang jika ada internet
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.session.coordinates.length >= 2) {
+        MapPrecacheService.precacheActivityRoute(
+          widget.session.coordinates,
+          isSatellite: _isSatelliteMode,
+        );
       }
     });
 
@@ -3215,6 +3225,25 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               precacheImage(FileImage(f), context).catchError((_) {});
             }
           }
+        }
+      }
+
+      // Pre-decode ubin di sepanjang lintasan rute untuk transisi kamera bebas kedipan
+      final totalPts = widget.session.coordinates.length;
+      final step = (totalPts / 40).ceil().clamp(1, 100);
+      for (int i = 0; i < totalPts; i += step) {
+        final pt = widget.session.coordinates[i];
+        final t16 = MapPrecacheService.latLonToTile(pt.latitude, pt.longitude, 16);
+        final fPath = VeloraTileProvider.getTileFilePath(
+          _cacheDir!,
+          _isSatelliteMode ? 'satellite' : 'osm',
+          t16.z,
+          t16.x,
+          t16.y,
+        );
+        final f = File(fPath);
+        if (mounted && f.existsSync() && f.lengthSync() > 100) {
+          precacheImage(FileImage(f), context).catchError((_) {});
         }
       }
     }

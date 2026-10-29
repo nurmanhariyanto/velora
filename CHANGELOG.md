@@ -2,6 +2,30 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.15] - 2026-10-29
+
+### ⚡ Pemanasan Peta Cerdas (Smart Early Map Pre-Caching) & Optimalisasi Render Video Instan
+
+#### ⚡ 1. Pemanasan Peta Otomatis Saat Aplikasi Dibuka (App Start Warm-Up)
+- **Deteksi Koneksi Internet Aktif Cepat (*Instant Connectivity Check*):**
+  - Mengimplementasikan `MapPrecacheService.hasInternetConnection()` untuk memeriksa kesiapan jaringan sebelum memicu permintaan data peta ke server.
+  - **Jika Terhubung Internet Saat Membuka Aplikasi:** Sistem secara otomatis memanaskan ubin peta di latar belakang (*background thread*) tanpa mengganggu responsivitas antarmuka:
+    1. Mengunduh ubin peta di sekitar lokasi pengguna saat ini (*current location / last known position*) agar layar pelacakan langsung siap tanpa kotak hitam (*zero black tiles*).
+    2. Mengunduh dan menyimpan ubin koridor rute dari sesi latihan terbaru pengguna (`getLatestActivitiesWithCoordinates`), mencakup ubin satelit dan OpenStreetMap.
+  - **Jika Tidak Ada Internet Saat Membuka Aplikasi:** Sistem secara cerdas melewati (*skip*) proses pemanasan untuk menghemat daya baterai dan kuota data seluler. Peta baru akan dimuat saat proses render nanti sesuai ketersediaan jaringan.
+
+#### 🎬 2. Pra-Pemuatan Koridor Rute Detail & Replay (Detail & Replay Pre-Caching)
+- **Pre-Cache Saat Layar Detail Dibuka:**
+  - Saat pengguna membuka rincian aktivitas (`ActivityDetailScreen`), sistem langsung memulai pengunduhan ubin rute di latar belakang sehingga saat tombol `PUTAR RUTE` atau `Render Video` ditekan, seluruh ubin sudah tersimpan 100% di disk lokal.
+- **Pra-Dekode GPU Koridor Rute Lengkap:**
+  - Pada saat perekaman video (`RouteReplayScreen`), sistem tidak hanya melakukan pre-decode pada titik awal, tetapi memanaskan ubin di sepanjang koridor rute ke memori grafis (*GPU imageCache*), mencegah kedipan layar atau kotak hitam selama pergerakan kamera flyover.
+- **Toleransi Render Mode Offline Cepat:**
+  - Optimalisasi `downloadAndCacheRouteTiles`: jika perangkat berada dalam kondisi offline saat merender, sistem langsung beralih membaca seluruh ubin yang telah tersimpan di disk lokal tanpa menunggu jeda *network timeout* berulang.
+- **Penyatuan Cache Ubin Peta Live Tracking:**
+  - Mengintegrasikan `VeloraTileProvider` pada `LiveMapView`, memastikan peta pelacakan langsung dan pemutar rute berbagi satu direktori penyimpanan ubin lokal yang sama (`velora_tile_cache`).
+
+
+
 ## [v1.0.14] - 2026-10-27
 
 ### 🚀 Ketahanan Pembaruan Aplikasi (In-App Updater Resilience) & Aksesibilitas Penuh Video Flyover 3D

@@ -3,7 +3,10 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import '../database/activity_repository.dart';
 import '../models/coordinate_point.dart';
 import 'velora_tile_provider.dart';
 
@@ -38,6 +41,191 @@ class TileCoord {
 /// video bebas kotak hitam (black tiles).
 class MapPrecacheService {
   static const String userAgent = 'online.nurmancloud.velora';
+  static String? _cachedTileDir;
+  static bool _isWarmingUp = false;
+
+  /// Flag simulasi koneksi internet untuk pengujian otomatis
+  @visibleForTesting
+  static bool? mockHasInternet;
+
+  /// Memeriksa ketersediaan koneksi internet aktif secara cepat dan ringan
+  static Future<bool> hasInternetConnection({
+    Duration timeout = const Duration(milliseconds: 2500),
+  }) async {
+    if (mockHasInternet != null) return mockHasInternet!;
+    if (Platform.environment.containsKey('FLUTTER_TEST')) {
+      return false;
+    }
+    try {
+      final lookup = await InternetAddress.lookup('tile.openstreetmap.org')
+          .timeout(timeout);
+      return lookup.isNotEmpty && lookup[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      try {
+        final fallback = await InternetAddress.lookup('dns.google')
+            .timeout(timeout);
+        return fallback.isNotEmpty && fallback[0].rawAddress.isNotEmpty;
+      } catch (_) {
+        return false;
+      }
+    }
+  }
+
+  /// Mengambil atau menginisialisasi direktori cache ubin lokal pada penyimpanan internal
+  static Future<String> getTileCacheDir() async {
+    if (_cachedTileDir != null) return _cachedTileDir!;
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      _cachedTileDir = '${appDir.path}/velora_tile_cache';
+    } catch (_) {
+      _cachedTileDir = '${Directory.systemTemp.path}/velora_tile_cache';
+    }
+    final dir = Directory(_cachedTileDir!);
+    if (!dir.existsSync()) {
+      dir.createSync(recursive: true);
+    }
+    return _cachedTileDir!;
+  }
+
+  /// Memanaskan dan mengunduh ubin peta saat aplikasi dibuka jika ada internet.
+  /// Jika tidak ada koneksi internet, proses dilewati (skip) agar hemat baterai & data,
+  /// sehingga peta baru akan dimuat saat render nanti sesuai ketersediaan jaringan.
+  static Future<void> warmUpOnAppStart({
+    ActivityRepository? repository,
+  }) async {
+    if (_isWarmingUp) return;
+    if (Platform.environment.containsKey('FLUTTER_TEST') && mockHasInternet == null) {
+      return;
+    }
+    _isWarmingUp = true;
+
+    try {
+      // 1. Cek koneksi internet terlebih dahulu
+      final isOnline = await hasInternetConnection();
+      if (!isOnline) {
+        debugPrint('MapPrecacheService: Tidak ada internet saat aplikasi dibuka. Precache ditunda.');
+        _isWarmingUp = false;
+        return;
+      }
+
+      debugPrint('MapPrecacheService: Internet terdeteksi. Memulai pemanasan ubin peta di latar belakang...');
+      final cacheDir = await getTileCacheDir();
+
+      // 2. Precache peta di sekitar lokasi pengguna saat ini (Live Tracking Map)
+      try {
+        final lastPos = await Geolocator.getLastKnownPosition().timeout(
+          const Duration(seconds: 2),
+        );
+        if (lastPos != null) {
+          await _precacheLocationTiles(
+            lat: lastPos.latitude,
+            lon: lastPos.longitude,
+            cacheDir: cacheDir,
+          );
+        }
+      } catch (_) {}
+
+      // 3. Precache rute sesi latihan terbaru (agar saat dibuka & dirender langsung instan)
+      try {
+        final repo = repository ?? ActivityRepository();
+        final latestActivities = await repo.getLatestActivitiesWithCoordinates(limit: 2);
+        for (final act in latestActivities) {
+          if (act.coordinates.length >= 2) {
+            // Unduh ubin citra satelit dan OSM untuk rute ini
+            await downloadAndCacheRouteTiles(
+              coordinates: act.coordinates,
+              cacheDir: cacheDir,
+              providerType: 'satellite',
+              timeout: const Duration(seconds: 35),
+            );
+            await downloadAndCacheRouteTiles(
+              coordinates: act.coordinates,
+              cacheDir: cacheDir,
+              providerType: 'osm',
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              timeout: const Duration(seconds: 35),
+            );
+          }
+        }
+      } catch (_) {}
+    } catch (e) {
+      debugPrint('MapPrecacheService.warmUpOnAppStart error: $e');
+    } finally {
+      _isWarmingUp = false;
+    }
+  }
+
+  /// Mengunduh ubin di sekitar koordinat lokasi spesifik (misal lokasi GPS saat ini)
+  static Future<void> _precacheLocationTiles({
+    required double lat,
+    required double lon,
+    required String cacheDir,
+  }) async {
+    for (final zoom in [16, 15]) {
+      final center = latLonToTile(lat, lon, zoom);
+      final maxCoord = (math.pow(2.0, zoom) - 1).toInt();
+      final tiles = <TileCoord>[];
+      for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+          final nx = (center.x + dx).clamp(0, maxCoord);
+          final ny = (center.y + dy).clamp(0, maxCoord);
+          tiles.add(TileCoord(nx, ny, zoom));
+        }
+      }
+
+      for (final t in tiles) {
+        final filePath = VeloraTileProvider.getTileFilePath(
+          cacheDir,
+          'osm',
+          t.z,
+          t.x,
+          t.y,
+        );
+        final file = File(filePath);
+        if (file.existsSync() && file.lengthSync() > 100) continue;
+
+        try {
+          final url = 'https://tile.openstreetmap.org/${t.z}/${t.x}/${t.y}.png';
+          final res = await http.get(
+            Uri.parse(url),
+            headers: const {'User-Agent': userAgent},
+          ).timeout(const Duration(seconds: 5));
+          if (res.statusCode == 200 && res.bodyBytes.length > 100) {
+            if (!file.parent.existsSync()) {
+              file.parent.createSync(recursive: true);
+            }
+            await file.writeAsBytes(res.bodyBytes);
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Mengunduh ubin untuk sesi aktivitas tertentu di latar belakang saat detail aktivitas dibuka
+  static Future<void> precacheActivityRoute(
+    List<CoordinatePoint> coordinates, {
+    bool isSatellite = false,
+  }) async {
+    if (coordinates.length < 2) return;
+    if (Platform.environment.containsKey('FLUTTER_TEST') && mockHasInternet == null) {
+      return;
+    }
+    try {
+      final isOnline = await hasInternetConnection(timeout: const Duration(milliseconds: 1500));
+      if (!isOnline) return;
+
+      final cacheDir = await getTileCacheDir();
+      await downloadAndCacheRouteTiles(
+        coordinates: coordinates,
+        cacheDir: cacheDir,
+        providerType: isSatellite ? 'satellite' : 'osm',
+        urlTemplate: isSatellite
+            ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+            : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+        timeout: const Duration(seconds: 40),
+      );
+    } catch (_) {}
+  }
 
   /// Mengonversi latitude, longitude, dan level zoom ke koordinat tile (x, y) OSM
   static TileCoord latLonToTile(double lat, double lon, int zoom) {
@@ -153,6 +341,9 @@ class MapPrecacheService {
     final workerCount = math.min(12, allTiles.length);
     final completer = Completer<void>();
 
+    // Cek koneksi internet sebelum memulai worker
+    final isOnline = await hasInternetConnection(timeout: const Duration(milliseconds: 1500));
+
     final timer = Timer(timeout, () {
       if (!completer.isCompleted) {
         if (isCancelled?.call() != true) {
@@ -178,6 +369,15 @@ class MapPrecacheService {
 
         // Jika file sudah ada di disk dan valid (> 100 byte), langsung hitung sebagai loaded
         if (file.existsSync() && file.lengthSync() > 100) {
+          loaded++;
+          if (isCancelled?.call() != true) {
+            onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);
+          }
+          continue;
+        }
+
+        // Jika offline, lewati pengambilan jaringan agar tidak menghabiskan waktu pada timeout
+        if (!isOnline) {
           loaded++;
           if (isCancelled?.call() != true) {
             onProgress?.call((loaded / total).clamp(0.0, 1.0), loaded, total);

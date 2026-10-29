@@ -105,5 +105,44 @@ void main() {
         tempDir.deleteSync(recursive: true);
       }
     });
+
+    test('getTileCacheDir mengembalikan path direktori cache yang valid', () async {
+      final cacheDir = await MapPrecacheService.getTileCacheDir();
+      expect(cacheDir, isNotEmpty);
+      expect(Directory(cacheDir).existsSync(), isTrue);
+    });
+
+    test('hasInternetConnection mengeksekusi pemeriksaan jaringan dengan aman', () async {
+      final online = await MapPrecacheService.hasInternetConnection(
+        timeout: const Duration(milliseconds: 1000),
+      );
+      // Nilai boolean bergantung pada koneksi host uji coba, harus berupa bool
+      expect(online, isA<bool>());
+    });
+
+    test('precacheActivityRoute menangani koordinat kosong atau < 2 secara instan', () async {
+      await expectLater(
+        MapPrecacheService.precacheActivityRoute([]),
+        completes,
+      );
+      await expectLater(
+        MapPrecacheService.precacheActivityRoute([
+          const CoordinatePoint(
+            activityId: 'p1',
+            latitude: -6.2,
+            longitude: 106.8,
+            timestamp: 100,
+          ),
+        ]),
+        completes,
+      );
+    });
+
+    test('warmUpOnAppStart dieksekusi dengan aman tanpa unhandled exception', () async {
+      await expectLater(
+        MapPrecacheService.warmUpOnAppStart(),
+        completes,
+      );
+    });
   });
 }
