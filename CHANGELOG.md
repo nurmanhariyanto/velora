@@ -2,6 +2,23 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.16] - 2026-10-29
+
+### 🎯 Sinkronisasi State Play/Pause Pemutar Rute (Route Replay) & Auto-Play Instan
+
+#### 🎯 1. Perbaikan Desinkronisasi Tombol Play/Pause Pemutar Rute (Route Replay Screen)
+- **Auto-Play Otomatis Saat Layar Dibuka (*Instant Route Replay*):**
+  - Mengoreksi kendala inisialisasi di mana animasi rute (`_animController.forward()`) sebelumnya tidak terpicu saat membuka layar atau setelah pra-pemuatan ubin peta selesai akibat evaluasi kondisi `!_isPlaying` yang tidak terpenuhi saat `_isPlaying` diinisialisasi `true`.
+  - Memastikan rute dengan titik koordinat $\ge 2$ (seperti berkas GPX sesi latihan) langsung berputar secara otomatis dan mulus.
+- **Sinkronisasi Total Ikon Tombol dan Controller Animasi:**
+  - Menghilangkan anomali tombol "II" (Pause) yang macet di mana rute tampak terhenti tetapi tombol menampilkan ikon Pause, sehingga sebelumnya memerlukan klik ganda (Pause lalu Play) untuk mulai berjalan.
+  - Mengalihkan pengecekan `_togglePlayPause` ke status riil `_animController.isAnimating` yang terhubung langsung dengan engine animasi Flutter.
+  - Satu ketukan pada tombol Pause ("II") kini langsung menjeda rute secara responsif.
+  - Satu ketukan pada tombol Play ("▶") kini langsung melanjutkan pemutaran seketika tanpa jeda atau klik ganda.
+- **Konsistensi Scrubbing Slider & Restart Rute:**
+  - Memperbaiki pengembalian status pemutaran setelah pengguna menggeser (*scrubbing*) bilah linimasa rute menggunakan `_animController.forward()` yang tepat.
+  - Menyempurnakan fungsi `_restartReplay` agar memutar ulang rute dari posisi awal (0.0) secara bersih dan sinkron dengan ikon kontrol.
+
 ## [v1.0.15] - 2026-10-29
 
 ### ⚡ Pemanasan Peta Cerdas (Smart Early Map Pre-Caching) & Optimalisasi Render Video Instan

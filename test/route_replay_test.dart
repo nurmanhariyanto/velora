@@ -293,8 +293,7 @@ void main() {
       );
 
       // Preloading berjalan dan otomatis selesai di environment test
-      await tester.pump(const Duration(milliseconds: 5000));
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Kontrol pemutaran rute siap digunakan
       expect(find.text('Gowes Pagi Flyover'), findsOneWidget);

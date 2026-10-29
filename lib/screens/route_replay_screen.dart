@@ -229,6 +229,14 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       }
     });
 
+    // Otomatis putar rute saat dibuka jika memiliki titik koordinat >= 2
+    if (widget.session.coordinates.length >= 2) {
+      _animController.forward();
+      _isPlaying = true;
+    } else {
+      _isPlaying = false;
+    }
+
     _loadAthleteName();
     _detectRegencyBorders();
     _detectRoadTransitions();
@@ -347,10 +355,9 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
       setState(() {
         _isPreloadingTiles = false;
       });
-      // Mulai playback otomatis setelah peta siap
-      if (!_isPlaying && widget.session.coordinates.length >= 2) {
+      // Pastikan playback berjalan jika masih dalam mode aktif
+      if (_isPlaying && !_animController.isAnimating && widget.session.coordinates.length >= 2) {
         _animController.forward();
-        _isPlaying = true;
       }
 
       // Jika dibuka dengan permintaan ekspor video otomatis dari detail aktivitas
@@ -640,7 +647,7 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
 
   void _togglePlayPause() {
     setState(() {
-      if (_isPlaying) {
+      if (_animController.isAnimating) {
         _animController.stop();
         _isPlaying = false;
       } else {
@@ -713,11 +720,10 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
     _hasTriggeredPeakAlert = false;
     _activePeakEvent = null;
     _peakAlertTimer?.cancel();
-    if (!_isPlaying) {
-      _togglePlayPause();
-    } else {
+    setState(() {
       _animController.forward(from: 0.0);
-    }
+      _isPlaying = true;
+    });
   }
 
   @override
@@ -1345,11 +1351,11 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
                     _precacheTimer?.cancel();
                     setState(() {
                       _isPreloadingTiles = false;
+                      if (!_animController.isAnimating && widget.session.coordinates.length >= 2) {
+                        _animController.forward();
+                        _isPlaying = true;
+                      }
                     });
-                    if (!_isPlaying && widget.session.coordinates.length >= 2) {
-                      _animController.forward();
-                      _isPlaying = true;
-                    }
                   },
                   icon: const Icon(Icons.play_arrow_rounded, color: AppColors.primaryOrange, size: 18),
                   label: const Text(
@@ -2663,16 +2669,25 @@ class _RouteReplayScreenState extends State<RouteReplayScreen>
               onChangeStart: _isRenderingVideo
                   ? null
                   : (val) {
-                      _wasPlayingBeforeScrub = _isPlaying;
-                      if (_isPlaying) {
+                      _wasPlayingBeforeScrub = _animController.isAnimating;
+                      if (_animController.isAnimating) {
                         _animController.stop();
+                        setState(() {
+                          _isPlaying = false;
+                        });
                       }
                     },
               onChangeEnd: _isRenderingVideo
                   ? null
                   : (val) {
-                      if (_wasPlayingBeforeScrub && !_animController.isAnimating) {
-                        _animController.repeat();
+                      if (_wasPlayingBeforeScrub) {
+                        if (_animController.isCompleted) {
+                          _animController.reset();
+                        }
+                        _animController.forward();
+                        setState(() {
+                          _isPlaying = true;
+                        });
                       }
                     },
             ),

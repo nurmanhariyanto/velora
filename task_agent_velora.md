@@ -58,6 +58,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Implementasi Template Clean Strava-Style & Akses Video:** Menambahkan enum `ShareCardStyle.clean`, fungsi `formatCleanPace`, `formatCleanDuration`, komponen `_buildCleanContent` pada `SocialShareCard`, serta pembaruan antarmuka pemilih tab 4 mode dan pintasan video di `SharePreviewScreen`.
 * [x] **Persistensi & Feedback Fitur Video:** Memastikan tombol `PUTAR RUTE` dan modal `Video Flyover Rute (MP4 Sinematik)` di `ActivityDetailScreen` selalu dapat diakses secara persisten, dilengkapi SnackBar penjelas jika rute belum mencukupi.
 * [x] **Fitur Auto-Update:** Mengimplementasikan pengecekan otomatis dan manual ke GitHub Releases API di `lib/services/update_service.dart`.
+* [x] **Sinkronisasi Pemutar Rute & Auto-Play Instan:** Mengoreksi kondisi inisialisasi controller animasi rute di `lib/screens/route_replay_screen.dart`, menyinkronkan status visual tombol Pause/Play secara langsung dengan `_animController.isAnimating`, memperbaiki scrubbing linimasa, serta menjamin rute langsung berputar mulus tanpa jeda atau klik ganda saat dibuka.
 
 ---
 
@@ -68,6 +69,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 **Tugas Utama & Realisasi:**
 
 * [x] **Pengujian Fungsional & Unit:** 153 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/route_replay_test.dart`, `test/route_replay_interaction_test.dart` & `test/route_replay_layout_audit_test.dart`: Validasi siklus pemutaran rute otomatis, transisi Play/Pause satu sentuhan tanpa freeze, scrubber linimasa, serta audit tata letak pada berbagai rasio layar.
   * `test/map_precache_test.dart`: Validasi konversi koordinat tile OSM, pemotongan batas, kalkulasi ubin rute, pembersihan cache memori, penanganan pembatalan, inisialisasi direktori cache ubin, pemeriksaan internet, warm-up startup, dan precache rute aktivitas.
   * `test/activity_detail_share_test.dart`: Validasi keterlihatan permanen tombol `PUTAR RUTE` dan modal opsi `Video Flyover Rute (MP4 Sinematik)` baik pada sesi dengan rute maupun sesi kosong/minim koordinat.
   * `test/location_recenter_test.dart`: Validasi callback tombol pusatkan lokasi, penanganan `currentLocation == null`, dan siklus hidup idle location stream.
@@ -98,3 +100,4 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Rilis Pembaruan GitHub (v1.0.13):** Pelacakan lokasi aktif, suar GPS neon pendar & tombol pusatkan lokasi pintar.
 * [x] **Rilis Pembaruan GitHub (v1.0.14):** Peningkatan ketahanan pembaruan in-app (bypass rate limit raw fallback, external cache storage OEM-friendly, browser download alternative), serta visibilitas permanen fitur Video Flyover 3D & Putar Rute.
 * [x] **Rilis Pembaruan GitHub (v1.0.15):** Pemanasan peta cerdas saat aplikasi dibuka (Smart Early Map Pre-Caching jika ada internet / skip jika offline), precache koridor rute di detail & replay, dan dekode GPU instan saat render video.
+* [x] **Rilis Pembaruan GitHub (v1.0.16):** Perbaikan desinkronisasi status Play/Pause pemutar rute (Route Replay) dan auto-play instan rute GPX.

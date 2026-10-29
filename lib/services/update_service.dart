@@ -22,7 +22,7 @@ class UpdateService {
   static const MethodChannel _installerChannel =
       MethodChannel('online.nurmancloud.velora/app_installer');
 
-  static const String appVersionFallback = '1.0.15';
+  static const String appVersionFallback = '1.0.16';
   static bool _hasCheckedAutoUpdateThisSession = false;
 
   /// Memeriksa fallback versi rilis langsung dari repositori publik (raw) jika GitHub API terkena rate limit
