@@ -2,6 +2,41 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.20] - 2026-10-29
+
+### 🗺️ Panduan Rute GPX & Peringatan Keluar Jalur (GPX Route Breadcrumbs & Off-Course Alert)
+
+#### 🧭 1. Panduan Rute GPX Fleksibel Berbasis Mode Manual (*Optional Route Breadcrumbs*)
+- **Kendali Penuh di Tangan Pengguna (Bisa Digunakan, Bisa Tidak):**
+  - Pengguna bebas memilih apakah ingin berlari/bersepeda/mendaki dengan rute panduan atau sekadar pelacakan bebas biasa tanpa rute panduan.
+  - Tombol aksi mengambang khusus (`Icons.alt_route_rounded`) di sisi kanan layar peta yang menyala lembut dalam aksen indigo saat panduan rute sedang aktif.
+  - Dialog pengaturan modal (`RouteGuideSheet`) yang memungkinkan pengguna menyalakan/mematikan visibilitas panduan di peta, memusatkan kamera ke rute, mengganti rute, atau menghapus panduan rute kapan pun diinginkan.
+
+#### 📁 2. Impor Universal File GPX (.gpx) & Pemilihan dari Riwayat Latihan
+- **Impor Berkas Eksternal GPX:**
+  - Terintegrasi dengan sistem pemilih berkas perangkat (`FilePicker`) untuk memuat rute lintasan eksternal berformat `.gpx` atau `.xml` (Garmin, Strava, Wikiloc, AllTrails, Google Earth, dsb.).
+  - Parser GPX berdaya tahan tinggi (`GpxService.parseGpx`) mengekstraksi elemen lintasan (`<trkpt>`), rute (`<rtept>`), maupun titik acuan (`<wpt>`), menghitung total jarak lintasan, serta akumulasi elevasi tanjakan.
+- **Pemanfaatan Riwayat Latihan Tersimpan:**
+  - Opsi instan untuk menggunakan kembali rute dari sesi latihan lari, sepeda, atau mendaki yang pernah tercatat di basis data SQLite lokal tanpa memerlukan koneksi internet.
+
+#### 🛣️ 3. Visualisasi Elegan Rute Panduan di Atas Peta OSM (*Live Map Breadcrumbs Polyline*)
+- **Lapisan Polyline Berlapis Indigo (*Subtle Indigo Dual-Layer Polyline*):**
+  - Rute referensi digambar dengan gaya berlapis di bawah polyline neon GPS aktif: garis luar pendar ungu indigo (`#6366F1`) 9.0px dan garis inti tegas (`#818CF8`) 4.5px, memberikan panduan arah visual yang sangat jelas tanpa mengaburkan lintasan langsung atlet.
+  - Dilengkapi pin penanda titik awal berwarna hijau (*Green Start Marker*) dan penanda titik finish berwarna merah (*Red Finish Marker*).
+  - Fitur pemusatan kamera peta (*Fit Route Bounds*) untuk menampilkan bentangan penuh rute panduan dengan sekali sentuh.
+
+#### ⚠️ 4. Deteksi Keluar Jalur Presisi Tinggi (*Cross-Track Distance & Off-Course Alert*)
+- **Algoritma Jarak Segmen Lintas Rute Super Cepat ($O(N)$ Planar Projection):**
+  - Algoritma perhitungan jarak terdekat ke segmen garis polyline berbasis proyeksi ekuirektangular lokal yang sangat hemat daya komputasi ($< 0.1\text{ milidetik}$ pada CPU ponsel).
+  - Ambang batas keluar jalur cerdas (*Off-Course Threshold*): peringatan terpicu saat jarak pengguna ke garis rute melebihi 50 meter.
+  - Ambang histeresis pemulihan (*On-Course Recovery*): peringatan otomatis nonaktif kembali saat posisi berada dalam rentang $\le 30\text{ meter}$.
+  - Mekanisme anti-jitter (*Debounce Filter*): membutuhkan setidaknya 2 sinyal lokasi GPS berturut-turut di luar batas untuk menghindari alarm palsu akibat lompatan akurasi sinyal satelit.
+
+#### 📳 5. Peringatan Haptik Getar & Banner Peringatan Melayang (*HUD Warning Banner*)
+- **Banner Peringatan Melayang Berdenyut:**
+  - Banner peringatan dinamis (`OffCourseBanner`) bertema amber-merah kontras tinggi di bagian atas layar dengan animasi denyut halus dan metrik jarak riil terhadap rute (cth: "PERINGATAN: KELUAR DARI JALUR • Anda berjarak 65 m dari lintasan rute").
+  - Getaran haptik tegas (`HapticFeedback.heavyImpact()`) seketika saat pengguna menyimpang dari lintasan dan getaran konfirmasi saat pengguna berhasil kembali ke rute yang benar.
+
 ## [v1.0.19] - 2026-10-29
 
 ### 🥾 Mode Olahraga Mendaki (Hiking / Trekking) & Modal Badge Pemilih Olahraga

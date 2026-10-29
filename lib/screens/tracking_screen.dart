@@ -12,6 +12,8 @@ import '../widgets/auto_pause_banner.dart';
 import '../widgets/control_buttons.dart';
 import '../widgets/live_map_view.dart';
 import '../widgets/metric_card.dart';
+import '../widgets/off_course_banner.dart';
+import '../widgets/route_guide_sheet.dart';
 import '../widgets/velora_logo.dart';
 import 'activity_detail_screen.dart';
 
@@ -24,6 +26,8 @@ class TrackingScreen extends StatefulWidget {
 }
 
 class _TrackingScreenState extends State<TrackingScreen> {
+  final GlobalKey<dynamic> _mapKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -32,6 +36,20 @@ class _TrackingScreenState extends State<TrackingScreen> {
       tracking.fetchInitialPosition();
       tracking.startIdleLocationListener();
     });
+  }
+
+  void _showRouteGuideModal() {
+    RouteGuideSheet.show(
+      context,
+      onFocusRoute: () {
+        final state = _mapKey.currentState;
+        if (state != null) {
+          try {
+            (state as dynamic).centerOnReferenceRoute();
+          } catch (_) {}
+        }
+      },
+    );
   }
 
   Future<void> _handleRecenter() async {
@@ -215,20 +233,35 @@ class _TrackingScreenState extends State<TrackingScreen> {
           Positioned.fill(
             bottom: 240, // Beri ruang untuk bottom panel statistik
             child: LiveMapView(
+              key: _mapKey,
               coordinates: tracking.coordinates,
               currentLocation: currentLatLng,
               isTracking: tracking.status.isRecording,
               autoCenter: true,
+              referenceRoute: tracking.referenceRoutePoints,
+              onRouteGuidePressed: _showRouteGuideModal,
               onRecenter: _handleRecenter,
             ),
           ),
 
-          // 2. Banner Notifikasi Auto-Pause Melayang
+          // 2. Banner Notifikasi Melayang (Auto-Pause & Peringatan Keluar Jalur)
           Positioned(
             top: 12,
             left: 0,
             right: 0,
-            child: AutoPauseBanner(status: tracking.status),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AutoPauseBanner(status: tracking.status),
+                if (tracking.isOffCourse) ...[
+                  const SizedBox(height: 8),
+                  OffCourseBanner(
+                    isOffCourse: tracking.isOffCourse,
+                    distanceMeters: tracking.offCourseDistanceMeters,
+                  ),
+                ],
+              ],
+            ),
           ),
 
           // 3. Panel Bawah Ergonomis (Bottom Dashboard & Controls)

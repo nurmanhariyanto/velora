@@ -20,6 +20,9 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
   * Menentukan algoritma kompresi rute **Douglas-Peucker** di `lib/algorithms/douglas_peucker.dart`.
   * Merumuskan logika perbandingan SemVer untuk pembaruan rilis otomatis di `lib/models/app_update_info.dart`.
   * Merumuskan formulasi matematis `formatCleanPace` ($M:SS\text{ /km}$) dan `formatCleanDuration` ($XX\text{m }YY\text{s}$ atau $X\text{h }YY\text{m }ZZ\text{s}$) untuk mode Clean Strava di `docs/PRD_VELORA.md`.
+  * Merumuskan algoritma jarak tegak lurus terdekat (*Cross-Track Distance*) berbasis proyeksi ekuirektangular planar $O(N)$ CPU-friendly (< 0.1 ms) di `lib/services/route_guide_service.dart`.
+  * Menetapkan ambang batas peringatan keluar jalur (> 50 m), histeresis pemulihan kembali ke jalur ($\le 30$ m), dan filter anti-jitter (2 sinyal GPS berturut-turut) untuk fitur **Off-Course Alert**.
+  * Merumuskan spesifikasi mode manual opsional panduan rute (bisa digunakan, bisa tidak) tanpa mengganggu pelacakan bebas.
 
 ---
 
@@ -43,6 +46,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Desain Anti-Occlusion Banner Puncak & Proporsi Badge 3D:** Merancang ulang banner notifikasi puncak elevasi (`_buildPeakSummitBanner`) menjadi *capsule pill* horizontal ultra-kompak (28px) dengan efek *frosted glass* semi-transparan (`BackdropFilter` sigma 10) di zona langit atas aman (`padding.top + 52`), membebaskan area cakrawala peta dari tumpang-tindih visual terhadap pin 3D di peta, serta merampingkan dimensi pin penanda 3D (`MountainPeakPin`, `RoadTrackPin`, `RegencyFlagPin`) agar proporsional, elegan, dan bebas silau.
 * [x] **Desain Pemuatan Instan Penanda Jalan Putaran Pertama:** Merancang pengalaman visual tanpa jeda (*zero-delay visual experience*) di mana penanda nama ruas jalan di rute 3D langsung tampil di detik pertama putaran pertama tanpa harus menunggu putaran kedua atau koneksi internet yang lambat.
 * [x] **Desain Badge Menu Pemilihan Olahraga & Mode Mendaki:** Merancang antarmuka pemilihan aktivitas berbasis *Modal Bottom Sheet* elegan yang terpicu saat menekan tombol "MULAI LATIHAN" (dengan 3 kartu badge informatif: Lari, Sepeda, dan Mendaki), serta merancang tata letak metrik dinamis mendaki yang menonjolkan ketinggian aktual (*Altitude mdpl*) dan elevasi lereng (*Elevation Gain*).
+* [x] **Desain Visual Panduan Rute & Banner Keluar Jalur:** Merancang lapisan polyline rute referensi berlapis indigo (`#6366F1` & `#818CF8`) dengan penanda awal hijau dan akhir merah pada `lib/widgets/live_map_view.dart`, tombol mengambang aksi panduan rute (`Icons.alt_route_rounded`), dialog lembar pengaturan `RouteGuideSheet`, dan banner peringatan melayang berdenyut amber-merah `OffCourseBanner`.
 
 ---
 
@@ -65,6 +69,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Anti-Occlusion Banner & Refaktorisasi Pin 3D Rute:** Mengimplementasikan banner selebrasi puncak elevasi dan batas wilayah berbasis *frosted glass capsule pill* dalam `Column` terpadu anti-tumpang-tindih pada `lib/screens/route_replay_screen.dart`, mengamankan visibilitas badge penanda ketinggian rute (`PUNCAK XXM`), serta mengecilkan skala pin gunung dari 190x84 ke 130x58 dan pin lintasan dari 220x76 ke 150x52 untuk keterbacaan optimal.
 * [x] **Pemuatan Instan Nama Jalan & Pra-Pemuatan Detail Aktivitas:** Mengimplementasikan arsitektur dua tahap (*Two-Tier Fast Pass*) pada `lib/services/road_geocoding_service.dart` (fast pass sinkron 0 ms dan targeted online upgrade dengan timeout ketat 1,2 detik), integrasi `onProgressUpdate` pada `lib/screens/route_replay_screen.dart`, pra-pemuatan otomatis di `lib/screens/activity_detail_screen.dart`, serta perluasan koridor offline lokal Pontianak (Uray Bawadi, Sutan Syahrir, Kesehatan, Harapan Jaya, Ampera, Prof. M. Yamin, Wahidin).
 * [x] **Mode Olahraga Mendaki (Hike) & Integrasi Modal Pemilih Olahraga:** Mengintegrasikan enum `SportsType.hike`, penyederhanaan tombol "MULAI LATIHAN" pada `lib/widgets/control_buttons.dart` yang memicu modal badge 3 olahraga pada `lib/screens/tracking_screen.dart`, dashboard metrik dinamis ketinggian (Altitude mdpl, Elev Gain, Pace), toleransi auto-pause tanjakan curam di `lib/providers/tracking_provider.dart`, penyesuaian rekor jarak daki di `lib/services/achievement_service.dart`, serta integrasi UI riwayat, detail, dan video 3D.
+* [x] **Panduan Rute GPX & Deteksi Keluar Jalur (Off-Course Alert):** Mengintegrasikan model data `RouteGuideInfo` di `lib/models/route_guide_info.dart`, parser GPX universal di `lib/services/gpx_service.dart`, layanan perhitungan proyeksi planar tercepat `RouteGuideService.calculateDistanceToPolyline` di `lib/services/route_guide_service.dart`, manajemen state panduan rute dan evaluasi berkala di `lib/providers/tracking_provider.dart`, pemilih berkas GPX via `file_picker`, serta integrasi UI pada `TrackingScreen`, `LiveMapView`, `OffCourseBanner`, dan `RouteGuideSheet`.
 
 ---
 
@@ -74,7 +79,9 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 
 **Tugas Utama & Realisasi:**
 
-* [x] **Pengujian Fungsional & Unit:** 162 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+* [x] **Pengujian Fungsional & Unit:** 175 pengujian unit dan widget otomatis (100% lolos di direktori `test/`):
+  * `test/route_guide_service_test.dart`: Validasi algoritma kalkulasi jarak tegak lurus terdekat (*Cross-Track Distance*), proyeksi planar segmen rute, titik persis di rute, dan penanganan polylines edge cases.
+  * `test/route_guide_widget_test.dart`: Validasi rendering banner peringatan keluar jalur `OffCourseBanner` (meter & km), rendering `RouteGuideSheet` (mode kosong, mode rute aktif, switch toggle, hapus rute, pemilih riwayat latihan), rendering polyline referensi dan tombol aksi mengambang pada `LiveMapView`, serta konversi `RouteGuideInfo.fromSession`.
   * `test/tracking_screen_sport_selection_test.dart`: Validasi penekanan tombol "MULAI LATIHAN" memunculkan badge modal 3 olahraga, verifikasi pemilihan mode Mendaki (hike), dan pengujian metrik dinamis mendaki (`ALTITUDE mdpl`, `ELEV GAIN`, `PACE`).
   * `test/road_geocoding_test.dart`: Validasi pemformatan nama jalan, pengenalan koridor rute offline Pontianak & kota-kota besar, deduplikasi transisi, callback instan `onProgressUpdate` (0 ms), dan pemanasan memori `precacheRoadTransitions`.
   * `test/route_replay_test.dart`, `test/route_replay_interaction_test.dart` & `test/route_replay_layout_audit_test.dart`: Validasi siklus pemutaran rute otomatis, transisi Play/Pause satu sentuhan tanpa freeze, scrubber linimasa, audit tata letak pada berbagai rasio layar, serta validasi banner selebrasi puncak elevasi anti-occlusion pada zona aman atas.
@@ -86,7 +93,7 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
   * `test/auto_pause_test.dart`: Trigger Auto-Pause dan Auto-Resume, serta evaluasi timer berkala henti stasioner.
   * `test/models_and_db_test.dart`: Serialisasi dan mapping SQLite.
   * `test/update_service_test.dart`: Logika perbandingan versi SemVer.
-  * `test/gpx_service_test.dart`: Validitas struktur XML GPX 1.1.
+  * `test/gpx_service_test.dart`: Validitas struktur XML GPX 1.1 dan parsing GPX tracks/routes/waypoints menjadi `RouteGuideInfo`.
   * `test/widget_test.dart`: Rendering widget UI utama, logo, dan metric card bebas overflow.
 * [x] **Linter & Code Health:** Menjalankan `flutter analyze` dengan hasil bersih (0 *errors*, 0 *warnings*).
 
@@ -112,3 +119,4 @@ Dokumen ini merinci pembagian tugas dan status tanggung jawab untuk masing-masin
 * [x] **Rilis Pembaruan GitHub (v1.0.17):** Optimalisasi penanda puncak elevasi rute bebas tumpang-tindih (anti-occlusion banner) dan desain badge 3D ramping proporsional.
 * [x] **Rilis Pembaruan GitHub (v1.0.18):** Pemuatan instan nama jalan putaran pertama (Instant Road Geocoding & Early Pre-Warming).
 * [x] **Rilis Pembaruan GitHub (v1.0.19):** Mode olahraga Mendaki (Hiking / Trekking), antarmuka modal badge pemilih olahraga saat tombol Mulai ditekan, dan dashboard metrik elevasi dinamis.
+* [x] **Rilis Pembaruan GitHub (v1.0.20):** Panduan rute GPX (Route Breadcrumbs) & peringatan keluar jalur (Off-Course Alert) berbasis mode manual opsional, impor GPX universal via file_picker, dan banner peringatan haptik getar.

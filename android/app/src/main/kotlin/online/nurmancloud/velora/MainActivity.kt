@@ -14,6 +14,9 @@ class MainActivity : FlutterActivity() {
     private val MEDIA_CHANNEL = "online.nurmancloud.velora/media_store"
     private val WAKELOCK_CHANNEL = "online.nurmancloud.velora/wakelock"
     private val PROFILE_CHANNEL = "online.nurmancloud.velora/native_profile"
+    private val GPX_PICKER_CHANNEL = "online.nurmancloud.velora/gpx_picker"
+    private val REQUEST_CODE_PICK_GPX = 7001
+    private var pendingGpxResult: MethodChannel.Result? = null
     private var renderWakeLock: android.os.PowerManager.WakeLock? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -461,6 +464,79 @@ class MainActivity : FlutterActivity() {
                     }
                 }
                 else -> result.notImplemented()
+            }
+        }
+
+        // Channel untuk Pemilih Berkas GPX Native (Tanpa Ketergantungan Plugin Eksternal)
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, GPX_PICKER_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "pickGpxFile" -> {
+                    pendingGpxResult = result
+                    try {
+                        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                            type = "*/*"
+                            putExtra(
+                                Intent.EXTRA_MIME_TYPES,
+                                arrayOf(
+                                    "application/gpx+xml",
+                                    "application/xml",
+                                    "text/xml",
+                                    "application/octet-stream",
+                                    "*/*"
+                                )
+                            )
+                        }
+                        startActivityForResult(intent, REQUEST_CODE_PICK_GPX)
+                    } catch (e: Exception) {
+                        try {
+                            val fallbackIntent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                                addCategory(Intent.CATEGORY_OPENABLE)
+                                type = "*/*"
+                            }
+                            startActivityForResult(fallbackIntent, REQUEST_CODE_PICK_GPX)
+                        } catch (ex: Exception) {
+                            pendingGpxResult = null
+                            result.error("PICKER_ERROR", ex.message, null)
+                        }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_CODE_PICK_GPX) {
+            val res = pendingGpxResult
+            pendingGpxResult = null
+            if (resultCode == RESULT_OK && data?.data != null) {
+                val uri: Uri = data.data!!
+                try {
+                    var displayName = "rute.gpx"
+                    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                        if (nameIndex != -1 && cursor.moveToFirst()) {
+                            displayName = cursor.getString(nameIndex) ?: "rute.gpx"
+                        }
+                    }
+                    val content = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                    if (content != null) {
+                        res?.success(
+                            mapOf(
+                                "name" to displayName,
+                                "content" to content
+                            )
+                        )
+                    } else {
+                        res?.success(null)
+                    }
+                } catch (e: Exception) {
+                    res?.error("READ_ERROR", e.message, null)
+                }
+            } else {
+                res?.success(null)
             }
         }
     }

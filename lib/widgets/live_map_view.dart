@@ -26,6 +26,8 @@ class LiveMapView extends StatefulWidget {
   final List<CoordinatePoint>? highlightedSegment;
   final void Function(TrackMilestone)? onMilestoneTapped;
   final VoidCallback? onRecenter;
+  final List<LatLng>? referenceRoute;
+  final VoidCallback? onRouteGuidePressed;
 
   const LiveMapView({
     super.key,
@@ -38,6 +40,8 @@ class LiveMapView extends StatefulWidget {
     this.highlightedSegment,
     this.onMilestoneTapped,
     this.onRecenter,
+    this.referenceRoute,
+    this.onRouteGuidePressed,
   });
 
   @override
@@ -130,6 +134,28 @@ class _LiveMapViewState extends State<LiveMapView> {
     widget.onRecenter?.call();
   }
 
+  /// Memusatkan kamera peta untuk mencakup seluruh rute referensi panduan
+  void centerOnReferenceRoute() {
+    if (widget.referenceRoute != null && widget.referenceRoute!.isNotEmpty) {
+      setState(() => _userInteracted = true);
+      if (widget.referenceRoute!.length == 1) {
+        _safeMoveMap(widget.referenceRoute!.first, 16.0);
+      } else {
+        try {
+          final bounds = LatLngBounds.fromPoints(widget.referenceRoute!);
+          _mapController.fitCamera(
+            CameraFit.bounds(
+              bounds: bounds,
+              padding: const EdgeInsets.all(48),
+            ),
+          );
+        } catch (_) {
+          _safeMoveMap(widget.referenceRoute!.first, 15.0);
+        }
+      }
+    }
+  }
+
   void _toggleMapTheme() {
     setState(() {
       _currentTheme = _currentTheme == MapThemeMode.dark
@@ -206,6 +232,28 @@ class _LiveMapViewState extends State<LiveMapView> {
                   : null,
             ),
 
+            // 1b. Lapisan Polyline Panduan Rute Referensi (GPX Breadcrumbs)
+            if (widget.referenceRoute != null && widget.referenceRoute!.isNotEmpty) ...[
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: widget.referenceRoute!,
+                    strokeWidth: 9.0,
+                    color: const Color(0x606366F1), // Indigo halo glow
+                    strokeCap: StrokeCap.round,
+                    strokeJoin: StrokeJoin.round,
+                  ),
+                  Polyline(
+                    points: widget.referenceRoute!,
+                    strokeWidth: 4.5,
+                    color: const Color(0xFF818CF8), // Crisp Indigo
+                    strokeCap: StrokeCap.round,
+                    strokeJoin: StrokeJoin.round,
+                  ),
+                ],
+              ),
+            ],
+
             // 2. Lapisan Polyline Garis Lintasan Neon
             if (polylinePoints.isNotEmpty) ...[
               // Lapisan Glow di bawah garis utama
@@ -254,6 +302,64 @@ class _LiveMapViewState extends State<LiveMapView> {
             // 3. Lapisan Marker (Penanda Lintasan & Lokasi Pengguna)
             MarkerLayer(
               markers: [
+                // Penanda Awal Panduan Rute (Pin Hijau Panduan)
+                if (widget.referenceRoute != null && widget.referenceRoute!.isNotEmpty) ...[
+                  Marker(
+                    point: widget.referenceRoute!.first,
+                    width: 28,
+                    height: 28,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2.0),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black45,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Center(
+                        child: Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Penanda Akhir Panduan Rute (Pin Merah / Finish)
+                  if (widget.referenceRoute!.length > 1)
+                    Marker(
+                      point: widget.referenceRoute!.last,
+                      width: 28,
+                      height: 28,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEF4444),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2.0),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black45,
+                              blurRadius: 4,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.sports_score_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+
                 // Jika Penanda Lintasan Aktif, Tampilkan Seluruh Milestone
                 if (_showMilestones && milestones.isNotEmpty)
                   ...milestones.map(
@@ -324,6 +430,17 @@ class _LiveMapViewState extends State<LiveMapView> {
                     : AppColors.primaryOrange,
                 onPressed: _recenterMap,
               ),
+              if (widget.onRouteGuidePressed != null) ...[
+                const SizedBox(height: 10),
+                _buildFloatingActionBtn(
+                  icon: Icons.alt_route_rounded,
+                  tooltip: 'Panduan Rute GPX & Jalur',
+                  color: (widget.referenceRoute != null && widget.referenceRoute!.isNotEmpty)
+                      ? const Color(0xFF818CF8)
+                      : AppColors.textSecondary,
+                  onPressed: widget.onRouteGuidePressed!,
+                ),
+              ],
               const SizedBox(height: 10),
               _buildFloatingActionBtn(
                 icon: _currentTheme == MapThemeMode.dark

@@ -1,17 +1,21 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' hide Haversine;
 import '../algorithms/douglas_peucker.dart';
 import '../algorithms/haversine.dart';
 import '../algorithms/pace_calculator.dart';
 import '../database/activity_repository.dart';
 import '../models/activity_session.dart';
 import '../models/coordinate_point.dart';
+import '../models/route_guide_info.dart';
 import '../models/sports_type.dart';
 import '../models/tracking_status.dart';
 import '../services/auto_pause_detector.dart';
 import '../services/foreground_service_handler.dart';
 import '../services/location_service.dart';
+import '../services/route_guide_service.dart';
 
 /// Provider utama pengelola siklus pelacakan, perhitungan real-time, dan GPS stream
 class TrackingProvider extends ChangeNotifier {
@@ -83,6 +87,20 @@ class TrackingProvider extends ChangeNotifier {
   List<CoordinatePoint> get coordinates => List.unmodifiable(_coordinates);
   Position? get currentPosition => _currentPosition;
   String get currentSessionId => _currentSessionId;
+
+  // Panduan Rute & Deteksi Keluar Jalur (Route Breadcrumbs & Off-Course Alert)
+  RouteGuideInfo? _routeGuide;
+  bool _isRouteGuideEnabled = false;
+  bool _isOffCourse = false;
+  double _offCourseDistanceMeters = 0.0;
+  int _consecutiveOffCourseCount = 0;
+
+  RouteGuideInfo? get routeGuide => _routeGuide;
+  bool get isRouteGuideEnabled => _isRouteGuideEnabled;
+  bool get isOffCourse => _isOffCourse;
+  double get offCourseDistanceMeters => _offCourseDistanceMeters;
+  List<LatLng>? get referenceRoutePoints =>
+      (_isRouteGuideEnabled && _routeGuide != null) ? _routeGuide!.points : null;
 
   /// Kecepatan rata-rata (km/jam)
   double get averageSpeedKmh {
@@ -181,6 +199,9 @@ class TrackingProvider extends ChangeNotifier {
         (pos) {
           if (_status == TrackingStatus.idle) {
             _currentPosition = pos;
+            if (_isRouteGuideEnabled && _routeGuide != null) {
+              _evaluateOffCourse(pos);
+            }
             notifyListeners();
           }
         },
@@ -201,6 +222,82 @@ class TrackingProvider extends ChangeNotifier {
     if (_status == TrackingStatus.idle) {
       _sportsType = type;
       notifyListeners();
+    }
+  }
+
+  // --- PANDUAN RUTE & DETEKSI KELUAR JALUR ---
+
+  /// Menetapkan rute panduan (dari file GPX atau dari riwayat sesi)
+  void setRouteGuide(RouteGuideInfo? guide) {
+    _routeGuide = guide;
+    _isRouteGuideEnabled = guide != null;
+    _isOffCourse = false;
+    _offCourseDistanceMeters = 0.0;
+    _consecutiveOffCourseCount = 0;
+    if (guide != null && _currentPosition != null) {
+      _evaluateOffCourse(_currentPosition!);
+    }
+    notifyListeners();
+  }
+
+  /// Mengaktifkan atau menonaktifkan tampilan panduan rute dan peringatan
+  void toggleRouteGuide(bool enabled) {
+    _isRouteGuideEnabled = enabled;
+    if (!enabled) {
+      _isOffCourse = false;
+      _offCourseDistanceMeters = 0.0;
+      _consecutiveOffCourseCount = 0;
+    } else if (_currentPosition != null) {
+      _evaluateOffCourse(_currentPosition!);
+    }
+    notifyListeners();
+  }
+
+  /// Menghapus rute panduan aktif
+  void clearRouteGuide() {
+    _routeGuide = null;
+    _isRouteGuideEnabled = false;
+    _isOffCourse = false;
+    _offCourseDistanceMeters = 0.0;
+    _consecutiveOffCourseCount = 0;
+    notifyListeners();
+  }
+
+  /// Mengevaluasi jarak pengguna terhadap rute referensi
+  void _evaluateOffCourse(Position position) {
+    if (!_isRouteGuideEnabled || _routeGuide == null || _routeGuide!.points.isEmpty) {
+      if (_isOffCourse) {
+        _isOffCourse = false;
+        _offCourseDistanceMeters = 0.0;
+        _consecutiveOffCourseCount = 0;
+      }
+      return;
+    }
+
+    final dist = RouteGuideService.calculateDistanceToPolyline(
+      LatLng(position.latitude, position.longitude),
+      _routeGuide!.points,
+    );
+    _offCourseDistanceMeters = dist;
+
+    if (dist > RouteGuideService.defaultOffCourseThreshold) {
+      _consecutiveOffCourseCount++;
+      if (_consecutiveOffCourseCount >= RouteGuideService.requiredConsecutiveTriggers) {
+        if (!_isOffCourse) {
+          _isOffCourse = true;
+          try {
+            HapticFeedback.heavyImpact();
+          } catch (_) {}
+        }
+      }
+    } else if (dist <= RouteGuideService.defaultRecoveryThreshold) {
+      _consecutiveOffCourseCount = 0;
+      if (_isOffCourse) {
+        _isOffCourse = false;
+        try {
+          HapticFeedback.mediumImpact();
+        } catch (_) {}
+      }
     }
   }
 
@@ -329,6 +426,9 @@ class TrackingProvider extends ChangeNotifier {
 
   void _onPositionUpdate(Position position) {
     _currentPosition = position;
+    if (_isRouteGuideEnabled && _routeGuide != null) {
+      _evaluateOffCourse(position);
+    }
     final nowMs = DateTime.now().millisecondsSinceEpoch;
 
     double movedMeters = 0.0;
@@ -498,6 +598,9 @@ class TrackingProvider extends ChangeNotifier {
     _coordinates.clear();
     _lastMovementTimeMs = 0;
     _consecutiveStationarySeconds = 0;
+    _isOffCourse = false;
+    _offCourseDistanceMeters = 0.0;
+    _consecutiveOffCourseCount = 0;
   }
 
   @override

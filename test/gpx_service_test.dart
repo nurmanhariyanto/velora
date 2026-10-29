@@ -51,5 +51,68 @@ void main() {
       expect(gpxString, contains('</trk>'));
       expect(gpxString, contains('</gpx>'));
     });
+
+    test('Mem-parsing file GPX valid menghasilkan RouteGuideInfo yang tepat', () {
+      const sampleGpx = '''<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Velora Run &amp; Ride">
+  <metadata>
+    <name>Rute Lintasan Danau Sebedang</name>
+    <time>2026-10-29T08:00:00Z</time>
+  </metadata>
+  <trk>
+    <name>Track Danau</name>
+    <trkseg>
+      <trkpt lat="-0.026330" lon="109.342504">
+        <ele>12.0</ele>
+        <time>2026-10-29T08:00:00Z</time>
+      </trkpt>
+      <trkpt lat="-0.027000" lon="109.343000">
+        <ele>15.0</ele>
+        <time>2026-10-29T08:01:00Z</time>
+      </trkpt>
+      <trkpt lat="-0.028000" lon="109.344000">
+        <ele>18.0</ele>
+        <time>2026-10-29T08:02:00Z</time>
+      </trkpt>
+    </trkseg>
+  </trk>
+</gpx>''';
+
+      final guide = GpxService.parseGpx(sampleGpx);
+
+      expect(guide, isNotNull);
+      expect(guide!.name, equals('Rute Lintasan Danau Sebedang'));
+      expect(guide.points.length, equals(3));
+      expect(guide.points.first.latitude, equals(-0.026330));
+      expect(guide.points.first.longitude, equals(109.342504));
+      expect(guide.points.last.latitude, equals(-0.028000));
+      expect(guide.totalDistanceMeters, greaterThan(100));
+      expect(guide.elevationGain, equals(6.0));
+      expect(guide.createdAt, isNotNull);
+    });
+
+    test('Mem-parsing GPX berbasis route (<rtept>) atau waypoint (<wpt>)', () {
+      const rteGpx = '''<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1">
+  <rte>
+    <name>Rute Sepeda Pesisir</name>
+    <rtept lat="-0.01" lon="109.31"><ele>5.0</ele></rtept>
+    <rtept lat="-0.02" lon="109.32"><ele>8.0</ele></rtept>
+  </rte>
+</gpx>''';
+
+      final guide = GpxService.parseGpx(rteGpx);
+      expect(guide, isNotNull);
+      expect(guide!.name, equals('Rute Sepeda Pesisir'));
+      expect(guide.points.length, equals(2));
+      expect(guide.elevationGain, equals(3.0));
+    });
+
+    test('Mem-parsing string GPX kosong atau rusak mengembalikan null secara aman', () {
+      expect(GpxService.parseGpx(''), isNull);
+      expect(GpxService.parseGpx('   '), isNull);
+      expect(GpxService.parseGpx('<invalid>xml</invalid>'), isNull);
+      expect(GpxService.parseGpx('<gpx><trk></trk></gpx>'), isNull);
+    });
   });
 }
