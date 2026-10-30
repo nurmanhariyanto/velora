@@ -494,9 +494,12 @@ class SocialShareCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const VeloraLogo(
-                size: 34,
-                showTagline: false,
+              const FittedBox(
+                fit: BoxFit.scaleDown,
+                child: VeloraLogo(
+                  size: 34,
+                  showTagline: false,
+                ),
               ),
             ],
           ),
