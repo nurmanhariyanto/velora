@@ -7,6 +7,7 @@ import '../models/tracking_status.dart';
 import '../providers/achievement_provider.dart';
 import '../providers/history_provider.dart';
 import '../providers/tracking_provider.dart';
+import '../services/heart_rate_service.dart';
 import '../services/update_service.dart';
 import '../widgets/auto_pause_banner.dart';
 import '../widgets/control_buttons.dart';
@@ -16,6 +17,7 @@ import '../widgets/off_course_banner.dart';
 import '../widgets/route_guide_sheet.dart';
 import '../widgets/velora_logo.dart';
 import 'activity_detail_screen.dart';
+import 'settings_screen.dart';
 
 /// Layar Pelacakan Utama Velora: Run & Ride
 class TrackingScreen extends StatefulWidget {
@@ -170,6 +172,22 @@ class _TrackingScreenState extends State<TrackingScreen> {
       appBar: AppBar(
         title: const VeloraLogo(size: 32, showTagline: true),
         actions: [
+          IconButton(
+            icon: Icon(
+              tracking.isHeartRateConnected ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              size: 20,
+              color: tracking.isHeartRateConnected ? AppColors.neonRed : AppColors.textSecondary,
+            ),
+            tooltip: tracking.isHeartRateConnected
+                ? 'Sensor HR: ${tracking.currentHeartRate ?? '--'} BPM'
+                : 'Sensor & Smartwatch',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.system_update_rounded, size: 20),
             tooltip: 'Periksa Pembaruan',
@@ -359,6 +377,10 @@ class _TrackingScreenState extends State<TrackingScreen> {
                       ),
                     ],
                   ),
+                  if (tracking.isHeartRateConnected && tracking.currentHeartRate != null) ...[
+                    const SizedBox(height: 10),
+                    _buildLiveHeartRateHUD(tracking.currentHeartRate!),
+                  ],
                   const SizedBox(height: 10),
 
                   // Baris Metrik Sekunder: Dinamis Menyesuaikan Olahraga (Lari / Sepeda / Mendaki)
@@ -623,6 +645,56 @@ class _TrackingScreenState extends State<TrackingScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLiveHeartRateHUD(int bpm) {
+    final zone = HeartRateService.getZoneForBpm(
+      bpm,
+      HeartRateService.instance.effectiveMaxHr,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurfaceElevated,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: zone.color.withAlpha(120)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.favorite_rounded, color: zone.color, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                '$bpm BPM',
+                style: const TextStyle(
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: zone.color.withAlpha(35),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: zone.color),
+            ),
+            child: Text(
+              '${zone.label} • ${zone.title}',
+              style: TextStyle(
+                color: zone.color,
+                fontWeight: FontWeight.bold,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

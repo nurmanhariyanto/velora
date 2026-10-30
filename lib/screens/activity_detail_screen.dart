@@ -6,6 +6,7 @@ import '../models/coordinate_point.dart';
 import '../models/sports_type.dart';
 import '../models/track_milestone.dart';
 import '../services/gpx_service.dart';
+import '../services/heart_rate_service.dart';
 import '../services/map_precache_service.dart';
 import '../services/road_geocoding_service.dart';
 import '../services/track_analysis_service.dart';
@@ -243,6 +244,9 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
                     coordinates: widget.session.coordinates,
                     elevationGain: widget.session.elevationGain,
                   ),
+
+                  // 4b. Analisis Detak Jantung & Distribusi Zona (jika tersedia data HR)
+                  if (widget.session.hasHeartRateData) _buildHeartRateSection(),
 
                   // 5. Analisis Split Kilometer & Rekor Lintasan
                   _buildSplitsAndRecordsSection(kmSplits),
@@ -793,5 +797,208 @@ class _ActivityDetailScreenState extends State<ActivityDetailScreen> {
           ),
       ],
     );
+  }
+
+  Widget _buildHeartRateSection() {
+    final maxHr = HeartRateService.instance.effectiveMaxHr;
+    final distribution = HeartRateService.calculateDistribution(
+      widget.session.coordinates,
+      maxHr,
+    );
+    final zones = HeartRateService.calculateZones(maxHr);
+    final dominantInfo = zones.firstWhere(
+      (z) => z.zone == distribution.dominantZone,
+      orElse: () => zones[1],
+    );
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 20),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.cardSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: const [
+                  Icon(Icons.favorite_rounded, color: AppColors.neonRed, size: 20),
+                  SizedBox(width: 8),
+                  Text(
+                    'DETAK JANTUNG & ZONA',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: dominantInfo.color.withAlpha(35),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: dominantInfo.color),
+                ),
+                child: Text(
+                  'Dominan: ${dominantInfo.label}',
+                  style: TextStyle(
+                    color: dominantInfo.color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Metrik Ringkas: Rata-rata dan Detak Jantung Puncak
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardSurfaceElevated,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'RATA-RATA',
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.session.formattedHeartRate,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardSurfaceElevated,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'MAKSIMAL',
+                        style: TextStyle(color: AppColors.textMuted, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.session.formattedMaxHeartRate,
+                        style: const TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // Baris Segmen Distribusi Zona HR (Visual horizontal progress bar)
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 10,
+              child: Row(
+                children: [
+                  for (final z in zones)
+                    if ((distribution.percentPerZone[z.zone] ?? 0) > 0)
+                      Expanded(
+                        flex: (distribution.percentPerZone[z.zone]! * 10).round().clamp(1, 1000),
+                        child: Container(color: z.color),
+                      ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Rincian 5 Zona
+          for (final z in zones) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 18,
+                    decoration: BoxDecoration(
+                      color: z.color.withAlpha(40),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: z.color, width: 1),
+                    ),
+                    child: Center(
+                      child: Text(
+                        z.label,
+                        style: TextStyle(color: z.color, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${z.title} (${z.minBpm}-${z.maxBpm} bpm)',
+                      style: const TextStyle(color: AppColors.textPrimary, fontSize: 11),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text(
+                    _formatZoneDuration(distribution.secondsPerZone[z.zone] ?? 0),
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 40,
+                    child: Text(
+                      '${(distribution.percentPerZone[z.zone] ?? 0).toStringAsFixed(0)}%',
+                      style: TextStyle(color: z.color, fontSize: 11, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.end,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatZoneDuration(int seconds) {
+    if (seconds <= 0) return '0:00';
+    final mins = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '$mins:${secs.toString().padLeft(2, '0')}';
   }
 }

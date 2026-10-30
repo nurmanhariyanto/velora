@@ -7,6 +7,7 @@ import '../models/sports_type.dart';
 import '../providers/achievement_provider.dart';
 import '../services/user_profile_service.dart';
 import '../widgets/trophy_badge_card.dart';
+import 'settings_screen.dart';
 
 /// Layar Profil Atlet, Statistik Seumur Hidup, Rekor Terbaik (Best Efforts), dan Lemari Trofi
 class ProfileRecordsScreen extends StatefulWidget {
@@ -56,6 +57,16 @@ class _ProfileRecordsScreenState extends State<ProfileRecordsScreen> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_rounded),
+            tooltip: 'Pengaturan & Sensor',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              ).then((_) => _refreshAll());
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Segarkan',

@@ -9,6 +9,7 @@ class CoordinatePoint {
   final double accuracy; // meter
   final int timestamp; // epoch ms
   final bool isAutoPaused;
+  final int? heartRate; // Detak jantung dalam BPM (null jika tidak ada sensor)
 
   const CoordinatePoint({
     this.id,
@@ -20,6 +21,7 @@ class CoordinatePoint {
     this.accuracy = 0.0,
     required this.timestamp,
     this.isAutoPaused = false,
+    this.heartRate,
   });
 
   /// Konversi kecepatan dari m/s ke km/jam
@@ -36,6 +38,7 @@ class CoordinatePoint {
       'akurasi': accuracy,
       'timestamp': timestamp,
       'is_auto_paused': isAutoPaused ? 1 : 0,
+      'detak_jantung': heartRate,
     };
   }
 
@@ -50,6 +53,33 @@ class CoordinatePoint {
       accuracy: (map['akurasi'] as num?)?.toDouble() ?? 0.0,
       timestamp: map['timestamp'] as int,
       isAutoPaused: (map['is_auto_paused'] as int?) == 1,
+      heartRate: (map['detak_jantung'] as num?)?.toInt(),
+    );
+  }
+
+  CoordinatePoint copyWith({
+    int? id,
+    String? activityId,
+    double? latitude,
+    double? longitude,
+    double? elevation,
+    double? speed,
+    double? accuracy,
+    int? timestamp,
+    bool? isAutoPaused,
+    int? heartRate,
+  }) {
+    return CoordinatePoint(
+      id: id ?? this.id,
+      activityId: activityId ?? this.activityId,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      elevation: elevation ?? this.elevation,
+      speed: speed ?? this.speed,
+      accuracy: accuracy ?? this.accuracy,
+      timestamp: timestamp ?? this.timestamp,
+      isAutoPaused: isAutoPaused ?? this.isAutoPaused,
+      heartRate: heartRate ?? this.heartRate,
     );
   }
 }

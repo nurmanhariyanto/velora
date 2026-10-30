@@ -16,6 +16,8 @@ class ActivitySession {
   final String? notes;
   final String? photoPath;
   final List<CoordinatePoint> coordinates;
+  final int? averageHeartRate; // Rata-rata detak jantung dalam BPM
+  final int? maxHeartRate; // Detak jantung maksimal dalam BPM
 
   const ActivitySession({
     required this.id,
@@ -31,6 +33,8 @@ class ActivitySession {
     this.notes,
     this.photoPath,
     this.coordinates = const [],
+    this.averageHeartRate,
+    this.maxHeartRate,
   });
 
   /// Jarak dalam kilometer
@@ -73,6 +77,19 @@ class ActivitySession {
   String get formattedSpeed {
     return '${averageSpeedKmh.toStringAsFixed(1)} km/h';
   }
+
+  /// Apakah aktivitas ini memiliki rekaman detak jantung
+  bool get hasHeartRateData =>
+      (averageHeartRate != null && averageHeartRate! > 0) ||
+      coordinates.any((c) => c.heartRate != null && c.heartRate! > 0);
+
+  /// String format rata-rata detak jantung (cth: 148 bpm)
+  String get formattedHeartRate =>
+      averageHeartRate != null ? '$averageHeartRate bpm' : '-- bpm';
+
+  /// String format detak jantung puncak/maksimal (cth: 175 bpm)
+  String get formattedMaxHeartRate =>
+      maxHeartRate != null ? '$maxHeartRate bpm' : '-- bpm';
 
   /// Judul default aktivitas otomatis berdasarkan waktu mulai sesi
   String get defaultTitle {
@@ -125,6 +142,8 @@ class ActivitySession {
       'elevasi_positif': elevationGain,
       'catatan': notes,
       'foto_path': photoPath,
+      'avg_heart_rate': averageHeartRate,
+      'max_heart_rate': maxHeartRate,
     };
   }
 
@@ -146,6 +165,8 @@ class ActivitySession {
       notes: map['catatan'] as String?,
       photoPath: map['foto_path'] as String?,
       coordinates: coordinates,
+      averageHeartRate: (map['avg_heart_rate'] as num?)?.round(),
+      maxHeartRate: (map['max_heart_rate'] as num?)?.round(),
     );
   }
 
@@ -163,6 +184,8 @@ class ActivitySession {
     String? notes,
     String? photoPath,
     List<CoordinatePoint>? coordinates,
+    int? averageHeartRate,
+    int? maxHeartRate,
   }) {
     return ActivitySession(
       id: id ?? this.id,
@@ -179,6 +202,8 @@ class ActivitySession {
       notes: notes ?? this.notes,
       photoPath: photoPath ?? this.photoPath,
       coordinates: coordinates ?? this.coordinates,
+      averageHeartRate: averageHeartRate ?? this.averageHeartRate,
+      maxHeartRate: maxHeartRate ?? this.maxHeartRate,
     );
   }
 }

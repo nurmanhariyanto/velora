@@ -14,6 +14,7 @@ import '../models/sports_type.dart';
 import '../models/tracking_status.dart';
 import '../services/auto_pause_detector.dart';
 import '../services/foreground_service_handler.dart';
+import '../services/heart_rate_service.dart';
 import '../services/location_service.dart';
 import '../services/route_guide_service.dart';
 
@@ -31,6 +32,15 @@ class TrackingProvider extends ChangeNotifier {
         _activityRepository = activityRepository ?? ActivityRepository(),
         _autoPauseDetector = autoPauseDetector ?? AutoPauseDetector() {
     _initNotificationButtonListener();
+    _initHeartRateListener();
+  }
+
+  void _initHeartRateListener() {
+    HeartRateService.instance.bpmStream.listen((bpm) {
+      if (_status == TrackingStatus.tracking) {
+        notifyListeners();
+      }
+    });
   }
 
   void _initNotificationButtonListener() {
@@ -87,6 +97,8 @@ class TrackingProvider extends ChangeNotifier {
   List<CoordinatePoint> get coordinates => List.unmodifiable(_coordinates);
   Position? get currentPosition => _currentPosition;
   String get currentSessionId => _currentSessionId;
+  int? get currentHeartRate => HeartRateService.instance.currentBpm;
+  bool get isHeartRateConnected => HeartRateService.instance.isConnected;
 
   // Panduan Rute & Deteksi Keluar Jalur (Route Breadcrumbs & Off-Course Alert)
   RouteGuideInfo? _routeGuide;
@@ -383,6 +395,16 @@ class TrackingProvider extends ChangeNotifier {
     // Sederhanakan koordinat jika rute sangat panjang menggunakan Douglas-Peucker
     final simplifiedPoints = DouglasPeucker.simplify(_coordinates);
 
+    // Hitung rata-rata dan detak jantung maksimal jika ada rekaman sensor
+    final hrPoints = _coordinates.where((c) => c.heartRate != null && c.heartRate! > 0).toList();
+    int? avgHr;
+    int? maxHr;
+    if (hrPoints.isNotEmpty) {
+      final sumHr = hrPoints.fold<int>(0, (prev, c) => prev + c.heartRate!);
+      avgHr = (sumHr / hrPoints.length).round();
+      maxHr = hrPoints.map((c) => c.heartRate!).reduce((a, b) => a > b ? a : b);
+    }
+
     final session = ActivitySession(
       id: _currentSessionId,
       sportsType: _sportsType,
@@ -397,6 +419,8 @@ class TrackingProvider extends ChangeNotifier {
       notes: notes,
       photoPath: photoPath,
       coordinates: simplifiedPoints,
+      averageHeartRate: avgHr,
+      maxHeartRate: maxHr,
     );
 
     // Simpan ke SQLite
@@ -492,6 +516,7 @@ class TrackingProvider extends ChangeNotifier {
         accuracy: position.accuracy,
         timestamp: nowMs,
         isAutoPaused: false,
+        heartRate: HeartRateService.instance.currentBpm,
       ));
       notifyListeners();
       return;
@@ -525,6 +550,7 @@ class TrackingProvider extends ChangeNotifier {
         accuracy: position.accuracy,
         timestamp: nowMs,
         isAutoPaused: false,
+        heartRate: HeartRateService.instance.currentBpm,
       );
 
       _coordinates.add(newPoint);

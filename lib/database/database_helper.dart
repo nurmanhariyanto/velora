@@ -1,10 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 /// Pengelola koneksi dan skema database lokal SQLite Velora
 class DatabaseHelper {
   static const String dbName = 'velora_local.db';
-  static const int dbVersion = 1;
+  static const int dbVersion = 2;
 
   static DatabaseHelper? _instance;
   static Database? _database;
@@ -30,6 +31,7 @@ class DatabaseHelper {
       path,
       version: dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
       onOpen: (db) async {
         await db.execute('''
           CREATE TABLE IF NOT EXISTS user_settings (
@@ -37,6 +39,9 @@ class DatabaseHelper {
             value TEXT NOT NULL
           )
         ''');
+
+        // Pengecekan defensif untuk kolom detak jantung jika versi sebelumnya terlewat
+        await _ensureHeartRateColumns(db);
       },
     );
   }
@@ -56,7 +61,9 @@ class DatabaseHelper {
         pace_rata_rata REAL NOT NULL,
         elevasi_positif REAL DEFAULT 0.0,
         catatan TEXT,
-        foto_path TEXT
+        foto_path TEXT,
+        avg_heart_rate REAL DEFAULT NULL,
+        max_heart_rate INTEGER DEFAULT NULL
       )
     ''');
 
@@ -72,6 +79,7 @@ class DatabaseHelper {
         akurasi REAL DEFAULT 0.0,
         timestamp INTEGER NOT NULL,
         is_auto_paused INTEGER DEFAULT 0,
+        detak_jantung INTEGER DEFAULT NULL,
         FOREIGN KEY (aktivitas_id) REFERENCES aktivitas (id) ON DELETE CASCADE
       )
     ''');
@@ -88,6 +96,34 @@ class DatabaseHelper {
         value TEXT NOT NULL
       )
     ''');
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await _ensureHeartRateColumns(db);
+    }
+  }
+
+  Future<void> _ensureHeartRateColumns(Database db) async {
+    try {
+      final coordColumns = await db.rawQuery('PRAGMA table_info(titik_koordinat)');
+      final hasDetakJantung = coordColumns.any((col) => col['name'] == 'detak_jantung');
+      if (!hasDetakJantung) {
+        await db.execute('ALTER TABLE titik_koordinat ADD COLUMN detak_jantung INTEGER DEFAULT NULL');
+      }
+
+      final actColumns = await db.rawQuery('PRAGMA table_info(aktivitas)');
+      final hasAvgHr = actColumns.any((col) => col['name'] == 'avg_heart_rate');
+      if (!hasAvgHr) {
+        await db.execute('ALTER TABLE aktivitas ADD COLUMN avg_heart_rate REAL DEFAULT NULL');
+      }
+      final hasMaxHr = actColumns.any((col) => col['name'] == 'max_heart_rate');
+      if (!hasMaxHr) {
+        await db.execute('ALTER TABLE aktivitas ADD COLUMN max_heart_rate INTEGER DEFAULT NULL');
+      }
+    } catch (e) {
+      debugPrint('Database schema check: $e');
+    }
   }
 
   Future<void> close() async {
