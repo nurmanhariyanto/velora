@@ -337,6 +337,18 @@ class HeartRateService {
     } catch (_) {}
   }
 
+  /// Mengambil daftar perangkat yang telah di-pairing / di-bond di pengaturan Bluetooth HP
+  Future<List<BluetoothDevice>> getBondedDevices() async {
+    try {
+      final isSupported = await FlutterBluePlus.isSupported;
+      if (!isSupported) return [];
+      return await FlutterBluePlus.bondedDevices;
+    } catch (e) {
+      debugPrint('Error getting bonded devices: $e');
+      return [];
+    }
+  }
+
   /// Menghubungkan ke perangkat Bluetooth Low Energy
   Future<({bool success, bool hasHeartRateService, String? errorMessage})> connectToDevice(
     BluetoothDevice device,
