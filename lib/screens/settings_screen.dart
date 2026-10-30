@@ -25,7 +25,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final HeartRateService _hrService = HeartRateService.instance;
   String _athleteName = UserProfileService.currentAthleteName;
-  String _appVersion = '1.0.23';
+  String _appVersion = '1.1.1';
   bool _isImporting = false;
 
   @override

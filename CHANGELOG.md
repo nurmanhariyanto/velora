@@ -2,28 +2,37 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
-## [v1.0.23] - 2026-10-30
+## [v1.1.1] - 2026-10-30
 
-### ⌚ Integrasi Ekosistem Smartwatch & Sensor Detak Jantung (BLE HRM) di Menu Pengaturan
+### ⌚ RILIS UTAMA (MAJOR): Integrasi Ekosistem Smartwatch, Sensor Detak Jantung (BLE HRM), 5 Zona HR & Pengaturan Terpadu
 
 #### ⚙️ 1. Layar Pengaturan & Sensor Terpadu (`SettingsScreen`)
 - **Pusat Pengaturan Komprehensif:**
   - Ditambahkan layar Pengaturan baru yang dapat diakses langsung melalui ikon gear di bilah atas *Profile & Records* (`ProfileRecordsScreen`) dan bilah atas layar pelacakan aktif (`TrackingScreen`).
   - Mengelompokkan pengaturan menjadi 4 bagian esensial: *Perangkat & Sensor Smartwatch*, *Profil Pengguna*, *Peta & Cache Offline*, serta *Tentang & Pembaruan*.
+  - **Dialog Interaktif Pemanasan Cache Peta:** Dilengkapi progres unduhan ubin peta offline dan konfirmasi visual kesiapan data.
+  - **Dialog Interaktif Periksa Pembaruan:** Memeriksa ketersediaan update langsung dari server GitHub Releases dengan indikator status verifikasi.
 
-#### 📥 2. Impor Aktivitas Mandiri Tanpa Bawa HP (Haylou, Garmin, Amazfit, Strava GPX)
+#### 📡 2. Pemindaian Bluetooth BLE Universal & Dukungan Smartwatch
+- **Daftar Perangkat BLE Sekitar:**
+  - Pemindaian terbuka tanpa filter UUID eksklusif agar jam tangan (Haylou Solar Neo 2, Amazfit, Mi Band, Garmin, Coros, Huawei) dan sensor dada langsung terdeteksi.
+  - Radar pemindaian visual, jumlah perangkat, kekuatan sinyal RSSI (dBm), dan ikon cerdas (Smartwatch vs Chest Strap).
+  - Deteksi otomatis Bluetooth HP dengan tombol pintasan untuk mengaktifkan Bluetooth langsung.
+  - Panduan koneksi untuk jam tangan pintar dengan protokol proprietary.
+
+#### 📥 3. Impor Aktivitas Mandiri Tanpa Bawa HP (Haylou, Garmin, Amazfit, Strava GPX)
 - **Olahraga Mandiri Hanya Membawa Smartwatch:**
-  - Pengguna dapat berolahraga (bersepeda, berlari, atau mendaki) hanya dengan mengenakan smartwatch (misal Haylou Solar Neo 2, Garmin, Amazfit, atau Coros) tanpa perlu membawa HP.
-  - Selesai berolahraga, pengguna cukup membuka aplikasi pendamping (misal Haylou Fun atau Garmin Connect), mengekspor file GPX, lalu mengimpornya ke Velora dengan satu ketukan tombol di menu Pengaturan.
-  - Velora mem-parsing seluruh rute GPS, elevasi naik, kecepatan, waktu, serta metrik detak jantung per titik (`<gpxtpx:hr>` / `<hr>`) dan langsung menyimpannya ke database lokal SQLite.
+  - Pengguna dapat berolahraga (bersepeda, berlari, atau mendaki) hanya dengan mengenakan smartwatch tanpa perlu membawa HP.
+  - Selesai berolahraga, ekspor file GPX dari aplikasi jam (Haylou Fun, Zepp, Garmin Connect) dan impor ke Velora dengan satu ketukan tombol di menu Pengaturan.
+  - Velora mem-parsing seluruh rute GPS, elevasi naik, kecepatan, waktu, serta metrik detak jantung per titik (`<gpxtpx:hr>` / `<hr>`) dan menyimpannya ke database lokal SQLite.
 
-#### 💓 3. Sensor Detak Jantung Bluetooth Low Energy (BLE GATT 0x180D) & Mode Simulasi
+#### 💓 4. Sensor Detak Jantung Bluetooth Low Energy (BLE GATT 0x180D) & Mode Simulasi
 - **Koneksi Universal BLE Heart Rate Monitor:**
   - Mendukung pemasangan langsung dengan chest strap (Polar H10, Garmin HRM-Dual, Magene, CooSpo) dan smartwatch yang mendukung siaran detak jantung Bluetooth.
-  - Membaca karakteristik standar Bluetooth SIG `0x2A37` (Heart Rate Measurement) dengan dukungan format 8-bit dan 16-bit BPM.
-  - Dilengkapi fitur **Mode Simulasi Sensor HR** untuk demo dan pengujian real-time tanpa memerlukan perangkat fisik.
+  - Membaca karakteristik standar Bluetooth SIG `0x2A37` (Heart Rate Measurement) dengan format 8-bit dan 16-bit BPM.
+  - Dilengkapi fitur **Mode Simulasi Sensor HR** untuk demo dan pengujian real-time tanpa perangkat fisik.
 
-#### 📊 4. Kalkulasi 5 Zona Detak Jantung Atlet (Z1 - Z5)
+#### 📊 5. Kalkulasi 5 Zona Detak Jantung Atlet (Z1 - Z5)
 - **Visualisasi & Analisis Latihan Berbasis Zona:**
   - Menghitung ambang batas BPM berdasarkan formula $HR_{max} = 220 - \text{usia}$ (dapat dikustomisasi).
   - Klasifikasi 5 Zona:
@@ -35,12 +44,12 @@ Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen
   - Pada layar *ActivityDetailScreen*, sesi dengan detak jantung menyajikan kartu statistik HR rata-rata & puncak, bar distribusi multi-warna, durasi, dan persentase di setiap zona.
   - Pada layar *TrackingScreen*, live HUD menampilkan badge BPM dan zona secara real-time saat sensor terhubung.
 
-#### 🌐 5. Ekspor GPX Standar Garmin & Strava TrackPointExtension
+#### 🌐 6. Ekspor GPX Standar Garmin & Strava TrackPointExtension
 - **Interoperabilitas Penuh dengan Strava & Garmin Connect:**
   - File GPX yang diekspor dari Velora kini otomatis menyertakan namespace `xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1"` dan tag `<gpxtpx:hr>`.
   - Saat file GPX Velora di-upload ke Strava, grafik detak jantung langsung tampil mulus dan presisi.
 
-#### 🗄️ 6. Migrasi Skema Database SQLite (v2)
+#### 🗄️ 7. Migrasi Skema Database SQLite (v2)
 - Peningkatan versi skema database SQLite `DatabaseHelper` dari versi 1 ke versi 2 dengan penambahan kolom `detak_jantung` pada tabel `titik_koordinat` serta `avg_heart_rate` dan `max_heart_rate` pada tabel `aktivitas`, aman untuk data lama pengguna (*zero data loss*).
 
 ## [v1.0.22] - 2026-10-30
