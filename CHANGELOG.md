@@ -2,6 +2,26 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.22] - 2026-10-30
+
+### 🚀 Peningkatan Responsivitas Kartu, Aksi Buka IG Otomatis & Hardening 5 Gaya Kartu
+
+#### 📱 1. Tata Letak Kartu Clean & Stiker Adaptif Bebas Overflow (*Adaptive LayoutBuilder Scaling*)
+- **Penskalaan Dinamis Berdasarkan Tinggi Kanvas:**
+  - Komponen metrik kartu clean dan stiker transparan kini menggunakan `LayoutBuilder` yang secara adaptif menyesuaikan padding vertikal dan jarak antar blok metrik pada layar berukuran sempit.
+  - Menghilangkan risiko garis belang kuning-hitam (*RenderFlex overflow*) pada rasio layar atau pratinjau compact.
+
+#### ⚡ 2. Tombol Aksi Langsung ke Instagram (*Instant Story Launcher*)
+- **Pintasan Langsung `[ BUKA IG ]` di Notifikasi Simpan:**
+  - Saat pengguna menekan "SIMPAN STIKER PNG KE GALERI", notifikasi mengambang yang muncul kini dilengkapi tombol aksi cepat **`[ BUKA IG ]`**.
+  - Pengguna dapat langsung melompat ke Instagram Story dengan sekali sentuh untuk segera menempelkan stiker di atas foto atau video tanpa harus mencari aplikasi Instagram secara manual.
+
+#### 🛡️ 3. Pengerasan Logo Velora & Suite Pengujian Komprehensif 5 Gaya
+- **Perlindungan Visual Logo Velora:**
+  - Menambahkan pembungkus `FittedBox(fit: BoxFit.scaleDown)` pada logo Velora di kartu klasik untuk stabilitas rendering maksimal di berbagai perangkat.
+- **Suite Pengujian Regresi Lengkap (191 Tests Passing):**
+  - Mengintegrasikan berkas audit `test/social_share_styles_audit_test.dart` yang memvalidasi bahwa kelima gaya kartu (Clean, Transparan, Foto Saya, Peta, Klasik) merender tepat satu set metrik tanpa duplikasi widget teks.
+
 ## [v1.0.21] - 2026-10-30
 
 ### 📸 Kartu Berbagi Sosial Ala Strava & Stiker PNG Transparan untuk Instagram Story
