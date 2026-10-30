@@ -294,18 +294,39 @@ class HeartRateService {
 
   // --- KONEKSI DAN PEMINDAIAN BLUETOOTH LOW ENERGY ---
 
-  /// Memulai pemindaian perangkat BLE yang memiliki Heart Rate Service
-  Future<void> startScan({Duration timeout = const Duration(seconds: 15)}) async {
+  /// Memulai pemindaian perangkat BLE (Smartwatch, Smart Band, Chest Strap)
+  /// Mengembalikan pesan kesalahan jika Bluetooth tidak aktif/gagal, atau null jika berhasil
+  Future<String?> startScan({Duration timeout = const Duration(seconds: 15)}) async {
     try {
+      final isSupported = await FlutterBluePlus.isSupported;
+      if (!isSupported) {
+        return 'Ponsel ini tidak mendukung Bluetooth Low Energy (BLE).';
+      }
+
+      final state = await FlutterBluePlus.adapterState.first;
+      if (state != BluetoothAdapterState.on) {
+        try {
+          await FlutterBluePlus.turnOn();
+        } catch (_) {}
+        final stateRecheck = await FlutterBluePlus.adapterState.first;
+        if (stateRecheck != BluetoothAdapterState.on) {
+          return 'Bluetooth HP belum aktif. Silakan nyalakan Bluetooth Anda.';
+        }
+      }
+
       if (await FlutterBluePlus.isScanning.first) {
         await FlutterBluePlus.stopScan();
       }
+
+      // Pindai seluruh perangkat BLE tanpa filter ketat agar jam tangan / band sekitar terdeteksi
       await FlutterBluePlus.startScan(
-        withServices: [heartRateServiceUuid],
         timeout: timeout,
+        androidUsesFineLocation: false,
       );
+      return null;
     } catch (e) {
       debugPrint('Error starting BLE scan: $e');
+      return 'Gagal memulai pemindaian Bluetooth: $e';
     }
   }
 
@@ -316,9 +337,13 @@ class HeartRateService {
     } catch (_) {}
   }
 
-  /// Menghubungkan ke perangkat Bluetooth Low Energy Heart Rate Monitor
-  Future<bool> connectToDevice(BluetoothDevice device) async {
-    if (_isConnecting) return false;
+  /// Menghubungkan ke perangkat Bluetooth Low Energy
+  Future<({bool success, bool hasHeartRateService, String? errorMessage})> connectToDevice(
+    BluetoothDevice device,
+  ) async {
+    if (_isConnecting) {
+      return (success: false, hasHeartRateService: false, errorMessage: 'Sedang menghubungkan ke perangkat...');
+    }
     _isConnecting = true;
 
     // Matikan simulasi jika sedang aktif
@@ -349,11 +374,13 @@ class HeartRateService {
       });
 
       // Cari Service 0x180D dan Karakteristik 0x2A37
+      bool foundHr = false;
       final services = await device.discoverServices();
       for (final service in services) {
         if (service.uuid == heartRateServiceUuid) {
           for (final characteristic in service.characteristics) {
             if (characteristic.uuid == heartRateMeasurementCharUuid) {
+              foundHr = true;
               await characteristic.setNotifyValue(true);
               _hrCharSubscription = characteristic.onValueReceived.listen((value) {
                 final bpm = parseHeartRateBytes(value);
@@ -370,12 +397,12 @@ class HeartRateService {
 
       _connectionStateController.add(true);
       _isConnecting = false;
-      return true;
+      return (success: true, hasHeartRateService: foundHr, errorMessage: null);
     } catch (e) {
       debugPrint('Error connecting to BLE device: $e');
       _isConnecting = false;
       await disconnect();
-      return false;
+      return (success: false, hasHeartRateService: false, errorMessage: e.toString());
     }
   }
 

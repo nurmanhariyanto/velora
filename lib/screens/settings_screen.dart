@@ -11,6 +11,7 @@ import '../services/heart_rate_service.dart';
 import '../services/map_precache_service.dart';
 import '../services/update_service.dart';
 import '../services/user_profile_service.dart';
+import '../widgets/update_dialog.dart';
 import 'activity_detail_screen.dart';
 
 /// Layanan & Layar Pengaturan Velora (Perangkat & Sensor, Smartwatch, Profil, & Peta)
@@ -175,15 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Pemanasan Cache Peta',
                     subtitle: 'Unduh ubin peta rute umum agar siap digunakan offline',
                     trailing: const Icon(Icons.refresh_rounded, color: AppColors.textSecondary),
-                    onTap: () {
-                      MapPrecacheService.warmUpOnAppStart();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Pemanasan cache peta offline sedang berjalan di latar belakang.'),
-                          backgroundColor: AppColors.cardSurface,
-                        ),
-                      );
-                    },
+                    onTap: _showPrecacheDialog,
                   ),
 
                   const SizedBox(height: 28),
@@ -197,7 +190,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     title: 'Periksa Pembaruan Aplikasi',
                     subtitle: 'Versi saat ini: v$_appVersion',
                     trailing: const Icon(Icons.open_in_new_rounded, size: 18, color: AppColors.textSecondary),
-                    onTap: () => UpdateService.checkForUpdate(context, silent: false),
+                    onTap: _showCheckUpdateDialog,
                   ),
 
                   const SizedBox(height: 36),
@@ -437,138 +430,193 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (modalCtx) {
         return StatefulBuilder(
           builder: (ctx, setModalState) {
-            final isScanning = FlutterBluePlus.isScanningNow;
-
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.borderHighlight,
-                        borderRadius: BorderRadius.circular(2),
+            return DraggableScrollableSheet(
+              initialChildSize: 0.85,
+              minChildSize: 0.5,
+              maxChildSize: 0.95,
+              expand: false,
+              builder: (scrollCtx, scrollController) {
+                return ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.borderHighlight,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Sensor Detak Jantung (BLE)',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (_hrService.isConnected)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.neonGreen.withAlpha(30),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.neonGreen),
-                          ),
-                          child: const Text(
-                            'ONLINE',
-                            style: TextStyle(
-                              color: AppColors.neonGreen,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                            ),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Sensor Detak Jantung (BLE)',
+                          style: TextStyle(
+                            color: AppColors.textPrimary,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Mendukung chest strap (Polar H10, Garmin HRM, Magene) dan smartwatch dengan fitur siaran detak jantung via Bluetooth.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Status Terhubung Saat Ini
-                  if (_hrService.isConnected) ...[
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.cardSurfaceElevated,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: AppColors.neonGreen.withAlpha(100)),
-                      ),
-                      child: Row(
-                        children: [
+                        if (_hrService.isConnected)
                           Container(
-                            width: 50,
-                            height: 50,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(
-                              color: AppColors.neonRed.withAlpha(35),
-                              shape: BoxShape.circle,
+                              color: AppColors.neonGreen.withAlpha(30),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.neonGreen),
                             ),
-                            child: const Center(
-                              child: Icon(Icons.favorite_rounded, color: AppColors.neonRed, size: 28),
+                            child: const Text(
+                              'ONLINE',
+                              style: TextStyle(
+                                color: AppColors.neonGreen,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Pindai dan hubungkan smartwatch atau sensor dada (chest strap) yang mendukung siaran Bluetooth.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Status Adapter Bluetooth HP (Deteksi jika Bluetooth Mati)
+                    StreamBuilder<BluetoothAdapterState>(
+                      stream: FlutterBluePlus.adapterState,
+                      initialData: BluetoothAdapterState.unknown,
+                      builder: (context, adapterSnap) {
+                        final state = adapterSnap.data;
+                        if (state == BluetoothAdapterState.off) {
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 16),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.redAccent.withAlpha(25),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.redAccent.withAlpha(120)),
+                            ),
+                            child: Row(
                               children: [
-                                Text(
-                                  _hrService.connectedDeviceName ?? 'Perangkat Bluetooth',
-                                  style: const TextStyle(
-                                    color: AppColors.textPrimary,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
+                                const Icon(Icons.bluetooth_disabled_rounded, color: Colors.redAccent, size: 22),
+                                const SizedBox(width: 10),
+                                const Expanded(
+                                  child: Text(
+                                    'Bluetooth HP Anda sedang nonaktif.',
+                                    style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Detak Jantung: ${_hrService.currentBpm ?? '--'} BPM',
-                                  style: const TextStyle(
-                                    color: AppColors.electricAmber,
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.redAccent,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                                   ),
+                                  onPressed: () async {
+                                    try {
+                                      await FlutterBluePlus.turnOn();
+                                    } catch (_) {}
+                                  },
+                                  child: const Text('Nyalakan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                                 ),
                               ],
                             ),
-                          ),
-                          OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.redAccent,
-                              side: const BorderSide(color: Colors.redAccent),
-                            ),
-                            onPressed: () async {
-                              if (_hrService.isSimulationMode) {
-                                _hrService.toggleSimulation(false);
-                              } else {
-                                await _hrService.disconnect();
-                              }
-                              setModalState(() {});
-                              setState(() {});
-                            },
-                            child: const Text('Putus'),
-                          ),
-                        ],
-                      ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
                     ),
-                    const SizedBox(height: 20),
-                  ],
 
-                  // Tombol Scan BLE
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
+                    // Status Terhubung Saat Ini
+                    if (_hrService.isConnected) ...[
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardSurfaceElevated,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.neonGreen.withAlpha(120)),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: AppColors.neonRed.withAlpha(35),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.favorite_rounded, color: AppColors.neonRed, size: 26),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _hrService.connectedDeviceName ?? 'Perangkat Bluetooth',
+                                    style: const TextStyle(
+                                      color: AppColors.textPrimary,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    'Detak Jantung: ${_hrService.currentBpm ?? '--'} BPM',
+                                    style: const TextStyle(
+                                      color: AppColors.electricAmber,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: const BorderSide(color: Colors.redAccent),
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              ),
+                              onPressed: () async {
+                                if (_hrService.isSimulationMode) {
+                                  _hrService.toggleSimulation(false);
+                                } else {
+                                  await _hrService.disconnect();
+                                }
+                                setModalState(() {});
+                                setState(() {});
+                              },
+                              child: const Text('Putus', style: TextStyle(fontSize: 12)),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Tombol Scan BLE (Reactive terhadap status scanning)
+                    StreamBuilder<bool>(
+                      stream: FlutterBluePlus.isScanning,
+                      initialData: false,
+                      builder: (context, scanSnap) {
+                        final isScanning = scanSnap.data ?? false;
+
+                        return ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryOrange,
+                            backgroundColor: isScanning ? Colors.grey.shade800 : AppColors.primaryOrange,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -580,142 +628,535 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                                 )
                               : const Icon(Icons.bluetooth_searching_rounded),
-                          label: Text(isScanning ? 'Memindai...' : 'Pindai Sensor BLE'),
-                          onPressed: isScanning
-                              ? () async {
-                                  await _hrService.stopScan();
-                                  setModalState(() {});
-                                }
-                              : () async {
-                                  await _hrService.startScan();
-                                  setModalState(() {});
-                                },
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Switch Mode Simulasi Demo
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardSurfaceElevated,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Mode Simulasi HR (Demo)',
-                              style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                            Text(
-                              'Gunakan untuk tes tanpa sensor fisik',
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                            ),
-                          ],
-                        ),
-                        Switch(
-                          value: _hrService.isSimulationMode,
-                          activeThumbColor: AppColors.primaryOrange,
-                          onChanged: (val) {
-                            _hrService.toggleSimulation(val);
+                          label: Text(
+                            isScanning ? 'Sedang Memindai... (Tekan untuk Berhenti)' : 'Pindai Sensor BLE Sekitar',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          onPressed: () async {
+                            if (isScanning) {
+                              await _hrService.stopScan();
+                            } else {
+                              final err = await _hrService.startScan();
+                              if (err != null && mounted) {
+                                ScaffoldMessenger.of(this.context).showSnackBar(
+                                  SnackBar(content: Text(err), backgroundColor: Colors.redAccent),
+                                );
+                              }
+                            }
                             setModalState(() {});
-                            setState(() {});
                           },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Hasil Scan BLE
-                  StreamBuilder<List<ScanResult>>(
-                    stream: FlutterBluePlus.scanResults,
-                    builder: (context, snapshot) {
-                      final results = snapshot.data ?? [];
-                      if (results.isEmpty && isScanning) {
-                        return const Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 24),
-                            child: Text(
-                              'Mencari sensor detak jantung aktif di sekitar...',
-                              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-                            ),
-                          ),
                         );
-                      }
+                      },
+                    ),
 
-                      if (results.isEmpty) {
-                        return const SizedBox.shrink();
-                      }
+                    const SizedBox(height: 14),
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    // Switch Mode Simulasi Demo
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.cardSurfaceElevated,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderSubtle),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'Perangkat Ditemukan:',
-                            style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.bold, fontSize: 12),
+                          const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Mode Simulasi HR (Demo)',
+                                style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              Text(
+                                'Gunakan untuk uji coba live BPM tanpa alat fisik',
+                                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: results.length,
-                            itemBuilder: (context, index) {
-                              final item = results[index];
-                              final deviceName = item.device.platformName.isNotEmpty
-                                  ? item.device.platformName
-                                  : item.device.remoteId.str;
-
-                              return Card(
-                                color: AppColors.cardSurfaceElevated,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                child: ListTile(
-                                  leading: const Icon(Icons.bluetooth_rounded, color: AppColors.neonCyan),
-                                  title: Text(
-                                    deviceName,
-                                    style: const TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w600),
-                                  ),
-                                  subtitle: Text(
-                                    'RSSI: ${item.rssi} dBm',
-                                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                                  ),
-                                  trailing: ElevatedButton(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.primaryOrange,
-                                      foregroundColor: Colors.white,
-                                    ),
-                                    onPressed: () async {
-                                      final ok = await _hrService.connectToDevice(item.device);
-                                      if (ok) {
-                                        setModalState(() {});
-                                        setState(() {});
-                                      }
-                                    },
-                                    child: const Text('Hubungkan'),
-                                  ),
-                                ),
-                              );
+                          Switch(
+                            value: _hrService.isSimulationMode,
+                            activeThumbColor: AppColors.primaryOrange,
+                            onChanged: (val) {
+                              _hrService.toggleSimulation(val);
+                              setModalState(() {});
+                              setState(() {});
                             },
                           ),
                         ],
-                      );
-                    },
-                  ),
-                ],
-              ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // TAB / PANEL: Perangkat Bluetooth di Sekitar
+                    StreamBuilder<List<ScanResult>>(
+                      stream: FlutterBluePlus.scanResults,
+                      builder: (context, snapshot) {
+                        final rawResults = snapshot.data ?? [];
+                        // Filter perangkat unik berdasarkan RemoteId
+                        final Map<String, ScanResult> uniqueMap = {};
+                        for (final r in rawResults) {
+                          uniqueMap[r.device.remoteId.str] = r;
+                        }
+                        final deviceList = uniqueMap.values.toList();
+
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.cardSurfaceElevated,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: AppColors.borderSubtle),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: const [
+                                      Icon(Icons.bluetooth_audio_rounded, color: AppColors.neonCyan, size: 18),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Perangkat Bluetooth di Sekitar',
+                                        style: TextStyle(
+                                          color: AppColors.textPrimary,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.cardSurface,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      '${deviceList.length} Ditemukan',
+                                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const Divider(color: AppColors.borderSubtle, height: 20),
+
+                              StreamBuilder<bool>(
+                                stream: FlutterBluePlus.isScanning,
+                                initialData: false,
+                                builder: (context, scanSnap) {
+                                  final isScanning = scanSnap.data ?? false;
+
+                                  if (isScanning && deviceList.isEmpty) {
+                                    return const Padding(
+                                      padding: EdgeInsets.symmetric(vertical: 24),
+                                      child: Center(
+                                        child: Column(
+                                          children: [
+                                            CircularProgressIndicator(color: AppColors.primaryOrange, strokeWidth: 2),
+                                            SizedBox(height: 12),
+                                            Text(
+                                              'Mencari smartwatch & sensor di sekitar...',
+                                              style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }
+
+                                  if (deviceList.isEmpty) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+                                      child: Column(
+                                        children: const [
+                                          Icon(Icons.devices_other_rounded, size: 40, color: AppColors.textMuted),
+                                          SizedBox(height: 10),
+                                          Text(
+                                            'Belum ada perangkat terdeteksi.',
+                                            style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 13),
+                                          ),
+                                          SizedBox(height: 6),
+                                          Text(
+                                            '1. Pastikan jam tangan / sensor dalam keadaan aktif.\n2. Tekan tombol "Pindai Sensor BLE Sekitar" di atas.\n3. Perangkat di sekitar Anda akan langsung muncul di daftar ini.',
+                                            textAlign: TextAlign.center,
+                                            style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  }
+
+                                  return ListView.separated(
+                                    shrinkWrap: true,
+                                    physics: const NeverScrollableScrollPhysics(),
+                                    itemCount: deviceList.length,
+                                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                                    itemBuilder: (context, index) {
+                                      final item = deviceList[index];
+                                      final rawName = item.device.platformName.isNotEmpty
+                                          ? item.device.platformName
+                                          : item.advertisementData.advName;
+                                      final deviceName = rawName.isNotEmpty
+                                          ? rawName
+                                          : 'Perangkat BLE (${item.device.remoteId.str.substring(0, 5)}...)';
+                                      final isThisConnected = _hrService.connectedDeviceName == deviceName ||
+                                          _hrService.connectedDeviceName == item.device.remoteId.str;
+
+                                      IconData deviceIcon = Icons.bluetooth_rounded;
+                                      Color iconColor = AppColors.neonCyan;
+                                      final lowerName = deviceName.toLowerCase();
+                                      if (lowerName.contains('watch') ||
+                                          lowerName.contains('haylou') ||
+                                          lowerName.contains('band') ||
+                                          lowerName.contains('garmin') ||
+                                          lowerName.contains('amazfit')) {
+                                        deviceIcon = Icons.watch_rounded;
+                                        iconColor = AppColors.electricAmber;
+                                      } else if (lowerName.contains('hr') ||
+                                          lowerName.contains('heart') ||
+                                          lowerName.contains('polar') ||
+                                          lowerName.contains('magene') ||
+                                          lowerName.contains('strap')) {
+                                        deviceIcon = Icons.favorite_rounded;
+                                        iconColor = AppColors.neonRed;
+                                      }
+
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.cardSurface,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isThisConnected ? AppColors.neonGreen : AppColors.borderSubtle,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Container(
+                                              width: 38,
+                                              height: 38,
+                                              decoration: BoxDecoration(
+                                                color: iconColor.withAlpha(30),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(deviceIcon, color: iconColor, size: 20),
+                                            ),
+                                            const SizedBox(width: 10),
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    deviceName,
+                                                    style: const TextStyle(
+                                                      color: AppColors.textPrimary,
+                                                      fontWeight: FontWeight.w600,
+                                                      fontSize: 13,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 2),
+                                                  Text(
+                                                    '${item.device.remoteId.str} • Sinyal ${item.rssi} dBm',
+                                                    style: const TextStyle(
+                                                      color: AppColors.textSecondary,
+                                                      fontSize: 10,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: isThisConnected ? AppColors.neonGreen : AppColors.primaryOrange,
+                                                foregroundColor: isThisConnected ? Colors.black87 : Colors.white,
+                                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                              ),
+                                              onPressed: isThisConnected
+                                                  ? () async {
+                                                      await _hrService.disconnect();
+                                                      setModalState(() {});
+                                                      setState(() {});
+                                                    }
+                                                  : () async {
+                                                      final res = await _hrService.connectToDevice(item.device);
+                                                      setModalState(() {});
+                                                      setState(() {});
+                                                      if (!res.success && mounted) {
+                                                        ScaffoldMessenger.of(this.context).showSnackBar(
+                                                          SnackBar(
+                                                            content: Text(res.errorMessage ?? 'Gagal menghubungkan ke perangkat.'),
+                                                            backgroundColor: Colors.redAccent,
+                                                          ),
+                                                        );
+                                                      } else if (!res.hasHeartRateService && mounted) {
+                                                        _showDeviceConnectedNoticeDialog(deviceName);
+                                                      }
+                                                    },
+                                              child: Text(
+                                                isThisConnected ? 'Terhubung' : 'Hubungkan',
+                                                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
             );
           },
         );
       },
     );
+  }
+
+  void _showDeviceConnectedNoticeDialog(String deviceName) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: const [
+              Icon(Icons.info_outline_rounded, color: AppColors.electricAmber),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text('Perangkat Terhubung', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 17)),
+              ),
+            ],
+          ),
+          content: Text(
+            'Berhasil terhubung ke $deviceName!\n\nNamun, jam tangan ini belum memancarkan sinyal detak jantung terbuka (GATT 0x180D).\n\nTips:\n1. Buka aplikasi pendamping jam (misal Haylou Fun / Zepp) dan aktifkan fitur "Siarkan Detak Jantung" jika tersedia.\n2. Atau, Anda dapat merekam olahraga langsung di jam tanpa bawa HP, lalu ekspor file GPX dan gunakan tombol "Impor Aktivitas Jam Tangan (GPX)" di Velora.',
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Mengerti'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- DIALOG PEMANASAN CACHE PETA OFFLINE ---
+
+  void _showPrecacheDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool isWarming = false;
+        bool isDone = false;
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.cardSurface,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: const [
+                  Icon(Icons.downloading_rounded, color: AppColors.neonCyan),
+                  SizedBox(width: 10),
+                  Text('Cache Peta Offline', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 17)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Pemanasan cache peta akan mengunduh ubin peta rute umum ke penyimpanan lokal HP Anda.\n\nPeta akan tetap terbuka cepat dan mulus meskipun Anda berolahraga di area tanpa sinyal internet.',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
+                  if (isWarming) ...[
+                    const Center(
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(color: AppColors.neonCyan),
+                          SizedBox(height: 12),
+                          Text('Mengunduh ubin peta rute...', style: TextStyle(color: AppColors.textPrimary, fontSize: 13)),
+                        ],
+                      ),
+                    ),
+                  ] else if (isDone) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.neonGreen.withAlpha(30),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.neonGreen),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.check_circle_rounded, color: AppColors.neonGreen),
+                          SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Cache peta offline berhasil dihangatkan!',
+                              style: TextStyle(color: AppColors.neonGreen, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(isDone ? 'Tutup' : 'Batal', style: const TextStyle(color: AppColors.textSecondary)),
+                ),
+                if (!isDone)
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.neonCyan,
+                      foregroundColor: Colors.black87,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: isWarming
+                        ? null
+                        : () async {
+                            setDialogState(() => isWarming = true);
+                            await MapPrecacheService.warmUpOnAppStart();
+                            await Future.delayed(const Duration(milliseconds: 1500));
+                            if (dialogCtx.mounted) {
+                              setDialogState(() {
+                                isWarming = false;
+                                isDone = true;
+                              });
+                            }
+                          },
+                    child: const Text('Hangatkan Cache Sekarang', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // --- DIALOG PERIKSA PEMBARUAN APLIKASI ---
+
+  Future<void> _showCheckUpdateDialog() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: AppColors.cardSurface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          content: Row(
+            children: const [
+              CircularProgressIndicator(color: AppColors.primaryOrange),
+              SizedBox(width: 20),
+              Expanded(
+                child: Text(
+                  'Memeriksa pembaruan di server...',
+                  style: TextStyle(color: AppColors.textPrimary, fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    final updateInfo = await UpdateService.checkLatestRelease();
+
+    if (!mounted) return;
+    Navigator.of(context, rootNavigator: true).pop(); // Tutup loading dialog
+
+    if (updateInfo != null && updateInfo.hasUpdate) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => UpdateDialog(updateInfo: updateInfo),
+      );
+    } else if (updateInfo != null && !updateInfo.hasUpdate) {
+      showDialog(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            backgroundColor: AppColors.cardSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: const [
+                Icon(Icons.verified_rounded, color: AppColors.neonGreen, size: 26),
+                SizedBox(width: 10),
+                Text('Versi Terbaru', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+              ],
+            ),
+            content: Text(
+              'Aplikasi Velora Anda sudah menggunakan versi paling mutakhir (v${updateInfo.currentVersion}).\n\nSeluruh fitur integrasi Smartwatch, Sensor Detak Jantung, dan Mode Rute Strava sudah aktif.',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Mengerti'),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            backgroundColor: AppColors.cardSurface,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: const [
+                Icon(Icons.wifi_off_rounded, color: AppColors.neonRed),
+                SizedBox(width: 10),
+                Text('Koneksi Gagal', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.bold, fontSize: 17)),
+              ],
+            ),
+            content: const Text(
+              'Tidak dapat memeriksa pembaruan. Pastikan ponsel Anda terhubung ke jaringan internet.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Tutup', style: TextStyle(color: AppColors.textSecondary)),
+              ),
+            ],
+          );
+        },
+      );
+    }
   }
 
   // --- DIALOG ZONA DETAK JANTUNG ---
