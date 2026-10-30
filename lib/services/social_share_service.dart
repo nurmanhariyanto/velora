@@ -19,6 +19,8 @@ enum ShareDestination {
 class SocialShareService {
   static const _shareChannel =
       MethodChannel('online.nurmancloud.velora/social_share');
+  static const _mediaChannel =
+      MethodChannel('online.nurmancloud.velora/media_store');
 
   /// Mengambil snapshot widget RepaintBoundary menjadi citra PNG beresolusi tajam (Full HD 1080p+)
   static Future<Uint8List?> capturePng(GlobalKey repaintKey, {double? pixelRatio}) async {
@@ -138,6 +140,42 @@ class SocialShareService {
       return true;
     } catch (e) {
       debugPrint('Error sharing activity image: $e');
+      return false;
+    }
+  }
+
+  /// Menyimpan gambar kartu langsung ke Galeri resmi ponsel (Android MediaStore: Pictures/Velora)
+  static Future<bool> saveImageToGallery({
+    required GlobalKey repaintKey,
+    String? title,
+  }) async {
+    try {
+      final bytes = await capturePng(repaintKey);
+      if (bytes == null) {
+        debugPrint('capturePng returned null');
+        return false;
+      }
+
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final file = await saveBytesToTempFile(bytes, 'velora_share_$timestamp');
+      if (file == null) {
+        debugPrint('saveBytesToTempFile returned null');
+        return false;
+      }
+
+      if (Platform.isAndroid) {
+        final res = await _mediaChannel.invokeMethod<String>(
+          'saveImageToGallery',
+          {
+            'filePath': file.path,
+            'title': title ?? 'velora_share_$timestamp',
+          },
+        );
+        return res != null;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('Error saving image to gallery: $e');
       return false;
     }
   }

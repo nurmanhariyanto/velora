@@ -301,6 +301,92 @@ class MainActivity : FlutterActivity() {
                 } catch (e: Exception) {
                     result.error("SAVE_FAILED", "Gagal menyimpan video ke galeri: ${e.message}", null)
                 }
+            } else if (call.method == "saveImageToGallery") {
+                val filePath = call.argument<String>("filePath")
+                val title = call.argument<String>("title") ?: "velora_share"
+
+                if (filePath == null) {
+                    result.error("INVALID_ARGUMENT", "filePath bernilai null", null)
+                    return@setMethodCallHandler
+                }
+
+                val sourceFile = File(filePath)
+                if (!sourceFile.exists() || sourceFile.length() == 0L) {
+                    result.error("FILE_NOT_FOUND", "Berkas gambar tidak ditemukan atau kosong: $filePath", null)
+                    return@setMethodCallHandler
+                }
+
+                try {
+                    val timestamp = System.currentTimeMillis()
+                    val cleanTitle = if (title.endsWith(".png", ignoreCase = true)) {
+                        title.substring(0, title.length - 4)
+                    } else {
+                        title
+                    }
+                    val displayName = "${cleanTitle}_$timestamp.png"
+
+                    val resolver = context.contentResolver
+                    var itemUri: Uri? = null
+
+                    // 1. Simpan ke MediaStore Galeri Foto Resmi (Pictures/Velora)
+                    val contentValues = android.content.ContentValues().apply {
+                        put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, displayName)
+                        put(android.provider.MediaStore.Images.Media.TITLE, cleanTitle)
+                        put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                        put(android.provider.MediaStore.Images.Media.DATE_ADDED, timestamp / 1000)
+                        put(android.provider.MediaStore.Images.Media.DATE_MODIFIED, timestamp / 1000)
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                            put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES + "/Velora")
+                            put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+                        } else {
+                            val dir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), "Velora")
+                            if (!dir.exists()) dir.mkdirs()
+                            put(android.provider.MediaStore.Images.Media.DATA, File(dir, displayName).absolutePath)
+                        }
+                    }
+
+                    val collection = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        android.provider.MediaStore.Images.Media.getContentUri(android.provider.MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    } else {
+                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                    }
+
+                    itemUri = resolver.insert(collection, contentValues)
+                    if (itemUri == null) {
+                        result.error("INSERT_FAILED", "Gagal membuat entri gambar di MediaStore", null)
+                        return@setMethodCallHandler
+                    }
+
+                    try {
+                        resolver.openOutputStream(itemUri)?.use { outStream ->
+                            sourceFile.inputStream().use { inStream ->
+                                inStream.copyTo(outStream)
+                            }
+                        }
+                    } catch (streamErr: Exception) {
+                        try { resolver.delete(itemUri, null, null) } catch (_: Exception) {}
+                        throw streamErr
+                    }
+
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                        contentValues.clear()
+                        contentValues.put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+                        resolver.update(itemUri, contentValues, null, null)
+                    } else {
+                        val picDir = File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_PICTURES), "Velora")
+                        val picPath = File(picDir, displayName).absolutePath
+                        android.media.MediaScannerConnection.scanFile(
+                            context,
+                            arrayOf(picPath),
+                            arrayOf("image/png"),
+                            null
+                        )
+                    }
+
+                    result.success(itemUri.toString())
+                } catch (e: Exception) {
+                    result.error("SAVE_FAILED", "Gagal menyimpan gambar ke galeri: ${e.message}", null)
+                }
             } else {
                 result.notImplemented()
             }

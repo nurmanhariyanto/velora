@@ -9,6 +9,7 @@ import 'package:velora/models/activity_session.dart';
 import 'package:velora/models/coordinate_point.dart';
 import 'package:velora/models/sports_type.dart';
 import 'package:velora/services/social_share_service.dart';
+import 'package:velora/screens/share_preview_screen.dart';
 import 'package:velora/widgets/mini_route_painter.dart';
 import 'package:velora/widgets/social_share_card.dart';
 
@@ -24,6 +25,18 @@ void main() {
       const MethodChannel('plugins.flutter.io/path_provider'),
       (MethodCall methodCall) async {
         return Directory.systemTemp.path;
+      },
+    );
+
+    // Mock media channel for saveImageToGallery
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('velora/media_channel'),
+      (MethodCall methodCall) async {
+        if (methodCall.method == 'saveImageToGallery') {
+          return 'content://media/external/images/media/999';
+        }
+        return null;
       },
     );
   });
@@ -651,6 +664,151 @@ void main() {
         expect(find.text('Time'), findsOneWidget);
         expect(find.text('1h 0m 0s'), findsOneWidget);
         expect(find.text('VELORA'), findsOneWidget);
+      });
+
+      testWidgets('SocialShareCard gaya Transparan (ShareCardStyle.transparent) merender teks clean dan rute hero berlatar transparan',
+          (WidgetTester tester) async {
+        final repaintKey = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  width: 360,
+                  height: 640,
+                  child: SocialShareCard(
+                    session: dummySession,
+                    style: ShareCardStyle.transparent,
+                    repaintKey: repaintKey,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(repaintKey), findsOneWidget);
+        expect(find.text('Distance'), findsOneWidget);
+        expect(find.text('25.40 km'), findsOneWidget);
+        expect(find.text('Speed'), findsOneWidget);
+        expect(find.text('25.4 km/h'), findsOneWidget);
+        expect(find.text('Time'), findsOneWidget);
+        expect(find.text('1h 0m 0s'), findsOneWidget);
+        expect(find.text('VELORA'), findsOneWidget);
+
+        // Verifikasi MiniRoutePainter menggunakan paddingFraction 0.05 dan hasShadow true
+        final customPaintFinder = find.byWidgetPredicate(
+          (w) => w is CustomPaint && w.painter is MiniRoutePainter,
+        );
+        expect(customPaintFinder, findsOneWidget);
+        final customPaint = tester.widget<CustomPaint>(customPaintFinder);
+        final painter = customPaint.painter as MiniRoutePainter;
+        expect(painter.paddingFraction, 0.05);
+        expect(painter.hasShadow, isTrue);
+        expect(painter.strokeWidth, 4.8);
+
+        // Uji penangkapan PNG transparan
+        final Uint8List? pngBytes = await tester.runAsync<Uint8List?>(() async {
+          return await SocialShareService.capturePng(repaintKey);
+        });
+
+        expect(pngBytes, isNotNull);
+        expect(pngBytes!.isNotEmpty, isTrue);
+        expect(pngBytes[0], 0x89);
+        expect(pngBytes[1], 0x50);
+        expect(pngBytes[2], 0x4E);
+        expect(pngBytes[3], 0x47);
+      });
+
+      test('MiniRoutePainter shouldRepaint mendeteksi perubahan paddingFraction dan hasShadow', () {
+        final p1 = MiniRoutePainter(
+          coordinates: dummySession.coordinates,
+          paddingFraction: 0.15,
+          hasShadow: false,
+        );
+        final p2 = MiniRoutePainter(
+          coordinates: dummySession.coordinates,
+          paddingFraction: 0.05,
+          hasShadow: false,
+        );
+        final p3 = MiniRoutePainter(
+          coordinates: dummySession.coordinates,
+          paddingFraction: 0.05,
+          hasShadow: true,
+        );
+
+        expect(p2.shouldRepaint(p1), isTrue);
+        expect(p3.shouldRepaint(p2), isTrue);
+        expect(p3.shouldRepaint(p3), isFalse);
+      });
+
+      testWidgets('SharePreviewScreen mendukung pemilihan gaya Transparan dan tombol SIMPAN STIKER PNG KE GALERI',
+          (WidgetTester tester) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: SharePreviewScreen(
+              session: dummySession,
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        // Default style adalah Clean
+        expect(find.text('Clean'), findsOneWidget);
+        expect(find.text('Transparan'), findsOneWidget);
+        expect(find.text('Format Clean Minimalis (Strava Style)'), findsOneWidget);
+
+        // Ketuk tab gaya Transparan
+        await tester.tap(find.text('Transparan'));
+        await tester.pumpAndSettle();
+
+        // Banner info stiker transparan dan tombol Simpan Stiker PNG ke Galeri muncul
+        expect(find.text('Stiker PNG Transparan (Bisa Ditempel di IG)'), findsOneWidget);
+        expect(find.text('SIMPAN STIKER PNG KE GALERI'), findsOneWidget);
+
+        // Checkerboard transparency painter aktif
+        expect(
+          find.byWidgetPredicate((w) => w is CustomPaint && w.painter is TransparencyGridPainter),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('SocialShareService.saveImageToGallery berhasil mengeksekusi platform channel',
+          (WidgetTester tester) async {
+        final repaintKey = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: RepaintBoundary(
+                  key: repaintKey,
+                  child: Container(
+                    width: 200,
+                    height: 200,
+                    color: Colors.transparent,
+                    child: const Text('Test Sticker'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        final bool success = await tester.runAsync<bool>(() async {
+          return await SocialShareService.saveImageToGallery(
+            repaintKey: repaintKey,
+            title: 'test_sticker',
+          );
+        }) ?? false;
+
+        expect(success, isTrue);
       });
     });
   });

@@ -10,12 +10,16 @@ class MiniRoutePainter extends CustomPainter {
   final Color routeColor;
   final double strokeWidth;
   final bool showMarkers;
+  final double paddingFraction;
+  final bool hasShadow;
 
   MiniRoutePainter({
     required this.coordinates,
     this.routeColor = AppColors.primaryOrange,
     this.strokeWidth = 3.5,
     this.showMarkers = true,
+    this.paddingFraction = 0.15,
+    this.hasShadow = false,
   });
 
   @override
@@ -63,8 +67,7 @@ class MiniRoutePainter extends CustomPainter {
 
     if (latRange == 0 && lonRange == 0) return;
 
-    // Tambahkan padding di sekitar kanvas (15%)
-    const paddingFraction = 0.15;
+    // Tambahkan padding di sekitar kanvas
     final usableW = size.width * (1.0 - paddingFraction * 2);
     final usableH = size.height * (1.0 - paddingFraction * 2);
 
@@ -113,14 +116,31 @@ class MiniRoutePainter extends CustomPainter {
       path.lineTo(p.dx, p.dy);
     }
 
-    // 1. Gambar efek glow lembut di belakang garis utama
-    final glowPaint = Paint()
-      ..color = routeColor.withAlpha(70)
-      ..strokeWidth = strokeWidth * 2.2
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    canvas.drawPath(path, glowPaint);
+    // 1. Gambar efek bayangan (shadow) atau glow di belakang garis utama
+    if (hasShadow) {
+      // Bayangan halus presisi tinggi persis Strava untuk kontras di atas foto / stiker transparan
+      final shadowPaint = Paint()
+        ..color = Colors.black.withAlpha(120)
+        ..strokeWidth = strokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+
+      canvas.save();
+      canvas.translate(0, 1.5);
+      canvas.drawPath(path, shadowPaint);
+      canvas.restore();
+    } else if (showMarkers) {
+      // Glow untuk mode klasik / kartu OSM
+      final glowPaint = Paint()
+        ..color = routeColor.withAlpha(70)
+        ..strokeWidth = strokeWidth * 2.2
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      canvas.drawPath(path, glowPaint);
+    }
 
     // 2. Gambar garis polyline utama
     final linePaint = Paint()
@@ -156,6 +176,8 @@ class MiniRoutePainter extends CustomPainter {
     return oldDelegate.coordinates != coordinates ||
         oldDelegate.routeColor != routeColor ||
         oldDelegate.strokeWidth != strokeWidth ||
-        oldDelegate.showMarkers != showMarkers;
+        oldDelegate.showMarkers != showMarkers ||
+        oldDelegate.paddingFraction != paddingFraction ||
+        oldDelegate.hasShadow != hasShadow;
   }
 }

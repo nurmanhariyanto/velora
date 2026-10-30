@@ -11,9 +11,10 @@ import 'velora_logo.dart';
 
 /// Gaya tampilan kartu berbagi media sosial
 enum ShareCardStyle {
-  clean, // Gaya Clean Minimalis ala Strava (Distance, Pace/Speed, Time, Rute Oranye, VELORA Putih)
-  map, // Peta OpenStreetMap dengan lintasan rute nyata
+  clean, // Gaya Clean Minimalis ala Strava (Latar Solid Hitam)
+  transparent, // Gaya Stiker Transparan PNG (Bisa diedit & ditempel di Instagram Story / Reels)
   photo, // Foto latar belakang pengguna (Kamera / Galeri)
+  map, // Peta OpenStreetMap dengan lintasan rute nyata
   minimal, // Desain minimalis gelap klasik
 }
 
@@ -54,7 +55,9 @@ class SocialShareCard extends StatelessWidget {
       DateTime.fromMillisecondsSinceEpoch(session.startTime),
     );
 
-    final bool isCleanMode = style == ShareCardStyle.clean || style == ShareCardStyle.photo;
+    final bool isCleanMode = style == ShareCardStyle.clean ||
+        style == ShareCardStyle.photo ||
+        style == ShareCardStyle.transparent;
 
     return RepaintBoundary(
       key: repaintKey,
@@ -64,25 +67,29 @@ class SocialShareCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: (style == ShareCardStyle.clean)
                 ? Colors.black
-                : AppColors.darkBackground,
+                : (style == ShareCardStyle.transparent
+                    ? Colors.transparent
+                    : AppColors.darkBackground),
             borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black54,
-                blurRadius: 20,
-                offset: Offset(0, 8),
-              ),
-            ],
+            boxShadow: (style == ShareCardStyle.transparent)
+                ? null
+                : const [
+                    BoxShadow(
+                      color: Colors.black54,
+                      blurRadius: 20,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // 1. Lapisan Latar Belakang (Hitam Pekat / Foto Pengguna / Peta OSM / Minimalis)
+              // 1. Lapisan Latar Belakang (Hitam Pekat / Transparan / Foto Pengguna / Peta OSM / Minimalis)
               _buildBackground(),
 
               // 2. Lapisan Bayangan Vignette Gelap (Hanya untuk Peta OSM, Foto, atau Klasik)
-              if (style != ShareCardStyle.clean)
+              if (style != ShareCardStyle.clean && style != ShareCardStyle.transparent)
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -125,10 +132,11 @@ class SocialShareCard extends StatelessWidget {
     final timeStr = formatCleanDuration(session.durationSeconds);
 
     final bool isPhoto = style == ShareCardStyle.photo;
-    final List<Shadow>? textShadows = isPhoto
+    final bool isTransparent = style == ShareCardStyle.transparent;
+    final List<Shadow>? textShadows = (isPhoto || isTransparent)
         ? const [
-            Shadow(color: Colors.black, blurRadius: 10, offset: Offset(0, 2)),
-            Shadow(color: Colors.black87, blurRadius: 6, offset: Offset(0, 1)),
+            Shadow(color: Color(0x99000000), blurRadius: 4, offset: Offset(0, 1.5)),
+            Shadow(color: Color(0x66000000), blurRadius: 2, offset: Offset(0, 1)),
           ]
         : null;
 
@@ -146,7 +154,7 @@ class SocialShareCard extends StatelessWidget {
             shadows: textShadows,
           ),
 
-          const Spacer(flex: 3),
+          const SizedBox(height: 14),
 
           // 2. Metrik Pace / Speed
           _buildCleanMetricBlock(
@@ -155,7 +163,7 @@ class SocialShareCard extends StatelessWidget {
             shadows: textShadows,
           ),
 
-          const Spacer(flex: 3),
+          const SizedBox(height: 14),
 
           // 3. Metrik Time
           _buildCleanMetricBlock(
@@ -164,37 +172,36 @@ class SocialShareCard extends StatelessWidget {
             shadows: textShadows,
           ),
 
-          const Spacer(flex: 4),
+          const Spacer(flex: 3),
 
-          // 4. Sketsa Rute Oranye (Silhouette rute GPS tanpa pin start/finish, persis Strava)
+          // 4. Sketsa Rute Oranye (Silhouette rute GPS hero size tanpa pin start/finish, persis Strava)
           Expanded(
-            flex: 10,
+            flex: 8,
             child: Center(
               child: session.coordinates.length >= 2
-                  ? AspectRatio(
-                      aspectRatio: 1.0,
-                      child: CustomPaint(
-                        size: Size.infinite,
-                        painter: MiniRoutePainter(
-                          coordinates: session.coordinates,
-                          routeColor: const Color(0xFFFC5200), // Vibrant Strava Orange
-                          strokeWidth: 4.2,
-                          showMarkers: false,
-                        ),
+                  ? CustomPaint(
+                      size: Size.infinite,
+                      painter: MiniRoutePainter(
+                        coordinates: session.coordinates,
+                        routeColor: const Color(0xFFFC5200), // Vibrant Strava Orange
+                        strokeWidth: 4.8,
+                        paddingFraction: 0.05,
+                        hasShadow: true,
+                        showMarkers: false,
                       ),
                     )
                   : const SizedBox.shrink(),
             ),
           ),
 
-          const Spacer(flex: 4),
+          const Spacer(flex: 2),
 
-          // 5. Teks Brand: VELORA putih tebal bersih
+          // 5. Teks Brand: VELORA putih tebal bersih persis Strava
           Text(
             'VELORA',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 28,
+              fontSize: 18,
               fontWeight: FontWeight.w900,
               letterSpacing: 4.5,
               shadows: textShadows,
@@ -219,23 +226,23 @@ class SocialShareCard extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
+            color: Colors.white.withAlpha(220),
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
             letterSpacing: 0.2,
             shadows: shadows,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 3),
         FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
             value,
             style: TextStyle(
               color: Colors.white,
-              fontSize: 44,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.5,
+              fontSize: 27,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
               shadows: shadows,
             ),
           ),
@@ -502,6 +509,9 @@ class SocialShareCard extends StatelessWidget {
     switch (style) {
       case ShareCardStyle.clean:
         return Container(color: Colors.black);
+
+      case ShareCardStyle.transparent:
+        return const SizedBox.shrink();
 
       case ShareCardStyle.map:
         return _buildMapBackground();

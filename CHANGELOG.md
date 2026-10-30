@@ -2,6 +2,36 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.0.21] - 2026-10-30
+
+### 📸 Kartu Berbagi Sosial Ala Strava & Stiker PNG Transparan untuk Instagram Story
+
+#### 🎨 1. Redesain Visual Kartu Berbagi Clean Minimalis Persis Strava (*Strava-Style Clean Share Card*)
+- **Sketsa Lintasan GPS Menjadi Grafik Hero Utama (*Hero GPS Route Silhouette*):**
+  - Mengubah perataan dan ukuran rute GPS mini agar tampil besar, tebal, dan proporsional (mengisi hingga 40%+ ruang vertikal kartu).
+  - Mengurangi padding margin kanvas dari 15% menjadi 5% (`paddingFraction: 0.05`), memaksimalkan bentang garis lintasan tanpa terpotong.
+  - Ketebalan garis ditingkatkan menjadi 4.8px dengan warna oranye Strava menyala (`#FC5200`) dan bayangan lembut (*soft drop shadow*) untuk kontras optimal.
+- **Tipografi Metrik Bersih dan Proporsional:**
+  - Menggantikan teks metrik raksasa sebelumnya dengan ukuran yang rapi dan elegan ala Strava: label 14sp w600 (`Colors.white.withAlpha(220)`), nilai metrik 27sp w800.
+  - Spasi vertikal antar blok metrik dirapatkan menjadi 14px terpusat di bagian atas kartu.
+  - Teks identitas brand `VELORA` di bagian bawah dengan gaya font tegas 18sp w900 dan `letterSpacing: 4.5`.
+
+#### 🪟 2. Mode Stiker PNG Transparan (*Instagram Story & Reels Transparent Sticker*)
+- **Ekspor PNG 32-bit dengan Alpha Channel 100% Transparan:**
+  - Penambahan opsi gaya kartu baru `ShareCardStyle.transparent`.
+  - Mengosongkan warna latar belakang dan bayangan kontainer luar kartu pada saat ekspor, menghasilkan stiker PNG murni berisi metrik, rute oranye, dan teks VELORA.
+  - Lapisan bayangan drop shadow pada teks putih dan rute oranye memastikan stiker tetap sangat kontras dan mudah dibaca saat ditempel di atas foto maupun video Instagram Story/Reels yang terang.
+- **Pratinjau Papan Catur Transparansi (*Checkerboard Transparency Grid*):**
+  - Layar pratinjau menampilkan kisi papan catur (*checkerboard pattern*) di belakang kartu saat mode Transparan dipilih, memberi visualisasi nyata bahwa latar belakang adalah transparan.
+  - Kisi transparan berada di luar `RepaintBoundary` sehingga hasil simpan gambar tetap 100% transparan murni.
+
+#### 💾 3. Simpan Langsung ke Galeri Ponsel (*Direct MediaStore Save to Pictures/Velora*)
+- **Tombol Aksi "SIMPAN STIKER PNG KE GALERI":**
+  - Integrasi native Android MediaStore (`saveImageToGallery`) untuk menyimpan stiker PNG langsung ke folder galeri resmi `Pictures/Velora/`.
+  - Tombol aksi cepat dan tombol unduh AppBar untuk menyimpan stiker secara instan sehingga pengguna dapat langsung memilih stiker dari galeri saat membuat Instagram Story.
+- **Bilah Pemilih Gaya Kapsul Horisontal yang Responsif:**
+  - Baris selektor 5 gaya kartu (Clean, Transparan, Foto Saya, Peta, Klasik) dengan desain kapsul modern dan pengguliran horisontal yang mulus tanpa risiko *pixel overflow*.
+
 ## [v1.0.20] - 2026-10-29
 
 ### 🗺️ Panduan Rute GPX & Peringatan Keluar Jalur (GPX Route Breadcrumbs & Off-Course Alert)

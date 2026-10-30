@@ -130,6 +130,67 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
     }
   }
 
+  Future<void> _saveToGallery() async {
+    if (_isSharing) return;
+    setState(() => _isSharing = true);
+
+    try {
+      final fileName = 'velora_${widget.session.id}';
+      final success = await SocialShareService.saveImageToGallery(
+        repaintKey: _repaintKey,
+        title: fileName,
+      );
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _currentStyle == ShareCardStyle.transparent
+                          ? 'Stiker transparan berhasil disimpan ke Galeri (Pictures/Velora)!'
+                          : 'Kartu aktivitas berhasil disimpan ke Galeri (Pictures/Velora)!',
+                      style: const TextStyle(fontSize: 12.5),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: AppColors.cardSurfaceElevated,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Gagal menyimpan gambar ke galeri.'),
+              backgroundColor: AppColors.neonRed,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal menyimpan: $e'),
+            backgroundColor: AppColors.neonRed,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSharing = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -137,6 +198,13 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       appBar: AppBar(
         title: const Text('Bagikan ke Media Sosial'),
         actions: [
+          Tooltip(
+            message: 'Simpan ke Galeri Ponsel (Pictures/Velora)',
+            child: IconButton(
+              icon: const Icon(Icons.download_rounded, color: AppColors.textPrimary),
+              onPressed: _saveToGallery,
+            ),
+          ),
           Tooltip(
             message: 'Buat Video Flyover 3D (MP4)',
             child: TextButton.icon(
@@ -186,13 +254,38 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
               child: Center(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-                  child: SocialShareCard(
-                    session: widget.session,
-                    backgroundPhotoPath: _selectedPhotoPath,
-                    style: _currentStyle,
-                    mapDarkTheme: _mapDarkTheme,
-                    repaintKey: _repaintKey,
-                    athleteName: _athleteName,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: _currentStyle == ShareCardStyle.transparent
+                          ? const [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 16,
+                                offset: Offset(0, 6),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        if (_currentStyle == ShareCardStyle.transparent)
+                          const Positioned.fill(
+                            child: CustomPaint(
+                              painter: TransparencyGridPainter(),
+                            ),
+                          ),
+                        SocialShareCard(
+                          session: widget.session,
+                          backgroundPhotoPath: _selectedPhotoPath,
+                          style: _currentStyle,
+                          mapDarkTheme: _mapDarkTheme,
+                          repaintKey: _repaintKey,
+                          athleteName: _athleteName,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -200,7 +293,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
 
             // Bar Aksi Bawah: Pilihan Tema Gaya & Tombol Bagikan
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               decoration: const BoxDecoration(
                 color: AppColors.cardSurface,
                 borderRadius: BorderRadius.only(
@@ -214,27 +307,25 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 1. Selector Tab Gaya Tampilan (Clean / Peta / Foto / Klasik)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildStyleChip(
+                  // 1. Selector Tab Gaya Tampilan (Clean / Transparan / Foto / Peta / Klasik)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    child: Row(
+                      children: [
+                        _buildStyleChip(
                           icon: Icons.check_circle_outline_rounded,
                           label: 'Clean',
                           style: ShareCardStyle.clean,
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _buildStyleChip(
-                          icon: Icons.map_rounded,
-                          label: 'Peta',
-                          style: ShareCardStyle.map,
+                        const SizedBox(width: 8),
+                        _buildStyleChip(
+                          icon: Icons.opacity_rounded,
+                          label: 'Transparan',
+                          style: ShareCardStyle.transparent,
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _buildStyleChip(
+                        const SizedBox(width: 8),
+                        _buildStyleChip(
                           icon: Icons.photo_camera_rounded,
                           label: 'Foto Saya',
                           style: ShareCardStyle.photo,
@@ -246,16 +337,20 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                             }
                           },
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: _buildStyleChip(
+                        const SizedBox(width: 8),
+                        _buildStyleChip(
+                          icon: Icons.map_rounded,
+                          label: 'Peta',
+                          style: ShareCardStyle.map,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildStyleChip(
                           icon: Icons.dashboard_rounded,
                           label: 'Klasik',
                           style: ShareCardStyle.minimal,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 12),
@@ -281,6 +376,36 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                                 'Format Clean Minimalis (Strava Style)',
                                 style: TextStyle(
                                   color: AppColors.textSecondary,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                  ] else if (_currentStyle == ShareCardStyle.transparent) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryOrange.withAlpha(25),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.primaryOrange.withAlpha(70)),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.opacity_rounded, size: 14, color: AppColors.primaryOrange),
+                              SizedBox(width: 6),
+                              Text(
+                                'Stiker PNG Transparan (Bisa Ditempel di IG)',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -447,7 +572,34 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                         ],
                       ),
                     )
-                  else
+                  else ...[
+                    if (_currentStyle == ShareCardStyle.transparent) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _saveToGallery,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            elevation: 2,
+                          ),
+                          icon: const Icon(Icons.download_rounded, size: 20),
+                          label: const Text(
+                            'SIMPAN STIKER PNG KE GALERI',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Row(
                       children: [
                         // Tombol WhatsApp (Status & Chat)
@@ -527,6 +679,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
                         ),
                       ],
                     ),
+                  ],
                 ],
               ),
             ),
@@ -549,7 +702,7 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       borderRadius: BorderRadius.circular(14),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 14),
         decoration: BoxDecoration(
           color: isSelected
               ? AppColors.primaryOrange.withAlpha(40)
@@ -560,19 +713,19 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
             width: isSelected ? 1.5 : 1,
           ),
         ),
-        child: Column(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               icon,
-              size: 20,
+              size: 16,
               color: isSelected ? AppColors.primaryOrange : AppColors.textSecondary,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 color: isSelected ? Colors.white : AppColors.textSecondary,
               ),
@@ -629,4 +782,41 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
       },
     );
   }
+}
+
+/// Painter pola checkerboard papan catur untuk menandakan transparansi kanvas di pratinjau
+class TransparencyGridPainter extends CustomPainter {
+  final double squareSize;
+  final Color color1;
+  final Color color2;
+
+  const TransparencyGridPainter({
+    this.squareSize = 12.0,
+    this.color1 = const Color(0xFF1E2430),
+    this.color2 = const Color(0xFF13171F),
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint1 = Paint()..color = color1;
+    final paint2 = Paint()..color = color2;
+    canvas.drawRect(Offset.zero & size, paint2);
+
+    final cols = (size.width / squareSize).ceil();
+    final rows = (size.height / squareSize).ceil();
+
+    for (int r = 0; r < rows; r++) {
+      for (int c = 0; c < cols; c++) {
+        if ((r + c) % 2 == 0) {
+          canvas.drawRect(
+            Rect.fromLTWH(c * squareSize, r * squareSize, squareSize, squareSize),
+            paint1,
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant TransparencyGridPainter oldDelegate) => false;
 }
