@@ -2,6 +2,23 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.1.2] - 2026-10-31
+
+### 🛠️ Perbaikan Modal Sensor BLE & Deteksi Nama Smartwatch
+
+#### 📱 1. Modal Sensor BLE Fixed-Height (Anti-Amblas & Bebas Blank Grey Screen)
+- Mengganti `DraggableScrollableSheet` dengan modal sheet solid berketinggian stabil (88% layar).
+- Header tetap terkunci (*pinned*) di atas dengan judul "Sensor Detak Jantung (BLE)", status koneksi, dan tombol tutup `[ X ]`.
+- Menghilangkan bug layar amblas / ruang abu-abu kosong saat menggulir ke bawah.
+
+#### ⌚ 2. Integrasi Perangkat Terpasang di Ponsel (*Bonded / Paired Smartwatch*)
+- Menambahkan pembacaan langsung perangkat yang sudah ter-pairing di Bluetooth HP via `FlutterBluePlus.bondedDevices`.
+- Smartwatch pengguna (seperti Haylou Solar Neo 2, Garmin, Amazfit) langsung tampil di baris teratas dengan label `⭐ Smartwatch Terpasang di Ponsel (Paired)`.
+
+#### 📡 3. Perizinan Android 12+ Anti-Sensor Nama (*neverForLocation*) & Filter Anonim
+- Menambahkan atribut `android:usesPermissionFlags="neverForLocation"` pada izin `BLUETOOTH_SCAN` di `AndroidManifest.xml` agar OS Android tidak menyensor nama lokal smartwatch.
+- Mengelompokkan perangkat anonim tanpa nama ke dalam menu lipat (*collapsible drawer*).
+
 ## [v1.1.1] - 2026-10-30
 
 ### ⌚ RILIS UTAMA (MAJOR): Integrasi Ekosistem Smartwatch, Sensor Detak Jantung (BLE HRM), 5 Zona HR & Pengaturan Terpadu
