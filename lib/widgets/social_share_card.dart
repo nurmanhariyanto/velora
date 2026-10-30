@@ -140,77 +140,88 @@ class SocialShareCard extends StatelessWidget {
           ]
         : null;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          const Spacer(flex: 3),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double vertPadding = constraints.maxHeight < 300 ? 10 : 32;
+        final double horizPadding = constraints.maxWidth < 200 ? 12 : 24;
+        final double metricGap = constraints.maxHeight < 300 ? 4 : 14;
 
-          // 1. Metrik Distance
-          _buildCleanMetricBlock(
-            label: 'Distance',
-            value: distanceStr,
-            shadows: textShadows,
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizPadding, vertical: vertPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Spacer(flex: 3),
+
+              // 1. Metrik Distance
+              _buildCleanMetricBlock(
+                label: 'Distance',
+                value: distanceStr,
+                shadows: textShadows,
+              ),
+
+              SizedBox(height: metricGap),
+
+              // 2. Metrik Pace / Speed
+              _buildCleanMetricBlock(
+                label: isRun ? 'Pace' : 'Speed',
+                value: paceOrSpeedStr,
+                shadows: textShadows,
+              ),
+
+              SizedBox(height: metricGap),
+
+              // 3. Metrik Time
+              _buildCleanMetricBlock(
+                label: 'Time',
+                value: timeStr,
+                shadows: textShadows,
+              ),
+
+              const Spacer(flex: 3),
+
+              // 4. Sketsa Rute Oranye (Silhouette rute GPS hero size tanpa pin start/finish, persis Strava)
+              Expanded(
+                flex: 8,
+                child: Center(
+                  child: session.coordinates.length >= 2
+                      ? CustomPaint(
+                          size: Size.infinite,
+                          painter: MiniRoutePainter(
+                            coordinates: session.coordinates,
+                            routeColor: const Color(0xFFFC5200), // Vibrant Strava Orange
+                            strokeWidth: 4.8,
+                            paddingFraction: 0.05,
+                            hasShadow: true,
+                            showMarkers: false,
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ),
+
+              const Spacer(flex: 2),
+
+              // 5. Teks Brand: VELORA putih tebal bersih persis Strava
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  'VELORA',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 4.5,
+                    shadows: textShadows,
+                  ),
+                ),
+              ),
+
+              const Spacer(flex: 3),
+            ],
           ),
-
-          const SizedBox(height: 14),
-
-          // 2. Metrik Pace / Speed
-          _buildCleanMetricBlock(
-            label: isRun ? 'Pace' : 'Speed',
-            value: paceOrSpeedStr,
-            shadows: textShadows,
-          ),
-
-          const SizedBox(height: 14),
-
-          // 3. Metrik Time
-          _buildCleanMetricBlock(
-            label: 'Time',
-            value: timeStr,
-            shadows: textShadows,
-          ),
-
-          const Spacer(flex: 3),
-
-          // 4. Sketsa Rute Oranye (Silhouette rute GPS hero size tanpa pin start/finish, persis Strava)
-          Expanded(
-            flex: 8,
-            child: Center(
-              child: session.coordinates.length >= 2
-                  ? CustomPaint(
-                      size: Size.infinite,
-                      painter: MiniRoutePainter(
-                        coordinates: session.coordinates,
-                        routeColor: const Color(0xFFFC5200), // Vibrant Strava Orange
-                        strokeWidth: 4.8,
-                        paddingFraction: 0.05,
-                        hasShadow: true,
-                        showMarkers: false,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ),
-
-          const Spacer(flex: 2),
-
-          // 5. Teks Brand: VELORA putih tebal bersih persis Strava
-          Text(
-            'VELORA',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 4.5,
-              shadows: textShadows,
-            ),
-          ),
-
-          const Spacer(flex: 3),
-        ],
-      ),
+        );
+      },
     );
   }
 

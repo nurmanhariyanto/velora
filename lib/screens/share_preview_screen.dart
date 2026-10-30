@@ -143,25 +143,49 @@ class _SharePreviewScreenState extends State<SharePreviewScreen> {
 
       if (mounted) {
         if (success) {
+          final isTransparent = _currentStyle == ShareCardStyle.transparent;
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Row(
                 children: [
-                  const Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 20),
+                  const Icon(Icons.check_circle_rounded, color: AppColors.neonGreen, size: 22),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      _currentStyle == ShareCardStyle.transparent
-                          ? 'Stiker transparan berhasil disimpan ke Galeri (Pictures/Velora)!'
-                          : 'Kartu aktivitas berhasil disimpan ke Galeri (Pictures/Velora)!',
-                      style: const TextStyle(fontSize: 12.5),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isTransparent
+                              ? 'Stiker transparan berhasil disimpan!'
+                              : 'Kartu aktivitas berhasil disimpan!',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        if (isTransparent)
+                          const Text(
+                            'Buka IG Story -> pilih foto/video -> stiker -> tempel foto ini.',
+                            style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                          )
+                        else
+                          const Text(
+                            'Tersimpan di Galeri (Pictures/Velora).',
+                            style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                          ),
+                      ],
                     ),
                   ),
                 ],
               ),
               backgroundColor: AppColors.cardSurfaceElevated,
               behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 4),
+              duration: const Duration(seconds: 5),
+              action: isTransparent
+                  ? SnackBarAction(
+                      label: 'BUKA IG',
+                      textColor: AppColors.primaryOrange,
+                      onPressed: () => _shareImage(ShareDestination.instagramStory),
+                    )
+                  : null,
             ),
           );
         } else {
