@@ -25,7 +25,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   final HeartRateService _hrService = HeartRateService.instance;
   String _athleteName = UserProfileService.currentAthleteName;
-  String _appVersion = '1.1.2';
+  String _appVersion = '1.1.3';
   bool _isImporting = false;
 
   @override
@@ -445,6 +445,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showHeartRateSensorModal() {
     List<BluetoothDevice> pairedDevices = [];
     bool showUnnamed = false;
+    bool showAllPaired = false;
     bool hasFetchedPaired = false;
 
     showModalBottomSheet(
@@ -465,6 +466,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
               });
             }
 
+            // Pisahkan perangkat smartwatch/fitness vs perangkat bluetooth biasa (TWS, Car Audio, TV)
+            final watchPaired = <BluetoothDevice>[];
+            final otherPaired = <BluetoothDevice>[];
+
+            for (final d in pairedDevices) {
+              final name = d.platformName.trim().toLowerCase();
+              final isWatch = name.contains('watch') ||
+                  name.contains('haylou') ||
+                  name.contains('band') ||
+                  name.contains('garmin') ||
+                  name.contains('fit') ||
+                  name.contains('polar') ||
+                  name.contains('coros') ||
+                  name.contains('amazfit') ||
+                  name.contains('strap') ||
+                  name.contains('heart') ||
+                  name.contains('hr');
+              if (isWatch) {
+                watchPaired.add(d);
+              } else {
+                otherPaired.add(d);
+              }
+            }
+
+            final sortedPaired = [...watchPaired, ...otherPaired];
+            final displayedPaired = showAllPaired || sortedPaired.length <= 3
+                ? sortedPaired
+                : sortedPaired.take(3).toList();
+
             return Container(
               height: MediaQuery.of(modalCtx).size.height * 0.88,
               decoration: const BoxDecoration(
@@ -473,9 +503,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               child: Column(
                 children: [
-                  // Pinned Header
+                  // --- PINNED HEADER ---
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(20, 12, 12, 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -489,7 +519,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 12),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -530,68 +560,68 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         const Text(
                           'Pindai dan hubungkan smartwatch atau sensor dada (chest strap).',
                           style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Tombol Scan BLE Pinned Permanen (Tidak pernah tertutup atau terdorong scroll)
+                        StreamBuilder<bool>(
+                          stream: FlutterBluePlus.isScanning,
+                          initialData: false,
+                          builder: (btnCtx, scanSnap) {
+                            final isScanning = scanSnap.data ?? false;
+
+                            return SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isScanning ? Colors.grey.shade800 : AppColors.primaryOrange,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 13),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  elevation: 2,
+                                ),
+                                icon: isScanning
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      )
+                                    : const Icon(Icons.bluetooth_searching_rounded),
+                                label: Text(
+                                  isScanning ? 'Sedang Memindai... (Tekan untuk Berhenti)' : 'Pindai Sensor BLE Sekitar',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                ),
+                                onPressed: () async {
+                                  if (isScanning) {
+                                    await _hrService.stopScan();
+                                  } else {
+                                    final err = await _hrService.startScan();
+                                    if (err != null && mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(content: Text(err), backgroundColor: Colors.redAccent),
+                                      );
+                                    }
+                                  }
+                                  setModalState(() {});
+                                },
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
                   ),
                   const Divider(color: AppColors.borderSubtle, height: 1),
 
-                  // Scrollable Body
+                  // --- SCROLLABLE BODY ---
                   Expanded(
                     child: ListView(
                       padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       children: [
-                        // Status Adapter Bluetooth HP (Deteksi jika Bluetooth Mati)
-                        StreamBuilder<BluetoothAdapterState>(
-                          stream: FlutterBluePlus.adapterState,
-                          initialData: BluetoothAdapterState.unknown,
-                          builder: (context, adapterSnap) {
-                            final state = adapterSnap.data;
-                            if (state == BluetoothAdapterState.off) {
-                              return Container(
-                                margin: const EdgeInsets.only(bottom: 16),
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: Colors.redAccent.withAlpha(25),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: Colors.redAccent.withAlpha(120)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.bluetooth_disabled_rounded, color: Colors.redAccent, size: 22),
-                                    const SizedBox(width: 10),
-                                    const Expanded(
-                                      child: Text(
-                                        'Bluetooth HP Anda sedang nonaktif.',
-                                        style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                                      ),
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.redAccent,
-                                        foregroundColor: Colors.white,
-                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      onPressed: () async {
-                                        try {
-                                          await FlutterBluePlus.turnOn();
-                                        } catch (_) {}
-                                      },
-                                      child: const Text('Nyalakan', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            }
-                            return const SizedBox.shrink();
-                          },
-                        ),
-
                         // Status Terhubung Saat Ini
                         if (_hrService.isConnected) ...[
                           Container(
@@ -664,50 +694,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(height: 16),
                         ],
 
-                        // Tombol Scan BLE (Reactive terhadap status scanning)
-                        StreamBuilder<bool>(
-                          stream: FlutterBluePlus.isScanning,
-                          initialData: false,
-                          builder: (btnCtx, scanSnap) {
-                            final isScanning = scanSnap.data ?? false;
-
-                            return ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: isScanning ? Colors.grey.shade800 : AppColors.primaryOrange,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              icon: isScanning
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : const Icon(Icons.bluetooth_searching_rounded),
-                              label: Text(
-                                isScanning ? 'Sedang Memindai... (Tekan untuk Berhenti)' : 'Pindai Sensor BLE Sekitar',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              onPressed: () async {
-                                if (isScanning) {
-                                  await _hrService.stopScan();
-                                } else {
-                                  final err = await _hrService.startScan();
-                                  if (err != null && mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(err), backgroundColor: Colors.redAccent),
-                                    );
-                                  }
-                                }
-                                setModalState(() {});
-                              },
-                            );
-                          },
-                        ),
-
-                        const SizedBox(height: 14),
-
                         // Switch Mode Simulasi Demo
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -751,7 +737,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         const SizedBox(height: 18),
 
                         // 1. DAFTAR PERANGKAT YANG SUDAH TERPASANG / DI-BOND DI HP
-                        if (pairedDevices.isNotEmpty) ...[
+                        if (sortedPaired.isNotEmpty) ...[
                           Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
@@ -778,16 +764,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        '${pairedDevices.length}',
+                                        '${sortedPaired.length}',
                                         style: const TextStyle(color: AppColors.neonCyan, fontSize: 10, fontWeight: FontWeight.bold),
                                       ),
                                     ),
                                   ],
                                 ),
                                 const SizedBox(height: 10),
-                                ...pairedDevices.map((d) {
+                                ...displayedPaired.map((d) {
                                   final pName = d.platformName.trim().isNotEmpty ? d.platformName.trim() : 'Smartwatch (${d.remoteId.str})';
                                   final isConn = _hrService.connectedDeviceName == pName || _hrService.connectedDeviceName == d.remoteId.str;
+                                  final lower = pName.toLowerCase();
+                                  IconData devIcon = Icons.watch_rounded;
+                                  Color iconClr = AppColors.primaryOrange;
+                                  if (lower.contains('audio') || lower.contains('car') || lower.contains('buds') || lower.contains('bt') || lower.contains('head') || lower.contains('sound') || lower.contains('jbl') || lower.contains('rb') || lower.contains('tune')) {
+                                    devIcon = Icons.headphones_rounded;
+                                    iconClr = AppColors.neonCyan;
+                                  } else if (lower.contains('tv')) {
+                                    devIcon = Icons.tv_rounded;
+                                    iconClr = AppColors.electricAmber;
+                                  }
+
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 8),
                                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -801,10 +798,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                         Container(
                                           padding: const EdgeInsets.all(6),
                                           decoration: BoxDecoration(
-                                            color: AppColors.primaryOrange.withAlpha(25),
+                                            color: iconClr.withAlpha(25),
                                             borderRadius: BorderRadius.circular(8),
                                           ),
-                                          child: const Icon(Icons.watch_rounded, color: AppColors.primaryOrange, size: 20),
+                                          child: Icon(devIcon, color: iconClr, size: 20),
                                         ),
                                         const SizedBox(width: 10),
                                         Expanded(
@@ -847,6 +844,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                     ),
                                   );
                                 }),
+
+                                // Tombol ekspansi jika perangkat Bluetooth banyak
+                                if (sortedPaired.length > 3)
+                                  InkWell(
+                                    onTap: () => setModalState(() => showAllPaired = !showAllPaired),
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                      alignment: Alignment.center,
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            showAllPaired
+                                                ? 'Sembunyikan perangkat tambahan'
+                                                : 'Lihat ${sortedPaired.length - 3} perangkat terpasang lainnya',
+                                            style: const TextStyle(color: AppColors.neonCyan, fontSize: 11, fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          Icon(
+                                            showAllPaired ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                                            size: 16,
+                                            color: AppColors.neonCyan,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -956,7 +982,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                               ),
                                               SizedBox(height: 6),
                                               Text(
-                                                '1. Pastikan jam tangan / sensor dalam keadaan aktif.\n2. Tekan tombol "Pindai Sensor BLE Sekitar" di atas.\n3. Perangkat di sekitar Anda akan langsung muncul di daftar ini.',
+                                                '1. Pastikan jam tangan / sensor dalam keadaan aktif.\\n2. Tekan tombol "Pindai Sensor BLE Sekitar" di atas.\\n3. Perangkat di sekitar Anda akan langsung muncul di daftar ini.',
                                                 textAlign: TextAlign.center,
                                                 style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.4),
                                               ),
@@ -1104,15 +1130,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                                 child: Row(
                                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                                   children: [
-                                                    Text(
-                                                      showUnnamed
-                                                          ? 'Sembunyikan ${unnamedDevices.length} Perangkat Anonim'
-                                                          : 'Lihat ${unnamedDevices.length} Perangkat Tanpa Nama Lainnya',
-                                                      style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
+                                                    Row(
+                                                      children: [
+                                                        const Icon(Icons.devices_other_rounded, size: 16, color: AppColors.textMuted),
+                                                        const SizedBox(width: 8),
+                                                        Text(
+                                                          '${unnamedDevices.length} Perangkat Anonim / Tanpa Nama',
+                                                          style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                                                        ),
+                                                      ],
                                                     ),
                                                     Icon(
-                                                      showUnnamed ? Icons.expand_less : Icons.expand_more,
-                                                      size: 16,
+                                                      showUnnamed ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                                                      size: 18,
                                                       color: AppColors.textMuted,
                                                     ),
                                                   ],
@@ -1121,15 +1151,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                             ),
                                             if (showUnnamed) ...[
                                               const SizedBox(height: 8),
-                                              ListView.separated(
+                                              ListView.builder(
                                                 shrinkWrap: true,
                                                 physics: const NeverScrollableScrollPhysics(),
                                                 itemCount: unnamedDevices.length,
-                                                separatorBuilder: (_, _) => const SizedBox(height: 6),
-                                                itemBuilder: (itemCtx, index) {
-                                                  final item = unnamedDevices[index];
-                                                  final fallbackName = 'Perangkat BLE (${item.device.remoteId.str.substring(0, 5)}...)';
+                                                itemBuilder: (unnamedCtx, uIdx) {
+                                                  final item = unnamedDevices[uIdx];
+                                                  final fallbackName = 'BLE Device (${item.device.remoteId.str.substring(0, 5)}...)';
                                                   return Container(
+                                                    margin: const EdgeInsets.only(bottom: 6),
                                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                                     decoration: BoxDecoration(
                                                       color: AppColors.darkBackground,

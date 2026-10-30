@@ -2,6 +2,22 @@
 
 Semua perubahan dan riwayat rilis pada aplikasi **Velora** dicatat dalam dokumen ini.
 
+## [v1.1.3] - 2026-10-31
+
+### 🛠️ Perbaikan Kotak Abu-Abu (RenderErrorBox) & Optimalisasi Tata Letak Modal Sensor BLE
+
+#### 🛡️ 1. Eliminasi Total Kotak Abu-Abu (`RenderErrorBox`) & Layar Blank saat Overscroll
+- **Akar Masalah Video `bug.mp4` Teratasi:** Menghapus `StreamBuilder<BluetoothAdapterState>` dari dalam ListView yang memicu race condition pada platform channel Android (`getAdapterState`) dan menghasilkan `RenderErrorBox` abu-abu (`Color(0xF0C0C0C0)`).
+- **Anti-Crash Overscroll:** Mencegah menularnya error layout sliver ke level `RenderViewport`, sehingga gestur tarikan scroll (overscroll / pull down) tidak lagi menyebabkan layar berubah menjadi abu-abu raksasa.
+
+#### 📌 2. Tombol Pindai BLE Permanen (*Pinned Action Bar*)
+- Tombol **"Pindai Sensor BLE Sekitar"** dipindahkan ke area header atas permanen (*pinned*).
+- Tombol tidak akan pernah tertutup, terpotong, atau tenggelam ke bawah saat pengguna men-scroll daftar perangkat Bluetooth panjang.
+
+#### 🎯 3. Kategorisasi Cerdas Perangkat Bluetooth (*Smartwatch vs Audio/TV*)
+- Smartwatch & fitness tracker (Haylou, Garmin, Amazfit, Band, dsb.) secara otomatis diprioritaskan di baris teratas dengan ikon jam tangan.
+- Perangkat audio, TWS, car audio, dan Smart TV dikelompokkan dengan rapi serta disediakan tombol lipat (*accordion*) jika melebihi 3 perangkat agar panel pencarian BLE sekitar tetap mudah diakses.
+
 ## [v1.1.2] - 2026-10-31
 
 ### 🛠️ Perbaikan Modal Sensor BLE & Deteksi Nama Smartwatch
